@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Package
+        run: |
+          zip -r SuspicionsPack-${{ steps.version.outputs.VERSION }}.zip \
+            SuspicionsPack/ \
+            SuspicionsPackNudgeTool/ \
+            SuspicionsPackClassIcons/
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "SuspicionsPack ${{ steps.version.outputs.VERSION }}"
+          generate_release_notes: true
+          files: SuspicionsPack-${{ steps.version.outputs.VERSION }}.zip
