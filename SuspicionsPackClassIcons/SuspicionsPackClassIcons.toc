@@ -1,0 +1,11 @@
+## Interface: 120001
+## Title: |cffe51039Suspicion|r|cffffffffPack|r — Class Icons
+## Notes: Custom class icon packs for Details! (SuspicionsPack plugin)
+## Author: Cruzz
+## Version: 1.2.0
+## Category: |cffe51039Cruzz|r |cffffffffAddons|r
+## Dependencies: SuspicionsPack
+## IconTexture: Interface\AddOns\SuspicionsPack\icon.png
+
+# Plugin entry point
+ClassIcons.lua

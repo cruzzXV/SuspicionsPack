@@ -1,0 +1,60 @@
+## Interface: 120001
+## Title: |cffe51039Suspicion|r|cffffffffPack|r
+## Notes: Collection of QoL features
+## Author: Cruzz
+## Version: 1.4.0
+## Category: |cffe51039Cruzz|r |cffffffffAddons|r
+## SavedVariables: SuspicionsPackDB
+## IconTexture: Interface\AddOns\SuspicionsPack\Media\Icons\icon.png
+
+# Libraries — load order matters: LibStub first, then CallbackHandler, then LSM, then Ace3
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibSharedMedia-3.0\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
+Libs\Ace3\AceAddon-3.0\AceAddon-3.0.lua
+Libs\Ace3\AceEvent-3.0\AceEvent-3.0.lua
+Libs\Ace3\AceDB-3.0\AceDB-3.0.lua
+Libs\Ace3\AceConsole-3.0\AceConsole-3.0.lua
+Libs\Ace3\AceSerializer-3.0\AceSerializer-3.0.lua
+Libs\LibDeflate\LibDeflate.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+
+# Core — creates the AceAddon object; must load before any module
+Core.lua
+
+# Modules — each calls SP:NewModule() so they must load after Core.lua
+Modules\Drawer\Drawer.lua
+Modules\Cursor\Cursor.lua
+Modules\CopyTooltip\CopyTooltip.lua
+Modules\FastLoot\FastLoot.lua
+Modules\CVars\CVars.lua
+Modules\Automation\Automation.lua
+Modules\CombatTimer\CombatTimer.lua
+Modules\BloodlustAlert\BloodlustAlert.lua
+Modules\AutoInvite\AutoInvite.lua
+Modules\TankMD\TankMD.lua
+Modules\FocusTargetMarker\FocusTargetMarker.lua
+Modules\MeterReset\MeterReset.lua
+Modules\CombatLog\CombatLog.lua
+Modules\DeathAlert\DeathAlert.lua
+Modules\CraftShopper\CraftShopper.lua
+Modules\WhisperAlert\WhisperAlert.lua
+Modules\SilvermoonMapIcon\SilvermoonMapIcon.lua
+Modules\GroupJoinedReminder\GroupJoinedReminder.lua
+Modules\AutoPlaystyle\AutoPlaystyle.lua
+Modules\Performance\Performance.lua
+Modules\EnhancedObjectiveText\EnhancedObjectiveText.lua
+Modules\CleanObjectiveTrackerHeader\CleanObjectiveTrackerHeader.lua
+Modules\GatewayAlert\GatewayAlert.lua
+Modules\Recuperate\Recuperate.lua
+Modules\CombatCross\CombatCross.lua
+Modules\Durability\Durability.lua
+Modules\AutoBuy\AutoBuy.lua
+Modules\SpellEffectAlpha\SpellEffectAlpha.lua
+
+# Minimap Button module
+Core\MinimapButton.lua
+
+# GUI
+GUI\GUI.lua

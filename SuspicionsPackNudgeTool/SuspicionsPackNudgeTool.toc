@@ -1,0 +1,14 @@
+## Interface: 120001
+## Title: |cffe51039Suspicion|r|cffffffffPack|r — Nudge Tool
+## Notes: Pixel-nudge tool for Blizzard's Edit Mode (SuspicionsPack plugin)
+## Author: Cruzz
+## Version: 1.2.0
+## Category: |cffe51039Cruzz|r |cffffffffAddons|r
+## Dependencies: SuspicionsPack
+## IconTexture: Interface\AddOns\SuspicionsPack\icon.png
+
+# Library — LibStub already registered by SuspicionsPack; this loads silently if already present
+Libs\LibEditModeOverride\LibEditModeOverride.lua
+
+# Plugin entry point
+NudgeTool.lua
