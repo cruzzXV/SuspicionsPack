@@ -362,6 +362,7 @@ local DEFAULTS = {
         minimapButton  = { hide = false },
         copyTooltip    = { enabled = false, modifier = "ctrl", key = "C" },
         fastLoot       = { enabled = false },
+        filterExpansionOnly = { enabled = false },
         cvars          = {},   -- individual CVar values are synced from game on login
         combatTimer = {
             enabled           = false,
@@ -410,6 +411,8 @@ local DEFAULTS = {
             clickTexture     = "Thin",
             clickColorSource = "theme",       -- "theme" | "class" | "custom"
             clickColor       = { 1.0, 1.0, 1.0 },
+            limitUpdateRate  = false,
+            updateInterval   = 0.02,          -- seconds between updates (0.02 s = 50 fps)
         },
         automation = {
             enabled          = false,
@@ -494,6 +497,33 @@ local DEFAULTS = {
         groupJoinedReminder = {
             enabled = false,
         },
+        movementAlert = {
+            enabled          = false,
+            anchorFrom       = "CENTER",
+            anchorTo         = "CENTER",
+            anchorFrame      = "UIParent",
+            x                = 0,
+            y                = 300,
+            frameStrata      = "MEDIUM",
+            frameLevel       = 50,
+            fontFace         = "Expressway",
+            fontSize         = 14,
+            outline          = "OUTLINE",
+            justify          = "CENTER",
+            color            = { 1, 1, 1, 1 },
+            shadowX          = 1,
+            shadowY          = -1,
+            shadowAlpha      = 1,
+            precision        = 0,
+            updateInterval   = 0.1,
+            showTimeSpiral   = true,
+            timeSpiralText   = "Free Movement",
+            timeSpiralColor  = { 0.451, 0.741, 0.522, 1 },
+            timeSpiralPlaySound = false,
+            timeSpiralSound  = nil,
+            disabledSpells   = {},   -- [spellId] = true to skip that spell
+            spellOverrides   = {},   -- [spellId] = { enabled, customText } for user-added spells
+        },
         autoPlaystyle = {
             enabled   = false,
             playstyle = 3,  -- 1=Learning 2=Relaxed 3=Competitive 4=Carry Offered
@@ -518,19 +548,6 @@ local DEFAULTS = {
             anchorFrom  = "CENTER",
             anchorTo    = "CENTER",
             anchorFrame = "UIParent",
-        },
-        recuperate = {
-            enabled     = false,
-            size        = 40,
-            x           = 0,
-            y           = 0,
-            anchorFrom  = "CENTER",
-            anchorTo    = "CENTER",
-            anchorFrame = "UIParent",
-            frameStrata = "HIGH",
-            glowType    = "pixel",
-            glowColor   = { 0, 1, 0.2, 1 },   -- green
-            glowSize    = 2,
         },
         durability = {
             enabled     = false,

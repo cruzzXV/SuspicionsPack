@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r
 ## Notes: Collection of QoL features
 ## Author: Cruzz
-## Version: 1.4.0
+## Version: 1.5.0
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## SavedVariables: SuspicionsPackDB
 ## IconTexture: Interface\AddOns\SuspicionsPack\Media\Icons\icon.png
@@ -28,6 +28,7 @@ Modules\Drawer\Drawer.lua
 Modules\Cursor\Cursor.lua
 Modules\CopyTooltip\CopyTooltip.lua
 Modules\FastLoot\FastLoot.lua
+Modules\FilterExpansionOnly\FilterExpansionOnly.lua
 Modules\CVars\CVars.lua
 Modules\Automation\Automation.lua
 Modules\CombatTimer\CombatTimer.lua
@@ -42,12 +43,12 @@ Modules\CraftShopper\CraftShopper.lua
 Modules\WhisperAlert\WhisperAlert.lua
 Modules\SilvermoonMapIcon\SilvermoonMapIcon.lua
 Modules\GroupJoinedReminder\GroupJoinedReminder.lua
+Modules\MovementAlert\MovementAlert.lua
 Modules\AutoPlaystyle\AutoPlaystyle.lua
 Modules\Performance\Performance.lua
 Modules\EnhancedObjectiveText\EnhancedObjectiveText.lua
 Modules\CleanObjectiveTrackerHeader\CleanObjectiveTrackerHeader.lua
 Modules\GatewayAlert\GatewayAlert.lua
-Modules\Recuperate\Recuperate.lua
 Modules\CombatCross\CombatCross.lua
 Modules\Durability\Durability.lua
 Modules\AutoBuy\AutoBuy.lua

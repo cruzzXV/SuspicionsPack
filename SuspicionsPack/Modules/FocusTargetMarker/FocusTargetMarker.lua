@@ -8,9 +8,10 @@ SP.FocusTargetMarker = FTM
 local MACRO_NAME = "FocusTargetMarker"
 local MACRO_ICON = 132219
 
+-- WoW chat icon syntax: {rt1}–{rt8} renders the actual marker icon in chat
 local MARKER_TEXT = {
-    [1] = "Star", [2] = "Circle", [3] = "Diamond", [4] = "Triangle",
-    [5] = "Moon",  [6] = "Square", [7] = "Cross",   [8] = "Skull",
+    [1] = "{rt1}", [2] = "{rt2}", [3] = "{rt3}", [4] = "{rt4}",
+    [5] = "{rt5}", [6] = "{rt6}", [7] = "{rt7}", [8] = "{rt8}",
 }
 
 local function GetDB()
@@ -38,13 +39,11 @@ local function MaybeAnnounce(markerIndex)
     if not db or not db.announce then return end
     local inInstance, instanceType = IsInInstance()
     if not inInstance or instanceType ~= "party" or InCombatLockdown() then return end
-    C_ChatInfo.SendChatMessage(("My kick marker is {%s}"):format(MARKER_TEXT[markerIndex] or "?"), "PARTY")
+    C_ChatInfo.SendChatMessage("My kick marker is " .. (MARKER_TEXT[markerIndex] or "?"), "PARTY")
 end
 
 function FTM:OnEnable()
-    self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnWorldEnter")
-    self:RegisterEvent("READY_CHECK",           "OnReadyCheck")
-    WriteMacro(GetDB().marker or 5)
+    self:Refresh()
 end
 
 function FTM:OnDisable()
@@ -68,9 +67,12 @@ end
 
 function FTM:Activate()
     if not self:IsEnabled() then self:Enable() end
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnWorldEnter")
+    self:RegisterEvent("READY_CHECK",           "OnReadyCheck")
     WriteMacro(GetDB().marker or 5)
 end
 
 function FTM:Deactivate()
+    self:UnregisterAllEvents()
     self:Disable()
 end

@@ -12,25 +12,25 @@ SP.AutoBuy = AutoBuy
 -- ============================================================
 AutoBuy.PresetItems = {
     -- ── Flasks ──────────────────────────────────────────────────────────
-    { id = 241322, q2 = 241323, buy = 10, cat = "flask",        name = "Flask of the Magisters" },
-    { id = 241324, q2 = 241325, buy = 10, cat = "flask",        name = "Flask of the Blood Knights" },
-    { id = 241326, q2 = 241327, buy = 10, cat = "flask",        name = "Flask of the Shattered Sun" },
-    { id = 241320, q2 = 241321, buy = 10, cat = "flask",        name = "Flask of Thalassian Resistance" },
+    { id = 241323, q2 = 241322, buy = 10, cat = "flask",        name = "Flask of the Magisters" },
+    { id = 241325, q2 = 241324, buy = 10, cat = "flask",        name = "Flask of the Blood Knights" },
+    { id = 241327, q2 = 241326, buy = 10, cat = "flask",        name = "Flask of the Shattered Sun" },
+    { id = 241321, q2 = 241320, buy = 10, cat = "flask",        name = "Flask of Thalassian Resistance" },
 
     -- ── Health/Mana Potions ──────────────────────────────────────────────
-    { id = 241304, q2 = 241305, buy = 20, cat = "healthpotion", name = "Silvermoon Health Potion" },
-    { id = 241300, q2 = 241301, buy = 20, cat = "healthpotion", name = "Lightfused Mana Potion" },
-    { id = 241298, q2 = 241299, buy = 10, cat = "healthpotion", name = "Amani Extract" },
-    { id = 241286, q2 = 241287, buy = 10, cat = "healthpotion", name = "Light's Preservation" },
+    { id = 241305, q2 = 241304, buy = 20, cat = "healthpotion", name = "Silvermoon Health Potion" },
+    { id = 241301, q2 = 241300, buy = 20, cat = "healthpotion", name = "Lightfused Mana Potion" },
+    { id = 241299, q2 = 241298, buy = 10, cat = "healthpotion", name = "Amani Extract" },
+    { id = 241287, q2 = 241286, buy = 10, cat = "healthpotion", name = "Light's Preservation" },
 
     -- ── Combat Potions ───────────────────────────────────────────────────
-    { id = 241308, q2 = 241309, buy = 10, cat = "combatpotion", name = "Light's Potential" },
-    { id = 241302, q2 = 241303, buy = 10, cat = "combatpotion", name = "Void-Shrouded Tincture" },
-    { id = 241288, q2 = 241289, buy = 10, cat = "combatpotion", name = "Potion of Recklessness" },
-    { id = 241292, q2 = 241293, buy = 10, cat = "combatpotion", name = "Draught of Rampant Abandon" },
-    { id = 241294, q2 = 241295, buy = 10, cat = "combatpotion", name = "Potion of Devoured Dreams" },
-    { id = 241296, q2 = 241297, buy = 10, cat = "combatpotion", name = "Potion of Zealotry" },
-    { id = 241338, q2 = 241339, buy = 10, cat = "combatpotion", name = "Enlightenment Tonic" },
+    { id = 241309, q2 = 241308, buy = 10, cat = "combatpotion", name = "Light's Potential" },
+    { id = 241303, q2 = 241302, buy = 10, cat = "combatpotion", name = "Void-Shrouded Tincture" },
+    { id = 241289, q2 = 241288, buy = 10, cat = "combatpotion", name = "Potion of Recklessness" },
+    { id = 241293, q2 = 241292, buy = 10, cat = "combatpotion", name = "Draught of Rampant Abandon" },
+    { id = 241295, q2 = 241294, buy = 10, cat = "combatpotion", name = "Potion of Devoured Dreams" },
+    { id = 241297, q2 = 241296, buy = 10, cat = "combatpotion", name = "Potion of Zealotry" },
+    { id = 241339, q2 = 241338, buy = 10, cat = "combatpotion", name = "Enlightenment Tonic" },
 
     -- ── Augment Runes ────────────────────────────────────────────────────
     { id = 259085,              buy = 20, cat = "rune",         name = "Void-Touched Augment Rune" },
