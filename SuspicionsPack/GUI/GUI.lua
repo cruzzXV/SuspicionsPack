@@ -383,20 +383,31 @@ GUI.SidebarConfig = {
         type = "section", id = "combat", text = "COMBAT",
         defaultExpanded = true,
         items = {
-            { id = "tankmd",            text = "Auto Misdirection"   },
-            { id = "focustargetmarker", text = "Focus Target Marker"  },
-            { id = "bloodlustalert",    text = "Bloodlust Alert"      },
-            { id = "combattimer",    text = "Combat Timer"       },
-            { id = "deathalert",     text = "Death Alert"        },
-            { id = "autoplaystyle",  text = "M+ Auto Playstyle"  },
-            { id = "spelleffectalpha", text = "Spell Effect Alpha" },
+            { id = "tankmd",          text = "Auto Misdirection"  },
+            { id = "bloodlustalert",  text = "Bloodlust Alert"    },
             { id = "combatcross",     text = "Combat Cross"       },
+            { id = "combattimer",     text = "Combat Timer"       },
+            { id = "cursor",          text = "Cursor Circle"      },
+            { id = "deathalert",      text = "Death Alert"        },
+            { id = "gatewayalert",    text = "Gateway Alert"      },
+            { id = "movementalert",   text = "Movement Alert"     },
+            { id = "spelleffectalpha", text = "Spell Effect Alpha" },
+        },
+    },
+    {
+        type = "section", id = "mythicplus", text = "MYTHIC PLUS",
+        defaultExpanded = true,
+        items = {
+            { id = "focustargetmarker", text = "Focus Target Marker"  },
+            { id = "groupjoinedreminder", text = "Group Joined Reminder" },
+            { id = "autoplaystyle",     text = "M+ Auto Playstyle"    },
         },
     },
     {
         type = "section", id = "items", text = "ITEMS",
         defaultExpanded = true,
         items = {
+            { id = "filterexpansiononly", text = "Filter Expansion Only" },
             { id = "autobuy",      text = "Auto Buy"       },
             { id = "craftshopper", text = "CraftShopper"   },
             { id = "fastloot",     text = "Fast Loot"      },
@@ -407,19 +418,17 @@ GUI.SidebarConfig = {
         type = "section", id = "social", text = "SOCIAL",
         defaultExpanded = true,
         items = {
-            { id = "gatewayalert",        text = "Gateway Alert"         },
-            { id = "invitationgroupe",    text = "Group Invitations"     },
-            { id = "groupjoinedreminder", text = "Group Joined Reminder" },
-            { id = "whisperalert",        text = "Whisper Alert"         },
+            { id = "invitationgroupe", text = "Group Invitations" },
+            { id = "whisperalert",     text = "Whisper Alert"     },
         },
     },
     {
         type = "section", id = "automation", text = "AUTOMATION",
         defaultExpanded = true,
         items = {
-            { id = "automation", text = "Automation"       },
-            { id = "combatlog",  text = "Auto Combat Log"  },
-            { id = "meterreset", text = "Meter Reset"      },
+            { id = "combatlog",  text = "Auto Combat Log" },
+            { id = "automation", text = "Automation"      },
+            { id = "meterreset", text = "Meter Reset"     },
         },
     },
     {
@@ -428,12 +437,10 @@ GUI.SidebarConfig = {
         items = {
             { id = "cleanobjectivetrackerheader", text = "Clean Objective Header"  },
             { id = "copytooltip",                 text = "Copy Anything"           },
-            { id = "cursor",                      text = "Cursor Circle"           },
             { id = "enhancedobjectivetext",       text = "Enhanced Objective Text" },
             { id = "drawer",                      text = "Minimap Drawer"          },
             { id = "editmode",                    text = "Nudge Tool"              },
             { id = "performance",                 text = "Performance"             },
-            { id = "recuperate",                  text = "Recuperate Button"       },
             { id = "silvermoonmapicon",            text = "Silvermoon Map Icons"    },
         },
     },
@@ -2085,6 +2092,7 @@ function GUI:CreateCard(parent, title, yOffset)
     card.content  = content
     card.currentY = 0
     card.rows     = {}
+    card.labels   = {}  -- FontStrings added via AddLabel, for GrayContent
 
     function card:AddRow(widget, height, spacing)
         height  = height  or widget:GetHeight() or 24
@@ -2113,6 +2121,7 @@ function GUI:CreateCard(parent, title, yOffset)
         self.currentY = self.currentY + h + T.paddingSmall
         self.content:SetHeight(self.currentY)
         self:_UpdateHeight()
+        table_insert(self.labels, lbl)
         return lbl
     end
 
@@ -2138,6 +2147,22 @@ function GUI:CreateCard(parent, title, yOffset)
         self.currentY = self.currentY + 1 + sp * 2
         self.content:SetHeight(self.currentY)
         self:_UpdateHeight()
+    end
+
+    -- Gray (or restore) all content in this card, optionally skipping one row.
+    -- Rows call their own SetEnabled if they have it; labels alpha-fade.
+    -- Use this whenever a card has an enable toggle as its first row:
+    --   card:GrayContent(db.enabled, enableRow)
+    function card:GrayContent(en, skipRow)
+        for _, row in ipairs(self.rows) do
+            if row ~= skipRow then
+                if row.SetEnabled then row:SetEnabled(en)
+                else row:SetAlpha(en and 1 or 0.4) end
+            end
+        end
+        for _, lbl in ipairs(self.labels) do
+            lbl:SetAlpha(en and 1 or 0.4)
+        end
     end
 
     function card:AddSpacing(amount)
@@ -2229,15 +2254,16 @@ local function ItemEnabledState(id)
     elseif id == "craftshopper"        then return db.craftShopper        and db.craftShopper.enabled        or false
     elseif id == "silvermoonmapicon"   then return db.silvermoonMapIcon   and db.silvermoonMapIcon.enabled   or false
     elseif id == "gatewayalert"        then return db.gatewayAlert         and db.gatewayAlert.enabled         or false
-    elseif id == "recuperate"          then return db.recuperate           and db.recuperate.enabled           or false
     elseif id == "durability"          then return db.durability           and db.durability.enabled           or false
     elseif id == "performance"         then return db.performance          and db.performance.enabled          or false
     elseif id == "enhancedobjectivetext"      then return db.enhancedObjectiveText      and db.enhancedObjectiveText.enabled      or false
     elseif id == "cleanobjectivetrackerheader" then return db.cleanObjectiveTrackerHeader and db.cleanObjectiveTrackerHeader.enabled or false
     elseif id == "whisperalert"      then return db.whisperAlert and db.whisperAlert.enabled or false
+    elseif id == "filterexpansiononly" then return db.filterExpansionOnly and db.filterExpansionOnly.enabled or false
     elseif id == "autobuy"           then local cdb = SP.GetCharDB(); return cdb.autoBuy and cdb.autoBuy.enabled or false
     elseif id == "spelleffectalpha"  then return db.spellEffectAlpha  and db.spellEffectAlpha.enabled  or false
     elseif id == "combatcross"       then return db.combatCross       and db.combatCross.enabled       or false
+    elseif id == "movementalert"     then return db.movementAlert     and db.movementAlert.enabled     or false
     elseif id == "editmode"          then return true
     end
     return false
@@ -2324,73 +2350,99 @@ function GUI:RefreshSidebar()
     end
     for _, item in ipairs(sidebarPool) do item.inUse = false; item:Hide(); item:ClearAllPoints() end
 
+    -- Search filter
+    local query       = self.searchQuery and self.searchQuery ~= "" and self.searchQuery:lower() or nil
+    local firstMatch  = nil  -- first matching item id, for Enter-to-navigate
+
     local yOff = T.paddingSmall
     for _, section in ipairs(self.SidebarConfig) do
         if section.type == "section" then
-            local isExpanded = expanded[section.id]
-            local hdr = GetSectionHeader()
-            hdr:SetParent(sc)
-            hdr:SetPoint("TOPLEFT",  sc, "TOPLEFT",  T.paddingSmall, -yOff)
-            hdr:SetPoint("TOPRIGHT", sc, "TOPRIGHT", -T.paddingSmall, -yOff)
-            hdr.sectionId = section.id
-            hdr.label:SetText(section.text or "")
-            -- Animate sidebar arrow: expanded = ▼ (0), collapsed = ◄ (-pi/2)
-            local targetRot  = isExpanded and 0 or (-math.pi / 2)
-            local currentRot = sectionArrowRot[section.id]
-            if currentRot == nil then
-                -- First draw — snap immediately, no animation
-                hdr.arrow:SetRotation(targetRot)
-                sectionArrowRot[section.id] = targetRot
-            elseif math.abs(currentRot - targetRot) < 0.01 then
-                hdr.arrow:SetRotation(targetRot)
-            else
-                local startRot  = currentRot
-                local startTime = GetTime()
-                local ANIM_DUR  = 0.15
-                local sid       = section.id
-                hdr._arrowTicker = C_Timer.NewTicker(0.016, function()
-                    local p = math.min((GetTime() - startTime) / ANIM_DUR, 1)
-                    p = 1 - (1-p)*(1-p)  -- ease-out
-                    local rot = startRot + (targetRot - startRot) * p
-                    hdr.arrow:SetRotation(rot)
-                    sectionArrowRot[sid] = rot
-                    if p >= 1 then
-                        hdr.arrow:SetRotation(targetRot)
-                        sectionArrowRot[sid] = targetRot
-                        hdr._arrowTicker:Cancel(); hdr._arrowTicker = nil
-                    end
-                end)
-            end
-            yOff = yOff + SECTION_H
+            local sectionItems = section.items or {}
 
-            if isExpanded then
-                for _, cfg in ipairs(section.items or {}) do
-                    local it = GetSidebarItem()
-                    it:SetParent(sc)
-                    it:SetPoint("TOPLEFT",  sc, "TOPLEFT",  T.paddingSmall, -yOff)
-                    it:SetPoint("TOPRIGHT", sc, "TOPRIGHT", -T.paddingSmall, -yOff)
-                    it.id = cfg.id
-                    it.label:SetText(cfg.text or "")
-                    if cfg.id == selectedItem then
-                        it.selOv:Show(); it.selBar:Show()
-                        it.label:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-                    else
-                        it.selOv:Hide(); it.selBar:Hide()
-                        it.label:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+            -- When filtering, pre-check if this section has any matching items
+            local sectionVisible = true
+            if query then
+                sectionVisible = false
+                for _, cfg in ipairs(sectionItems) do
+                    if (cfg.text or ""):lower():find(query, 1, true) then
+                        sectionVisible = true; break
                     end
-                    -- Accent dot when module is enabled (color refreshed each draw so theme changes apply)
-                    if ItemEnabledState(cfg.id) then
-                        it.checkmark:SetColorTexture(T.accent[1], T.accent[2], T.accent[3], 1)
-                        it.checkmark:Show()
-                    else
-                        it.checkmark:Hide()
-                    end
-                    yOff = yOff + ITEM_H + 2
                 end
             end
-            yOff = yOff + 2
+
+            if sectionVisible then
+                local isExpanded = query and true or expanded[section.id]
+                local hdr = GetSectionHeader()
+                hdr:SetParent(sc)
+                hdr:SetPoint("TOPLEFT",  sc, "TOPLEFT",  T.paddingSmall, -yOff)
+                hdr:SetPoint("TOPRIGHT", sc, "TOPRIGHT", -T.paddingSmall, -yOff)
+                hdr.sectionId = section.id
+                hdr.label:SetText(section.text or "")
+                -- Animate sidebar arrow: expanded = ▼ (0), collapsed = ◄ (-pi/2)
+                local targetRot  = isExpanded and 0 or (-math.pi / 2)
+                local currentRot = sectionArrowRot[section.id]
+                if currentRot == nil then
+                    hdr.arrow:SetRotation(targetRot)
+                    sectionArrowRot[section.id] = targetRot
+                elseif math.abs(currentRot - targetRot) < 0.01 then
+                    hdr.arrow:SetRotation(targetRot)
+                else
+                    local startRot  = currentRot
+                    local startTime = GetTime()
+                    local ANIM_DUR  = 0.15
+                    local sid       = section.id
+                    hdr._arrowTicker = C_Timer.NewTicker(0.016, function()
+                        local p = math.min((GetTime() - startTime) / ANIM_DUR, 1)
+                        p = 1 - (1-p)*(1-p)
+                        local rot = startRot + (targetRot - startRot) * p
+                        hdr.arrow:SetRotation(rot)
+                        sectionArrowRot[sid] = rot
+                        if p >= 1 then
+                            hdr.arrow:SetRotation(targetRot)
+                            sectionArrowRot[sid] = targetRot
+                            hdr._arrowTicker:Cancel(); hdr._arrowTicker = nil
+                        end
+                    end)
+                end
+                yOff = yOff + SECTION_H
+
+                if isExpanded then
+                    for _, cfg in ipairs(sectionItems) do
+                        local itemVisible = not query or (cfg.text or ""):lower():find(query, 1, true)
+                        if itemVisible then
+                            if not firstMatch then firstMatch = cfg.id end
+
+                            local it = GetSidebarItem()
+                            it:SetParent(sc)
+                            it:SetPoint("TOPLEFT",  sc, "TOPLEFT",  T.paddingSmall, -yOff)
+                            it:SetPoint("TOPRIGHT", sc, "TOPRIGHT", -T.paddingSmall, -yOff)
+                            it.id = cfg.id
+                            it.label:SetText(cfg.text or "")
+                            if cfg.id == selectedItem then
+                                it.selOv:Show(); it.selBar:Show()
+                                it.label:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+                            else
+                                it.selOv:Hide(); it.selBar:Hide()
+                                it.label:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+                            end
+                            if ItemEnabledState(cfg.id) then
+                                it.checkmark:SetColorTexture(T.accent[1], T.accent[2], T.accent[3], 1)
+                                it.checkmark:Show()
+                            else
+                                it.checkmark:Hide()
+                            end
+                            yOff = yOff + ITEM_H + 2
+                        end
+                    end
+                end
+                yOff = yOff + 2
+            end
         end
     end
+
+    -- Store first match so Enter can navigate to it
+    self._searchFirstMatch = firstMatch
+
     sc:SetHeight(yOff + T.paddingSmall)
 end
 
@@ -2588,6 +2640,116 @@ function GUI:BuildMainFrame()
         closeTex:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1) end)
     closeBtn:SetScript("OnClick", function() GUI.Hide() end)
 
+    -- ── Search bar (header, left of close button) ─────────────
+    local SEARCH_W       = 180
+    local SEARCH_H       = 22
+    local SEARCH_PLACEHOLDER = "Search..."
+    GUI.searchQuery = ""
+
+    local searchWrap = CreateFrame("Frame", nil, header, "BackdropTemplate")
+    searchWrap:SetSize(SEARCH_W, SEARCH_H)
+    searchWrap:SetPoint("RIGHT", closeBtn, "LEFT", -8, 0)
+    searchWrap:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+    searchWrap:SetBackdropColor(T.bgDark[1], T.bgDark[2], T.bgDark[3], 1)
+    searchWrap:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+
+    -- Search icon (🔍 via WoW texture atlas)
+    local searchIcon = searchWrap:CreateTexture(nil, "ARTWORK")
+    searchIcon:SetSize(12, 12)
+    searchIcon:SetPoint("LEFT", searchWrap, "LEFT", 6, 0)
+    searchIcon:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
+    searchIcon:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.7)
+
+    local searchBox = CreateFrame("EditBox", nil, searchWrap)
+    searchBox:SetPoint("LEFT",  searchWrap, "LEFT",  22, 0)
+    searchBox:SetPoint("RIGHT", searchWrap, "RIGHT", -6, 0)
+    searchBox:SetHeight(SEARCH_H)
+    searchBox:SetAutoFocus(false)
+    searchBox:SetMaxLetters(64)
+    ApplyFont(searchBox, 11)
+    searchBox:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+    searchBox:SetText(SEARCH_PLACEHOLDER)
+    searchBox:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.5)
+
+    -- Track focus so hover-leave doesn't dim the border while typing
+    local searchFocused = false
+
+    -- Stop header dragging when clicking the search box
+    searchWrap:EnableMouse(true)
+    searchWrap:SetScript("OnMouseDown", function() searchBox:SetFocus() end)
+
+    -- Hover — same AnimateBorderFocus animation as every other button/input.
+    -- The EditBox child captures mouse events, so we must hook both the wrapper
+    -- AND the searchBox; otherwise OnEnter only fires over the loupe icon.
+    local function OnSearchHoverEnter()
+        AnimateBorderFocus(searchWrap, true)
+        searchIcon:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 0.9)
+    end
+    local function OnSearchHoverLeave()
+        if not searchFocused then
+            AnimateBorderFocus(searchWrap, false)
+            searchIcon:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.7)
+        end
+    end
+    searchWrap:SetScript("OnEnter", OnSearchHoverEnter)
+    searchWrap:SetScript("OnLeave", OnSearchHoverLeave)
+    searchBox:SetScript("OnEnter", OnSearchHoverEnter)
+    searchBox:SetScript("OnLeave", OnSearchHoverLeave)
+
+    searchBox:SetScript("OnEditFocusGained", function(self)
+        searchFocused = true
+        AnimateBorderFocus(searchWrap, true)
+        searchIcon:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 0.9)
+        if self:GetText() == SEARCH_PLACEHOLDER then
+            self:SetText("")
+            self:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+        end
+    end)
+
+    searchBox:SetScript("OnEditFocusLost", function(self)
+        searchFocused = false
+        AnimateBorderFocus(searchWrap, false)
+        searchIcon:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.7)
+        if self:GetText() == "" then
+            self:SetText(SEARCH_PLACEHOLDER)
+            self:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.5)
+        end
+    end)
+
+    searchBox:SetScript("OnTextChanged", function(self, userInput)
+        if not userInput then return end
+        local txt = self:GetText()
+        if txt == SEARCH_PLACEHOLDER then return end
+        GUI.searchQuery = txt
+        GUI:RefreshSidebar()
+        -- Auto-navigate to single match
+        if txt ~= "" and GUI._searchFirstMatch and GUI._searchFirstMatch ~= selectedItem then
+            -- Only auto-navigate when exactly one result is visible (UX: don't jump around while typing)
+        end
+    end)
+
+    searchBox:SetScript("OnEnterPressed", function(self)
+        -- Navigate to first match on Enter
+        if GUI._searchFirstMatch then
+            GUI:SelectItem(GUI._searchFirstMatch)
+            self:ClearFocus()
+            self:SetText("")
+            self:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.5)
+            GUI.searchQuery = ""
+            GUI:RefreshSidebar()
+        else
+            self:ClearFocus()
+        end
+    end)
+
+    searchBox:SetScript("OnEscapePressed", function(self)
+        self:SetText("")
+        self:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.5)
+        self:ClearFocus()
+        GUI.searchQuery = ""
+        GUI:RefreshSidebar()
+    end)
+
     -- Footer
     local footer = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
     footer:SetHeight(T.footerHeight)
@@ -2627,7 +2789,6 @@ function GUI:BuildMainFrame()
     -- player can spot overlaps between stance alerts, gate alerts, bloodlust, etc.
     -- Placed in the footer to the right of the label, left of the resize handle.
     local PREVIEW_ALL_MODULES = {
-        { mod = "Recuperate",   key = "recuperate"   },
         { mod = "GatewayAlert", key = "gatewayAlert"  },
         { mod = "Durability",   key = "durability"    },
         { mod = "CombatTimer",  key = "combatTimer"   },
@@ -3058,107 +3219,6 @@ GUI:RegisterContent("home", function(parent)
         T.textMuted)
     y = y + cardPriv:GetTotalHeight() + T.paddingSmall
 
-    -- ── Links card ────────────────────────────────────────
-    -- One-time copy dialog: pre-selects text so the player can Ctrl+C.
-    local SP_LINK_DIALOG = "SP_HOME_LINK_COPY"
-    if not StaticPopupDialogs[SP_LINK_DIALOG] then
-        StaticPopupDialogs[SP_LINK_DIALOG] = {
-            text          = "Click the field and press  |cffffffffCtrl+C|r  to copy.",
-            button1       = CLOSE,
-            hasEditBox    = true,
-            EditBoxWidth  = 320,
-            timeout       = 0,
-            whileDead     = true,
-            hideOnEscape  = true,
-            preferredIndex = 3,
-            OnShow = function(dialog, data)
-                dialog.EditBox:SetMaxLetters(0)
-                dialog.EditBox:SetText(data or "")
-                dialog.EditBox:HighlightText()
-                local function Close() dialog:Hide() end
-                dialog.EditBox:SetScript("OnEscapePressed", Close)
-                dialog.EditBox:SetScript("OnEnterPressed",  Close)
-            end,
-        }
-    end
-
-    -- Creates a clickable link row: muted label above, accent-highlighted value below.
-    -- Clicking the value row opens the copy dialog.
-    local function MakeLink(card, label, value)
-        local row = CreateFrame("Button", nil, parent, "BackdropTemplate")
-        row:SetHeight(28)
-        SetBackdrop(row, T.bgDark[1], T.bgDark[2], T.bgDark[3], 1,
-                    T.border[1], T.border[2], T.border[3], 0)
-
-        local lbl = row:CreateFontString(nil, "OVERLAY")
-        lbl:SetPoint("TOPLEFT", row, "TOPLEFT", 6, -3)
-        lbl:SetJustifyH("LEFT")
-        ApplyFont(lbl, 9)
-        lbl:SetText(label)
-        lbl:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
-
-        local val = row:CreateFontString(nil, "OVERLAY")
-        val:SetPoint("TOPLEFT", row, "TOPLEFT", 6, -13)
-        val:SetPoint("TOPRIGHT", row, "TOPRIGHT", -28, -13)
-        val:SetJustifyH("LEFT")
-        ApplyFont(val, 10)
-        -- Passwords are always masked so streamers don't expose credentials on screen.
-        -- The real value is still passed to the copy dialog on click.
-        local isPassword = label:lower():find("password") ~= nil
-        local display
-        if isPassword then
-            display = string.rep("•", 12)
-        else
-            display = #value > 20 and value:sub(1, 20) .. "..." or value
-        end
-        val:SetText(display)
-        if isPassword then
-            val:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.7)
-        else
-            val:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end
-
-        -- "copy" hint (right edge) — invisible until hover
-        local hint = row:CreateFontString(nil, "OVERLAY")
-        hint:SetPoint("RIGHT", row, "RIGHT", -6, 0)
-        ApplyFont(hint, 9)
-        hint:SetText("copy")
-        hint:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 0)
-
-        row:SetScript("OnEnter", function()
-            row:SetBackdropBorderColor(T.accent[1], T.accent[2], T.accent[3], 1)
-            hint:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end)
-        row:SetScript("OnLeave", function()
-            row:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 0)
-            hint:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 0)
-        end)
-        row:SetScript("OnClick", function()
-            StaticPopup_Show(SP_LINK_DIALOG, nil, nil, value)
-        end)
-
-        -- Snap width to 280px instead of stretching to card edge
-        local yBefore = card.currentY
-        card:AddRow(row, 28)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", card.content, "TOPLEFT", 0, -yBefore)
-        row:SetWidth(280)
-    end
-
-    local cardLinks = GUI:CreateCard(parent, "Links", y)
-    cardLinks:AddLabel("Guild resources & access — click any entry to copy.", T.textMuted)
-    cardLinks:AddSeparator()
-
-    MakeLink(cardLinks, "T-Sheet", "https://docs.google.com/spreadsheets/d/1kr-vRV5ogfY7KrvoqCo8UXR1YaEoxTPm86ii9FpoqLk")
-    cardLinks:AddSeparator()
-    MakeLink(cardLinks, "Raidbots — Email",    "monaghanretired@gmail.com")
-    MakeLink(cardLinks, "Raidbots — Password", "SHQ#6t9<`{GX[W8K:gchB3")
-    cardLinks:AddSeparator()
-    MakeLink(cardLinks, "TeamSpeak 3 — Address",  "185.249.199.148:9033")
-    MakeLink(cardLinks, "TeamSpeak 3 — Password", "Suspicionts")
-
-    y = y + cardLinks:GetTotalHeight() + T.paddingSmall
-
     -- ── Profiles card ─────────────────────────────────────────────────────
     -- AceSerializer-3.0 + LibDeflate: safe serialization + compression.
     local AceSer  = LibStub and LibStub("AceSerializer-3.0", true)
@@ -3474,8 +3534,11 @@ GUI:RegisterContent("drawer", function(parent)
 
     -- Forward-declare the panel border color row so the border toggle can reference it
     local borderColorRow
+    local enableRow  -- forward-declared; used in UpdateChildState closure
+    local card1      -- forward-declared for UpdateChildState closure
 
     local function UpdateChildState(en)
+        card1:GrayContent(en, enableRow)
         for _, r in ipairs(childRows)  do r:SetEnabled(en) end
         for _, c in ipairs(childCards) do c:SetAlpha(en and 1 or 0.4) end
         -- Sub-dependency: border color row only usable when border is also ON
@@ -3485,11 +3548,11 @@ GUI:RegisterContent("drawer", function(parent)
     end
 
     -- ── Card 1: Minimap Drawer (general + behavior) ────────
-    local card1 = GUI:CreateCard(parent, "Minimap Drawer", y)
+    card1 = GUI:CreateCard(parent, "Minimap Drawer", y)
     card1:AddLabel("Collect addon minimap buttons into a sliding drawer.", T.textMuted)
     card1:AddSeparator()
 
-    local enableRow = GUI:CreateToggle(parent, "Enable Drawer", db.enabled, function(v)
+    enableRow = GUI:CreateToggle(parent, "Enable Drawer", db.enabled, function(v)
         db.enabled = v
         UpdateChildState(v)
         if v then SP.Drawer.Enable() else SP.Drawer.Disable() end
@@ -3771,6 +3834,119 @@ GUI:RegisterContent("drawer", function(parent)
 end)
 
 -- ============================================================
+-- Cursor texture picker widget
+-- Six square buttons showing the actual ring texture; selected one
+-- gets an accent-coloured border.  Mirrors NorskenUI's selector.
+-- ============================================================
+local function MakeCursorTexturePicker(parent, textures, order, getColorFunc, onSelect)
+    local BTN_SZ   = 70
+    local MIN_GAP  = 8
+    local container = CreateFrame("Frame", nil, parent)
+    container:SetHeight(BTN_SZ)
+
+    local buttons = {}
+    local current = nil   -- set via container:SetValue()
+
+    for i, textureName in ipairs(order) do
+        local texPath = textures[textureName]
+
+        local btn = CreateFrame("Button", nil, container, "BackdropTemplate")
+        btn:SetSize(BTN_SZ, BTN_SZ)
+        btn:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+        btn:SetBackdropColor(T.bgDark[1], T.bgDark[2], T.bgDark[3], 1)
+        btn.textureName = textureName
+
+        local tex = btn:CreateTexture(nil, "ARTWORK")
+        tex:SetPoint("TOPLEFT",     btn, "TOPLEFT",     8, -8)
+        tex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -8,  8)
+        tex:SetTexture(texPath)
+        btn.tex = tex
+
+        local function UpdateVisuals()
+            local r, g, b = 1, 1, 1
+            if getColorFunc then r, g, b = getColorFunc() end
+            if btn.disabled then
+                btn:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 0.6)
+                tex:SetVertexColor(r * 0.3, g * 0.3, b * 0.3)
+                tex:SetAlpha(0.5)
+            elseif current == btn.textureName then
+                btn:SetBackdropBorderColor(T.accent[1], T.accent[2], T.accent[3], 1)
+                tex:SetVertexColor(r, g, b)
+                tex:SetAlpha(0.9)
+            elseif btn.hover then
+                btn:SetBackdropBorderColor(T.accent[1], T.accent[2], T.accent[3], 0.7)
+                tex:SetVertexColor(r * 0.85, g * 0.85, b * 0.85)
+                tex:SetAlpha(0.85)
+            else
+                btn:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+                tex:SetVertexColor(r * 0.6, g * 0.6, b * 0.6)
+                tex:SetAlpha(0.75)
+            end
+        end
+        btn.UpdateVisuals = UpdateVisuals
+
+        btn:SetScript("OnEnter", function(self)
+            self.hover = true
+            UpdateVisuals()
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(textureName, 1, 0.82, 0)
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self.hover = false
+            UpdateVisuals()
+            GameTooltip:Hide()
+        end)
+        btn:SetScript("OnClick", function(self)
+            if self.disabled then return end
+            current = self.textureName
+            for _, b in ipairs(buttons) do b.UpdateVisuals() end
+            if onSelect then onSelect(self.textureName) end
+        end)
+
+        buttons[i] = btn
+    end
+
+    container:SetScript("OnSizeChanged", function(self, w)
+        if not w or w <= 0 then return end
+        local fw = math.floor(w)
+        if math.abs(fw - (self._lastW or 0)) < 2 then return end
+        self._lastW = fw
+        local n = #buttons
+        if n == 0 then return end
+        local spacing = math.max(MIN_GAP,
+            math.floor((fw - n * BTN_SZ - T.paddingSmall) / (n - 1)))
+        for i, btn in ipairs(buttons) do
+            btn:ClearAllPoints()
+            if i == 1 then
+                btn:SetPoint("LEFT", self, "LEFT", 0, 0)
+            else
+                btn:SetPoint("LEFT", buttons[i-1], "RIGHT", spacing, 0)
+            end
+        end
+    end)
+
+    function container:SetValue(v)
+        current = v
+        for _, b in ipairs(buttons) do b.UpdateVisuals() end
+    end
+
+    function container:SetEnabled(en)
+        for _, b in ipairs(buttons) do
+            b.disabled = not en
+            b:EnableMouse(en)
+            b.UpdateVisuals()
+        end
+    end
+
+    function container:RefreshColors()
+        for _, b in ipairs(buttons) do b.UpdateVisuals() end
+    end
+
+    return container
+end
+
+-- ============================================================
 -- Page: Cursor Circle
 -- ============================================================
 GUI:RegisterContent("cursor", function(parent)
@@ -3866,14 +4042,14 @@ GUI:RegisterContent("cursor", function(parent)
     card2:AddLabel("A decorative ring that follows your mouse cursor on screen.", T.textMuted)
     card2:AddSeparator()
 
-    local cursorChildRows  = {}
+    local cursorEnableRow  -- forward-declared; used in UpdateCursorChildState closure
     local cursorChildCards = {}
     local function UpdateCursorChildState(en)
-        for _, r in ipairs(cursorChildRows)  do r:SetEnabled(en) end
+        card2:GrayContent(en, cursorEnableRow)
         for _, c in ipairs(cursorChildCards) do c:SetAlpha(en and 1 or 0.4) end
     end
 
-    local cursorEnableRow = GUI:CreateToggle(parent, "Enable Cursor Circle",
+    cursorEnableRow = GUI:CreateToggle(parent, "Enable Cursor Circle",
         db.enabled,
         function(v) db.enabled = v; UpdateCursorChildState(v); SP.Cursor.Refresh(); UpdatePreview() end,
         "Cursor Circle")
@@ -3882,46 +4058,51 @@ GUI:RegisterContent("cursor", function(parent)
 
     local sizeRow = GUI:CreateSlider(parent, "Size", 20, 120, 2, db.size,
         function(v) db.size = v; SP.Cursor.Refresh(); UpdatePreview() end)
-    card2:AddRow(sizeRow, 44); table.insert(cursorChildRows, sizeRow)
+    card2:AddRow(sizeRow, 44)
     card2:AddSeparator()
 
-    local textureRow = GUI:CreateDropdown(parent, "Texture",
-        SP.Cursor.TextureOrder,
-        db.texture or "Thick",
-        function(v) db.texture = v; SP.Cursor.Refresh(); UpdatePreview() end)
-    card2:AddRow(textureRow, 44); table.insert(cursorChildRows, textureRow)
+    local texPickerLbl = CreateFrame("Frame", nil, parent)
+    texPickerLbl:SetHeight(14)
+    local _tpl = texPickerLbl:CreateFontString(nil, "OVERLAY")
+    _tpl:SetAllPoints(); _tpl:SetJustifyH("LEFT"); ApplyFont(_tpl, 11)
+    _tpl:SetText("Texture")
+    _tpl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+    function texPickerLbl:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
+    card2:AddRow(texPickerLbl, 14, 4)
+
+    local texPicker = MakeCursorTexturePicker(parent,
+        SP.Cursor.Textures, SP.Cursor.TextureOrder,
+        GetPreviewColor,
+        function(v) db.texture = v; SP.Cursor.Refresh(); UpdatePreview();
+            texPicker:SetValue(v) end)
+    texPicker:SetValue(db.texture or "Thick")
+    card2:AddRow(texPicker, 70)
     card2:AddSeparator()
 
     local dotToggleRow = GUI:CreateToggle(parent, "Center Dot",
         db.showDot,
         function(v) db.showDot = v; SP.Cursor.Refresh(); UpdatePreview() end)
-    card2:AddRow(dotToggleRow, 28); table.insert(cursorChildRows, dotToggleRow)
+    card2:AddRow(dotToggleRow, 28)
 
     local dotSizeRow = GUI:CreateSlider(parent, "Dot Size", 2, 16, 1, db.dotSize,
         function(v) db.dotSize = v; SP.Cursor.Refresh(); UpdatePreview() end)
-    card2:AddRow(dotSizeRow, 44); table.insert(cursorChildRows, dotSizeRow)
-
-    y = y + card2:GetTotalHeight() + T.paddingSmall
-
-    -- ── Card 3: Cursor Color ──────────────────────────────
-    local card3 = GUI:CreateCard(parent, "Color Source", y)
-    card3:AddLabel("Pick where the cursor circle colour comes from.", T.textMuted)
-    card3:AddSeparator()
-    table.insert(cursorChildCards, card3)
+    card2:AddRow(dotSizeRow, 44)
+    card2:AddSeparator()
 
     local cSrcLabels  = { "Theme Color", "Class Color", "Custom Color" }
     local cSrcToLabel = { theme = "Theme Color", class = "Class Color", custom = "Custom Color" }
     local cLabelToSrc = { ["Theme Color"] = "theme", ["Class Color"] = "class", ["Custom Color"] = "custom" }
     local SetCursorSwatchEnabled  -- forward-declared; defined after cSwatchRow is built
-    card3:AddRow(GUI:CreateDropdown(parent, "Color Source",
+    card2:AddRow(GUI:CreateDropdown(parent, "Color Source",
         cSrcLabels,
         cSrcToLabel[db.colorSource or "theme"],
         function(v)
             db.colorSource = cLabelToSrc[v]
             SP.Cursor.Refresh(); UpdatePreview()
+            if texPicker then texPicker:RefreshColors() end
             if SetCursorSwatchEnabled then SetCursorSwatchEnabled(cLabelToSrc[v] == "custom") end
         end), 40)
-    card3:AddSeparator()
+    card2:AddSeparator()
 
     local cc = db.cursorColor or { 1, 1, 1 }
     local ccr, ccg, ccb = cc[1], cc[2], cc[3]
@@ -3957,6 +4138,7 @@ GUI:RegisterContent("cursor", function(parent)
             if not db.cursorColor then db.cursorColor = {} end
             db.cursorColor[1] = ccr; db.cursorColor[2] = ccg; db.cursorColor[3] = ccb
             SP.Cursor.Refresh(); UpdatePreview()
+            if texPicker then texPicker:RefreshColors() end
         end
         local info = {
             r = prevR, g = prevG, b = prevB,
@@ -3969,7 +4151,7 @@ GUI:RegisterContent("cursor", function(parent)
         info.opacityFunc = info.swatchFunc
         ColorPickerFrame:SetupColorPickerAndShow(info)
     end)
-    card3:AddRow(cSwatchRow, 52)
+    card2:AddRow(cSwatchRow, 52)
 
     -- Wire up enable/disable; grey when colorSource is not "custom"
     SetCursorSwatchEnabled = function(en)
@@ -3978,7 +4160,7 @@ GUI:RegisterContent("cursor", function(parent)
     end
     SetCursorSwatchEnabled((db.colorSource or "theme") == "custom")
 
-    y = y + card3:GetTotalHeight() + T.paddingSmall
+    y = y + card2:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 4: Click Circle ──────────────────────────────
     local card4 = GUI:CreateCard(parent, "Click Circle", y)
@@ -3986,20 +4168,17 @@ GUI:RegisterContent("cursor", function(parent)
     card4:AddLabel("A ring that appears or replaces the cursor while a mouse button is held.", T.textMuted)
     card4:AddSeparator()
 
-    local clickChildRows = {}
-    local function UpdateClickChildState(en)
-        for _, r in ipairs(clickChildRows) do r:SetEnabled(en) end
-    end
+    local clickEnRow  -- forward-declared; used in GrayContent skip + closure
+    local SetClickSwatchEnabled
 
-    local clickEnRow = GUI:CreateToggle(parent, "Enable Click Circle",
+    clickEnRow = GUI:CreateToggle(parent, "Enable Click Circle",
         db.showClickCircle or false,
         function(v)
             db.showClickCircle = v
-            UpdateClickChildState(v)
+            card4:GrayContent(v, clickEnRow)
             SP.Cursor.Refresh()
         end)
     card4:AddRow(clickEnRow, 28)
-    table.insert(cursorChildRows, clickEnRow)
     card4:AddSeparator()
 
     -- Mode: Overlay (second ring) vs Replace (swap main ring)
@@ -4011,42 +4190,57 @@ GUI:RegisterContent("cursor", function(parent)
             SP.Cursor.Refresh()
         end)
     card4:AddRow(clickModeRow, 44)
-    table.insert(cursorChildRows, clickModeRow)
-    table.insert(clickChildRows, clickModeRow)
     card4:AddSeparator()
 
     local clickSzRow = GUI:CreateSlider(parent, "Size", 20, 150, 2, db.clickSize or 70,
         function(v) db.clickSize = v; SP.Cursor.Refresh(); SP.Cursor.PreviewClickCircle() end)
     card4:AddRow(clickSzRow, 44)
-    table.insert(cursorChildRows, clickSzRow)
-    table.insert(clickChildRows, clickSzRow)
     card4:AddSeparator()
 
-    local clickTexRow = GUI:CreateDropdown(parent, "Texture",
-        SP.Cursor.TextureOrder,
-        db.clickTexture or "Thin",
-        function(v) db.clickTexture = v; SP.Cursor.Refresh() end)
-    card4:AddRow(clickTexRow, 44)
-    table.insert(cursorChildRows, clickTexRow)
-    table.insert(clickChildRows, clickTexRow)
+    local clickTexPickerLbl = CreateFrame("Frame", nil, parent)
+    clickTexPickerLbl:SetHeight(14)
+    local _ctpl = clickTexPickerLbl:CreateFontString(nil, "OVERLAY")
+    _ctpl:SetAllPoints(); _ctpl:SetJustifyH("LEFT"); ApplyFont(_ctpl, 11)
+    _ctpl:SetText("Texture")
+    _ctpl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+    function clickTexPickerLbl:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
+    card4:AddRow(clickTexPickerLbl, 14, 4)
+
+    local function GetClickPreviewColor()
+        local src = db.clickColorSource or "theme"
+        if src == "theme" then return T.accent[1], T.accent[2], T.accent[3] end
+        if src == "class" then
+            local _, cls = UnitClass("player")
+            local c = RAID_CLASS_COLORS and cls and RAID_CLASS_COLORS[cls]
+            if c then return c.r, c.g, c.b end
+        end
+        local cc = db.clickColor or { 1, 1, 1 }
+        return cc[1], cc[2], cc[3]
+    end
+
+    local clickTexPicker = MakeCursorTexturePicker(parent,
+        SP.Cursor.Textures, SP.Cursor.TextureOrder,
+        GetClickPreviewColor,
+        function(v) db.clickTexture = v; SP.Cursor.Refresh();
+            clickTexPicker:SetValue(v) end)
+    clickTexPicker:SetValue(db.clickTexture or "Thin")
+    card4:AddRow(clickTexPicker, 70)
     card4:AddSeparator()
 
     -- Color source for click circle
     local cklSrcLabels  = { "Theme Color", "Class Color", "Custom Color" }
     local cklSrcToLabel = { theme = "Theme Color", class = "Class Color", custom = "Custom Color" }
     local cklLabelToSrc = { ["Theme Color"] = "theme", ["Class Color"] = "class", ["Custom Color"] = "custom" }
-    local SetClickSwatchEnabled
     local clickSrcRow = GUI:CreateDropdown(parent, "Color Source",
         cklSrcLabels,
         cklSrcToLabel[db.clickColorSource or "theme"],
         function(v)
             db.clickColorSource = cklLabelToSrc[v]
             SP.Cursor.Refresh()
+            if clickTexPicker then clickTexPicker:RefreshColors() end
             if SetClickSwatchEnabled then SetClickSwatchEnabled(cklLabelToSrc[v] == "custom") end
         end)
     card4:AddRow(clickSrcRow, 44)
-    table.insert(cursorChildRows, clickSrcRow)
-    table.insert(clickChildRows, clickSrcRow)
     card4:AddSeparator()
 
     -- Custom color swatch for click circle
@@ -4084,6 +4278,7 @@ GUI:RegisterContent("cursor", function(parent)
             if not db.clickColor then db.clickColor = {} end
             db.clickColor[1] = cklR; db.clickColor[2] = cklG; db.clickColor[3] = cklB
             SP.Cursor.Refresh()
+            if clickTexPicker then clickTexPicker:RefreshColors() end
         end
         local info = {
             r = prevR, g = prevG, b = prevB,
@@ -4101,21 +4296,47 @@ GUI:RegisterContent("cursor", function(parent)
         cklSwatch:EnableMouse(en)
     end
     card4:AddRow(cklSwRow, 52)
-    table.insert(cursorChildRows, cklSwRow)
-    table.insert(clickChildRows, cklSwRow)
 
     SetClickSwatchEnabled = function(en)
         cklSwRow:SetAlpha(en and 1 or 0.4)
         cklSwatch:EnableMouse(en)
     end
     SetClickSwatchEnabled((db.clickColorSource or "theme") == "custom")
-    UpdateClickChildState(db.showClickCircle or false)
+    card4:GrayContent(db.showClickCircle or false, clickEnRow)
 
     y = y + card4:GetTotalHeight() + T.paddingSmall
+
+    -- Card 5: Performance
+    local card5 = GUI:CreateCard(parent, "Performance", y)
+    table.insert(cursorChildCards, card5)
+
+    local limitRow = GUI:CreateToggle(parent, "Limit Update Rate (saves CPU)", db.limitUpdateRate,
+        function(v)
+            db.limitUpdateRate = v
+            Cursor.Refresh()
+        end)
+    card5:AddRow(limitRow, 28)
+    card5:AddSeparator()
+
+    -- Slider works in whole milliseconds (8–200 ms) and converts to seconds for the DB.
+    local function MsFromDb() return math.floor((db.updateInterval or 0.02) * 1000 + 0.5) end
+    local intervalRow = GUI:CreateSlider(parent, "Update Interval (ms)", 8, 200, 1,
+        MsFromDb(),
+        function(v) db.updateInterval = v / 1000; Cursor.Refresh() end)
+    card5:AddRow(intervalRow, 44)
+
+    y = y + card5:GetTotalHeight() + T.paddingSmall
 
     -- Initialise preview and child state with current DB values
     UpdatePreview()
     UpdateCursorChildState(db.enabled)
+
+    -- SP_CursorCircle and SP_CursorClickCircle are parented to UIParent, so
+    -- hiding the page container does NOT hide them automatically.
+    -- Reset their state when navigating away, exactly like Durability does.
+    parent:HookScript("OnHide", function()
+        if SP.Cursor then SP.Cursor.Refresh() end
+    end)
 
     parent:SetHeight(y)
 end)
@@ -4158,6 +4379,37 @@ GUI:RegisterContent("copytooltip", function(parent)
 end)
 
 -- ============================================================
+-- Page: Filter Expansion Only
+-- ============================================================
+GUI:RegisterContent("filterexpansiononly", function(parent)
+    local db = SP.GetDB().filterExpansionOnly
+    local y  = 0
+
+    local card1     -- forward-declared for UpdateChildState closure
+    local enableRow -- forward-declared for GrayContent skip
+    local function UpdateChildState(en)
+        card1:GrayContent(en, enableRow)
+    end
+
+    card1 = GUI:CreateCard(parent, "Filter Expansion Only", y)
+    card1:AddLabel(
+        "Automatically applies the Current Expansion Only filter when opening the Auction House and the Crafting Orders browser — hiding items and orders from older expansions.",
+        T.textMuted)
+    card1:AddSeparator()
+    enableRow = GUI:CreateToggle(parent, "Enable Filter Expansion Only", db.enabled,
+        function(v)
+            db.enabled = v
+            UpdateChildState(v)
+            if SP.FilterExpansionOnly then SP.FilterExpansionOnly.Refresh() end
+        end, "Filter Expansion Only")
+    card1:AddRow(enableRow, 28)
+    y = y + card1:GetTotalHeight() + T.paddingSmall
+
+    UpdateChildState(db.enabled)
+    parent:SetHeight(y)
+end)
+
+-- ============================================================
 -- Page: Fast Loot
 -- ============================================================
 GUI:RegisterContent("fastloot", function(parent)
@@ -4176,6 +4428,250 @@ GUI:RegisterContent("fastloot", function(parent)
             if SP.FastLoot then SP.FastLoot.Refresh() end
         end, "Fast Loot"), 28)
     y = y + card1:GetTotalHeight() + T.paddingSmall
+
+    parent:SetHeight(y)
+end)
+
+-- ============================================================
+-- Page: Repair Warning (Durability)
+-- ============================================================
+GUI:RegisterContent("durability", function(parent)
+    local T  = SP.Theme
+    local db = SP.GetDB().durability
+
+    local function ApplySettings()
+        if SP.Durability then SP.Durability.Refresh() end
+    end
+
+    local y            = 0
+    local durChildRows  = {}
+    local durChildCards = {}
+    local enableRow
+    local card1
+
+    local function UpdateDurChildState(en)
+        card1:GrayContent(en, enableRow)
+        for _, r in ipairs(durChildRows)  do r:SetEnabled(en) end
+        for _, c in ipairs(durChildCards) do c:SetAlpha(en and 1 or 0.4) end
+    end
+
+    -- ── Card 1: General ───────────────────────────────────────
+    card1 = GUI:CreateCard(parent, "Repair Warning", y)
+    card1:AddLabel(
+        "Displays a warning text on screen when your gear durability drops below the configured threshold. Never shown during combat.",
+        T.textMuted)
+    card1:AddSeparator()
+
+    enableRow = GUI:CreateToggle(parent, "Enable Repair Warning", db.enabled,
+        function(v)
+            db.enabled = v
+            UpdateDurChildState(v)
+            ApplySettings()
+        end, "Repair Warning")
+    card1:AddRow(enableRow, 28)
+    card1:AddSeparator()
+
+    -- Threshold slider
+    local threshRow = GUI:CreateSlider(parent, "Warning Threshold (%)", 1, 100, 1,
+        db.threshold or 30,
+        function(v) db.threshold = v; ApplySettings() end)
+    card1:AddRow(threshRow, 44)
+    table.insert(durChildRows, threshRow)
+    card1:AddSeparator()
+
+    -- Warning Text editbox
+    local wtLblFrame = CreateFrame("Frame", nil, parent)
+    wtLblFrame:SetHeight(44)
+    local wtLabel = wtLblFrame:CreateFontString(nil, "OVERLAY")
+    wtLabel:SetPoint("TOPLEFT", wtLblFrame, "TOPLEFT", 0, -2)
+    ApplyFont(wtLabel, 11)
+    wtLabel:SetText("Warning Text")
+    wtLabel:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+    local wtBox = CreateFrame("EditBox", nil, wtLblFrame, "BackdropTemplate")
+    wtBox:SetSize(200, 22)
+    wtBox:SetPoint("TOPLEFT", wtLblFrame, "TOPLEFT", 0, -18)
+    wtBox:SetAutoFocus(false)
+    wtBox:SetMaxLetters(64)
+    wtBox:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+    wtBox:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    wtBox:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+    wtBox:SetTextInsets(6, 6, 0, 0)
+    ApplyFont(wtBox, 11)
+    wtBox:SetText(db.warningText or "REPAIR NOW")
+    wtBox:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+    wtBox:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+        db.warningText = self:GetText()
+        ApplySettings()
+    end)
+    wtBox:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+        self:SetText(db.warningText or "REPAIR NOW")
+    end)
+    function wtLblFrame:SetEnabled(en)
+        self:SetAlpha(en and 1 or 0.4)
+        wtBox:SetEnabled(en)
+    end
+    card1:AddRow(wtLblFrame, 44)
+    table.insert(durChildRows, wtLblFrame)
+
+    y = y + card1:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 2: Appearance ────────────────────────────────────
+    local card2 = GUI:CreateCard(parent, "Appearance", y)
+    table.insert(durChildCards, card2)
+    card2:AddLabel("Customise the font, size, and colour of the warning text.", T.textMuted)
+    card2:AddSeparator()
+
+    -- Font Face
+    local durFontFaceRow = GUI:CreateFontDropdown(parent, "Font Face",
+        db.fontFace or "Expressway",
+        function(v) db.fontFace = v; ApplySettings() end)
+    card2:AddRow(durFontFaceRow, 44)
+    table.insert(durChildRows, durFontFaceRow)
+    card2:AddSeparator()
+
+    -- Font Size + Outline side by side
+    local durFontHRow = GUI:CreateHRow(parent, 44)
+    local durFontSzRow = GUI:CreateSlider(parent, "Font Size", 8, 60, 1,
+        db.fontSize or 20,
+        function(v) db.fontSize = v; ApplySettings() end)
+    local durOutlineRow = GUI:CreateDropdown(parent, "Outline",
+        { "NONE", "OUTLINE", "THICKOUTLINE" },
+        db.fontOutline or "OUTLINE",
+        function(v) db.fontOutline = v; ApplySettings() end)
+    durFontHRow:Add(durFontSzRow, 0.55)
+    durFontHRow:Add(durOutlineRow, 0.45)
+    card2:AddRow(durFontHRow, 44)
+    table.insert(durChildRows, durFontHRow)
+
+    -- Text Color with source
+    card2:AddSeparator()
+    local durColorSrcRow, durColorSwRow = GUI:CreateColorWithSource(
+        parent, "Text Color", db, "colorSource", "color", { 1, 0.537, 0.2 },
+        function() ApplySettings() end)
+    card2:AddRow(durColorSrcRow, 44)
+    table.insert(durChildRows, durColorSrcRow)
+    card2:AddSeparator()
+    card2:AddRow(durColorSwRow, 52)
+    table.insert(durChildRows, durColorSwRow)
+
+    y = y + card2:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 3: Position ──────────────────────────────────────
+    local card3 = GUI:CreateCard(parent, "Position", y)
+    table.insert(durChildCards, card3)
+    card3:AddLabel(
+        "Click Preview to test the current look. Click Drag to Move to drag the frame anywhere on screen, then Lock Position when done. Fine-tune with the sliders below.",
+        T.textMuted)
+    card3:AddSeparator()
+
+    local durAnchorRow, durAnchorRowH = GUI:CreateAnchorRow(parent, db, ApplySettings,
+        { default = "HIGH", onChange = function() ApplySettings() end })
+    card3:AddRow(durAnchorRow, durAnchorRowH)
+    table.insert(durChildRows, durAnchorRow)
+    card3:AddSeparator()
+
+    -- X / Y offsets side by side
+    local durXYHRow = GUI:CreateHRow(parent, 44)
+    local durXRow = GUI:CreateSlider(parent, "X Offset", -2000, 2000, 1,
+        db.x or 0,
+        function(v) db.x = v; ApplySettings() end)
+    local durYRow = GUI:CreateSlider(parent, "Y Offset", -2000, 2000, 1,
+        db.y or -200,
+        function(v) db.y = v; ApplySettings() end)
+    durXYHRow:Add(durXRow, 0.5)
+    durXYHRow:Add(durYRow, 0.5)
+    card3:AddRow(durXYHRow, 44)
+    table.insert(durChildRows, durXYHRow)
+
+    -- Sync sliders when position updated via drag
+    if SP.Durability then
+        SP.Durability._syncSliders = function(nx, ny)
+            if durXRow and durXRow.SetValue then durXRow.SetValue(nx) end
+            if durYRow and durYRow.SetValue then durYRow.SetValue(ny) end
+        end
+    end
+
+    card3:AddSeparator()
+
+    -- Preview button (toggle)
+    local function StyleDurBtn(btn, isActive)
+        if isActive then
+            btn:SetBackdropColor(T.accent[1], T.accent[2], T.accent[3], 0.25)
+            btn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+        else
+            btn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+            btn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+        end
+    end
+
+    local durPreviewActive = false
+    local durPrevWrap = CreateFrame("Frame", nil, parent)
+    durPrevWrap:SetHeight(28)
+    function durPrevWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
+
+    local durPrevBtn = GUI:CreateButton(durPrevWrap, "Preview", nil, 140, 28)
+    durPrevBtn:SetPoint("LEFT", durPrevWrap, "LEFT", 0, 0)
+
+    local function UpdateDurPrevBtn()
+        StyleDurBtn(durPrevBtn, durPreviewActive)
+        durPrevBtn.lbl:SetText(durPreviewActive and "Stop Preview" or "Preview")
+        AnimateBorderFocus(durPrevBtn, durPreviewActive)
+    end
+
+    durPrevBtn:SetScript("OnLeave", function() UpdateDurPrevBtn() end)
+    durPrevBtn:SetScript("OnClick", function()
+        durPreviewActive = not durPreviewActive
+        if durPreviewActive then
+            if SP.Durability then SP.Durability:ShowPreview() end
+        else
+            if SP.Durability then SP.Durability:HidePreview() end
+        end
+        UpdateDurPrevBtn()
+    end)
+    card3:AddRow(durPrevWrap, 28)
+    table.insert(durChildRows, durPrevWrap)
+    card3:AddSeparator()
+
+    -- Drag to Move button
+    local durDragActive = false
+    local durDragWrap = CreateFrame("Frame", nil, parent)
+    durDragWrap:SetHeight(28)
+    function durDragWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
+
+    local durDragBtn = GUI:CreateButton(durDragWrap, "Drag to Move", nil, 140, 28)
+    durDragBtn:SetPoint("LEFT", durDragWrap, "LEFT", 0, 0)
+
+    local function UpdateDurDragBtn()
+        if durDragActive then
+            durDragBtn.lbl:SetText("Lock Position")
+            StyleDurBtn(durDragBtn, true)
+        else
+            durDragBtn.lbl:SetText("Drag to Move")
+            StyleDurBtn(durDragBtn, false)
+        end
+        AnimateBorderFocus(durDragBtn, durDragActive)
+    end
+
+    durDragBtn:SetScript("OnLeave", function() UpdateDurDragBtn() end)
+    durDragBtn:SetScript("OnClick", function()
+        if durDragActive then
+            durDragActive = false
+            if SP.Durability then SP.Durability:EndDragMode() end
+        else
+            durDragActive = true
+            if SP.Durability then SP.Durability:StartDragMode() end
+        end
+        UpdateDurDragBtn()
+    end)
+    card3:AddRow(durDragWrap, 28)
+    table.insert(durChildRows, durDragWrap)
+
+    y = y + card3:GetTotalHeight() + T.paddingSmall
+
+    -- Initial state
+    UpdateDurChildState(db.enabled)
 
     parent:SetHeight(y)
 end)
@@ -4357,7 +4853,9 @@ GUI:RegisterContent("automation", function(parent)
     local childRows   = {}
     local childLabels = {}
     local r9, r9Desc  -- forward-declared so UpdateChildState can reference them
+    local enableRow   -- forward-declared; used in UpdateChildState closure
     local function UpdateChildState(enabled)
+        card:GrayContent(enabled, enableRow)
         for _, row in ipairs(childRows) do
             row:SetEnabled(enabled)
         end
@@ -4380,7 +4878,7 @@ GUI:RegisterContent("automation", function(parent)
         return lbl
     end
 
-    local enableRow = GUI:CreateToggle(parent, "Enable Automation", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable Automation", db.enabled,
         function(v)
             db.enabled = v
             UpdateChildState(v)
@@ -4497,18 +4995,21 @@ GUI:RegisterContent("invitationgroupe", function(parent)
     end
 
     local aiChildRows = {}
+    local enableRow   -- forward-declared; used in UpdateAIChildState closure
+    local card        -- forward-declared for UpdateAIChildState closure
     local function UpdateAIChildState(en)
+        card:GrayContent(en, enableRow)
         for _, r in ipairs(aiChildRows) do r:SetEnabled(en) end
     end
 
     -- ── Card 1: Auto Invite (keyword-based) ──────────────────
-    local card = GUI:CreateCard(parent, "Auto Invite", y)
+    card = GUI:CreateCard(parent, "Auto Invite", y)
     card:AddLabel(
         "Automatically invites players who whisper a keyword. Only activates when you are group leader or alone. Can invite anyone, or restrict to friends and/or guild members.",
         T.textMuted)
     card:AddSeparator()
 
-    local enableRow = GUI:CreateToggle(parent, "Enable Auto Invite", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable Auto Invite", db.enabled,
         function(v)
             db.enabled = v
             if SP.AutoInvite then SP.AutoInvite.Refresh() end
@@ -4641,12 +5142,14 @@ GUI:RegisterContent("combattimer", function(parent)
 
     local ctChildRows  = {}
     local ctChildCards = {}
+    local ctEnableRow  -- forward-declared; used in UpdateCTChildState closure
     local function UpdateCTChildState(en)
+        card1:GrayContent(en, ctEnableRow)
         for _, r in ipairs(ctChildRows)  do r:SetEnabled(en) end
         for _, c in ipairs(ctChildCards) do c:SetAlpha(en and 1 or 0.4) end
     end
 
-    local ctEnableRow = GUI:CreateToggle(parent, "Enable Combat Timer",
+    ctEnableRow = GUI:CreateToggle(parent, "Enable Combat Timer",
         db.enabled,
         function(v)
             db.enabled = v
@@ -4843,6 +5346,258 @@ GUI:RegisterContent("combattimer", function(parent)
 end)
 
 -- ============================================================
+-- Page: Movement Alert
+-- ============================================================
+GUI:RegisterContent("movementalert", function(parent)
+    local db = SP.GetDB().movementAlert
+    local y  = 0
+
+    local function GetMA() return SP.MovementAlert end
+    local function Refresh()
+        local ma = GetMA()
+        if ma then ma:Refresh() end
+    end
+
+    local maChildRows  = {}
+    local maChildCards = {}
+    local maEnableRow  -- forward-declared; used in UpdateChildState closure
+    local card1        -- forward-declared for UpdateChildState closure
+    local function UpdateChildState(en)
+        card1:GrayContent(en, maEnableRow)
+        for _, r in ipairs(maChildRows)  do r:SetEnabled(en) end
+        for _, c in ipairs(maChildCards) do c:SetAlpha(en and 1 or 0.4) end
+    end
+
+    -- ── Card 1: General ───────────────────────────────────
+    card1 = GUI:CreateCard(parent, "Movement Alert", y)
+    card1:AddLabel("Shows a cooldown when your movement ability is on CD.", T.textMuted)
+    card1:AddSeparator()
+
+    maEnableRow = GUI:CreateToggle(parent, "Enable Movement Alert",
+        db.enabled,
+        function(v)
+            db.enabled = v
+            UpdateChildState(v)
+            Refresh()
+        end, "Movement Alert")
+    card1:AddRow(maEnableRow, 28)
+    card1:AddSeparator()
+
+    local precRow = GUI:CreateSlider(parent, "Decimal Precision", 0, 1, 1,
+        db.precision or 0,
+        function(v) db.precision = v end)
+    card1:AddRow(precRow, 44)
+    table.insert(maChildRows, precRow)
+
+    local intervalRow = GUI:CreateSlider(parent, "Update Interval (ms)", 50, 500, 10,
+        math.floor((db.updateInterval or 0.1) * 1000 + 0.5),
+        function(v) db.updateInterval = v / 1000 end)
+    card1:AddRow(intervalRow, 44)
+    table.insert(maChildRows, intervalRow)
+
+    y = y + card1:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card: Tracked Spells ──────────────────────────────
+    -- Built dynamically from the current player's class.
+    -- Each spell gets a toggle; unchecking disables it from tracking.
+    do
+        local _, playerClass = UnitClass("player")
+        local ma = SP.MovementAlert
+        local byClass = ma and ma.MovementAbilities and ma.MovementAbilities[playerClass]
+
+        if byClass then
+            -- Collect unique spell IDs (sorted, deduplicated)
+            local seen   = {}
+            local unique = {}
+            for _, spells in pairs(byClass) do
+                for _, sid in ipairs(spells) do
+                    if not seen[sid] then
+                        seen[sid] = true
+                        unique[#unique + 1] = sid
+                    end
+                end
+            end
+            table.sort(unique)
+
+            if #unique > 0 then
+                local cardSpells = GUI:CreateCard(parent, "Tracked Spells", y)
+                cardSpells:AddLabel("Choose which abilities this module tracks for your class.", T.textMuted)
+                cardSpells:AddSeparator()
+                table.insert(maChildCards, cardSpells)
+
+                if not db.disabledSpells then db.disabledSpells = {} end
+
+                for _, sid in ipairs(unique) do
+                    local info   = C_Spell.GetSpellInfo(sid)
+                    local sName  = info and info.name or ("Spell " .. sid)
+                    local iconID = info and info.iconID
+                    local label  = iconID
+                        and ("|T" .. iconID .. ":16:16|t  " .. sName)
+                        or sName
+
+                    local spellRow = GUI:CreateToggle(parent, label,
+                        not db.disabledSpells[sid],
+                        function(v)
+                            if v then
+                                db.disabledSpells[sid] = nil
+                            else
+                                db.disabledSpells[sid] = true
+                            end
+                            Refresh()
+                        end)
+                    cardSpells:AddRow(spellRow, 28)
+                    table.insert(maChildRows, spellRow)
+                end
+
+                y = y + cardSpells:GetTotalHeight() + T.paddingSmall
+            end
+        end
+    end
+
+    -- ── Card 2: Position ──────────────────────────────────
+    local card2 = GUI:CreateCard(parent, "Position", y)
+    card2:AddLabel("Click Preview to see the text on screen. Drag it anywhere, then fine-tune with the sliders.", T.textMuted)
+    card2:AddSeparator()
+    table.insert(maChildCards, card2)
+
+    -- Anchor row (strata + anchor from/to/frame)
+    local maAnchorRow, maAnchorRowH = GUI:CreateAnchorRow(parent, db, Refresh,
+        { default = "MEDIUM", onChange = function() Refresh() end })
+    card2:AddRow(maAnchorRow, maAnchorRowH)
+    table.insert(maChildRows, maAnchorRow)
+    card2:AddSeparator()
+
+    -- X / Y side by side
+    local maXYRow = GUI:CreateHRow(parent, 44)
+    local slX = GUI:CreateSlider(parent, "X Offset", -2000, 2000, 1, db.x or 0,
+        function(v) db.x = v; Refresh() end)
+    local slY = GUI:CreateSlider(parent, "Y Offset", -2000, 2000, 1, db.y or 300,
+        function(v) db.y = v; Refresh() end)
+    maXYRow:Add(slX, 0.5)
+    maXYRow:Add(slY, 0.5)
+    card2:AddRow(maXYRow, 44)
+    table.insert(maChildRows, maXYRow)
+    card2:AddSeparator()
+
+    -- Preview button (toggle: shows frame + enables drag)
+    local previewActive = false
+    local previewWrap = CreateFrame("Frame", nil, parent)
+    previewWrap:SetHeight(28)
+    function previewWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
+    local previewBtn = GUI:CreateButton(previewWrap, "Preview", nil, 140, 28)
+    previewBtn:SetPoint("LEFT", previewWrap, "LEFT", 0, 0)
+    previewBtn:SetScript("OnLeave", function()
+        AnimateBorderFocus(previewBtn, previewActive)
+        previewBtn.lbl:SetTextColor(
+            previewActive and T.accent[1] or T.textPrimary[1],
+            previewActive and T.accent[2] or T.textPrimary[2],
+            previewActive and T.accent[3] or T.textPrimary[3], 1)
+    end)
+    previewBtn:SetScript("OnClick", function()
+        local ma = SP.MovementAlert
+        if not ma then return end
+        previewActive = not previewActive
+        if previewActive then
+            ma:ShowPreview()
+            if ma.frame and ma.frame.movableLbl then
+                ma.frame.movableLbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+            end
+            previewBtn.lbl:SetText("Stop Preview")
+            previewBtn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+        else
+            ma:HidePreview()
+            previewBtn.lbl:SetText("Preview")
+            previewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+        end
+        AnimateBorderFocus(previewBtn, previewActive)
+    end)
+    card2:AddRow(previewWrap, 28)
+    table.insert(maChildRows, previewWrap)
+
+    -- Sync sliders when frame is dragged
+    local ma = SP.MovementAlert
+    if ma then
+        ma._syncSliders = function(nx, ny)
+            if slX and slX.SetValue then slX.SetValue(nx) end
+            if slY and slY.SetValue then slY.SetValue(ny) end
+        end
+    end
+
+    y = y + card2:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 3: Font ──────────────────────────────────────
+    local card3 = GUI:CreateCard(parent, "Font", y)
+    card3:AddLabel("Typeface and size of the cooldown text.", T.textMuted)
+    card3:AddSeparator()
+    table.insert(maChildCards, card3)
+
+    local fontHRow = GUI:CreateHRow(parent, 44)
+    local ddFontFace = GUI:CreateFontDropdown(parent, "Font Face",
+        db.fontFace or "Expressway",
+        function(v) db.fontFace = v; Refresh() end)
+    local ddOutline = GUI:CreateDropdown(parent, "Outline",
+        { "NONE", "OUTLINE", "THICKOUTLINE", "SOFTOUTLINE" },
+        db.outline or "OUTLINE",
+        function(v) db.outline = v; Refresh() end)
+    fontHRow:Add(ddFontFace, 0.6)
+    fontHRow:Add(ddOutline, 0.4)
+    card3:AddRow(fontHRow, 44)
+    card3:AddSeparator()
+    card3:AddRow(GUI:CreateSlider(parent, "Font Size", 8, 60, 1, db.fontSize or 14,
+        function(v) db.fontSize = v; Refresh() end), 44)
+    card3:AddSeparator()
+
+    -- Text color
+    local maTxtSrcRow, maTxtSwRow = GUI:CreateColorWithSource(
+        parent, "Text Color", db, "colorSource", "color", { 1, 1, 1 },
+        function() Refresh() end)
+    card3:AddRow(maTxtSrcRow, 44)
+    card3:AddSeparator()
+    card3:AddRow(maTxtSwRow, 52)
+
+    y = y + card3:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 4: Time Spiral ───────────────────────────────
+    local card4 = GUI:CreateCard(parent, "Time Spiral", y)
+    card4:AddLabel("Shows a free-movement countdown when triggered by a glow overlay.", T.textMuted)
+    card4:AddSeparator()
+    table.insert(maChildCards, card4)
+
+    local tsRows = {}
+    local function UpdateTSChildState(en)
+        for _, r in ipairs(tsRows) do r:SetEnabled(en) end
+    end
+
+    local tsEnableRow = GUI:CreateToggle(parent, "Enable Time Spiral",
+        db.showTimeSpiral ~= false,
+        function(v)
+            db.showTimeSpiral = v
+            UpdateTSChildState(v)
+        end)
+    card4:AddRow(tsEnableRow, 28)
+    card4:AddSeparator()
+
+    -- Time Spiral color
+    local tsSrcRow, tsSwRow = GUI:CreateColorWithSource(
+        parent, "Time Spiral Color", db, "timeSpiralColorSource", "timeSpiralColor",
+        { 0.451, 0.741, 0.522 },
+        function() Refresh() end)
+    card4:AddRow(tsSrcRow, 44)
+    card4:AddSeparator()
+    card4:AddRow(tsSwRow, 52)
+    table.insert(tsRows, tsSrcRow)
+    table.insert(tsRows, tsSwRow)
+
+    y = y + card4:GetTotalHeight() + T.paddingSmall
+
+    -- Apply initial state
+    UpdateChildState(db.enabled)
+    UpdateTSChildState(db.showTimeSpiral ~= false)
+
+    parent:SetHeight(y)
+end)
+
+-- ============================================================
 -- Page: Nudge Tool
 -- ============================================================
 GUI:RegisterContent("editmode", function(parent)
@@ -4933,8 +5688,11 @@ GUI:RegisterContent("bloodlustalert", function(parent)
     local childRows       = {}
     local childCards      = {}
     local playSoundChildRows = {}   -- gated by db.enabled AND db.playSound
+    local enableRow       -- forward-declared; used in UpdateChildState closure
+    local card1           -- forward-declared for UpdateChildState closure
 
     local function UpdateChildState(enabled)
+        card1:GrayContent(enabled, enableRow)
         for _, r in ipairs(childRows)  do r:SetEnabled(enabled) end
         for _, c in ipairs(childCards) do c:SetAlpha(enabled and 1 or 0.4) end
         -- Secondary gate: sound sub-options only active when Play Sound is on
@@ -4943,14 +5701,14 @@ GUI:RegisterContent("bloodlustalert", function(parent)
     end
 
     -- ── Card: General ─────────────────────────────────────
-    local card1 = GUI:CreateCard(parent, "Bloodlust Alert", y)
+    card1 = GUI:CreateCard(parent, "Bloodlust Alert", y)
 
     card1:AddLabel(
         "Plays a sound when Bloodlust / Heroism / Time Warp is detected. Detection uses two independent signals — a haste spike (>= 30 pp in a single event) and a new debuff on the player — both must fire within 0.3 s to confirm. Event-driven only, no polling.",
         T.textMuted)
     card1:AddSeparator()
 
-    local enableRow = GUI:CreateToggle(parent, "Enable Bloodlust Alert", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable Bloodlust Alert", db.enabled,
         function(v)
             db.enabled = v
             UpdateChildState(v)
@@ -5476,12 +6234,14 @@ GUI:RegisterContent("tankmd", function(parent)
 
     local childRows  = {}
     local childCards = {}
+    local enableRow  -- forward-declared; used in UpdateChildState closure
     local function UpdateChildState(en)
+        card1:GrayContent(en, enableRow)
         for _, r in ipairs(childRows)  do r:SetEnabled(en) end
         for _, c in ipairs(childCards) do c:SetAlpha(en and 1 or 0.4) end
     end
 
-    local enableRow = GUI:CreateToggle(parent, "Enable Auto Misdirection", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable Auto Misdirection", db.enabled,
         function(v)
             db.enabled = v
             ApplySettings()
@@ -5592,12 +6352,14 @@ GUI:RegisterContent("focustargetmarker", function(parent)
 
     local childRows  = {}
     local childCards = {}
+    local enableRow  -- forward-declared; used in UpdateChildState closure
     local function UpdateChildState(en)
+        card1:GrayContent(en, enableRow)
         for _, r in ipairs(childRows)  do r:SetEnabled(en) end
         for _, c in ipairs(childCards) do c:SetAlpha(en and 1 or 0.4) end
     end
 
-    local enableRow = GUI:CreateToggle(parent, "Enable Focus Target Marker", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable Focus Target Marker", db.enabled,
         function(v)
             db.enabled = v
             ApplySettings()
@@ -5731,17 +6493,20 @@ GUI:RegisterContent("autoplaystyle", function(parent)
     local y = 0
 
     local childRows = {}
+    local enableRow -- forward-declared; used in UpdateChildState closure
+    local card1     -- forward-declared for UpdateChildState closure
     local function UpdateChildState(en)
+        card1:GrayContent(en, enableRow)
         for _, r in ipairs(childRows) do r:SetEnabled(en) end
     end
 
-    local card1 = GUI:CreateCard(parent, "M+ Auto Playstyle", y)
+    card1 = GUI:CreateCard(parent, "M+ Auto Playstyle", y)
     card1:AddLabel(
         "Automatically pre-selects your preferred playstyle when you open the Group Finder listing creation dialog for a Mythic+ group. The setting is applied every time the dialog opens, including after switching to a different activity.",
         T.textMuted)
     card1:AddSeparator()
 
-    local enableRow = GUI:CreateToggle(parent, "Enable M+ Auto Playstyle", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable M+ Auto Playstyle", db.enabled,
         function(v)
             db.enabled = v
             UpdateChildState(v)
@@ -5826,19 +6591,22 @@ GUI:RegisterContent("deathalert", function(parent)
     local y = 0
     local daChildRows  = {}
     local daChildCards = {}
+    local enableRow    -- forward-declared; used in UpdateDAChildState closure
+    local card1        -- forward-declared for UpdateDAChildState closure
     local function UpdateDAChildState(en)
+        card1:GrayContent(en, enableRow)
         for _, r in ipairs(daChildRows)  do r:SetEnabled(en) end
         for _, c in ipairs(daChildCards) do c:SetAlpha(en and 1 or 0.4) end
     end
 
     -- ── Card 1: General ───────────────────────────────────────
-    local card1 = GUI:CreateCard(parent, "Death Alert", y)
+    card1 = GUI:CreateCard(parent, "Death Alert", y)
     card1:AddLabel(
         "Displays a large on-screen message when a party or raid member dies. Shows the player's name in their class colour.",
         T.textMuted)
     card1:AddSeparator()
 
-    local enableRow = GUI:CreateToggle(parent, "Enable Death Alert", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable Death Alert", db.enabled,
         function(v)
             db.enabled = v
             UpdateDAChildState(v)
@@ -6241,22 +7009,26 @@ GUI:RegisterContent("performance", function(parent)
 
     -- Child cards fade when the module is disabled
     local perfChildCards = {}
+    local perfEnableRow  -- forward-declared; used in UpdatePerfState closure
+    local card0          -- forward-declared for UpdatePerfState closure
     local function UpdatePerfState(en)
+        card0:GrayContent(en, perfEnableRow)
         for _, c in ipairs(perfChildCards) do c:SetAlpha(en and 1 or 0.4) end
     end
 
     -- ── Card 0: Enable toggle ──────────────────────────────
-    local card0 = GUI:CreateCard(parent, "Performance", y)
+    card0 = GUI:CreateCard(parent, "Performance", y)
     card0:AddLabel(
         "Quest watch cleaner and auto combat-log clear. Enable the module to activate its sub-features.",
         T.textMuted)
     card0:AddSeparator()
-    card0:AddRow(GUI:CreateToggle(parent, "Enable Performance module", db.enabled,
+    perfEnableRow = GUI:CreateToggle(parent, "Enable Performance module", db.enabled,
         function(v)
             db.enabled = v
             UpdatePerfState(v)
             Refresh()
-        end, "Performance"), 28)
+        end, "Performance")
+    card0:AddRow(perfEnableRow, 28)
     y = y + card0:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 1: Quest Watch Cleaner ───────────────────────
@@ -6353,21 +7125,25 @@ GUI:RegisterContent("enhancedobjectivetext", function(parent)
     end
 
     local eotChildCards = {}
+    local eotEnableRow   -- forward-declared; used in UpdateEOTState closure
+    local card1          -- forward-declared for UpdateEOTState closure
     local function UpdateEOTState(en)
+        card1:GrayContent(en, eotEnableRow)
         for _, c in ipairs(eotChildCards) do c:SetAlpha(en and 1 or 0.4) end
     end
 
-    local card1 = GUI:CreateCard(parent, "Enhanced Objective & Error Text", y)
+    card1 = GUI:CreateCard(parent, "Enhanced Objective & Error Text", y)
     card1:AddLabel(
         "Replaces WoW's default small stacked error/objective messages with a single large centred line. Spell errors, objective completions and system notices are easier to read at a glance during combat.",
         T.textMuted)
     card1:AddSeparator()
-    card1:AddRow(GUI:CreateToggle(parent, "Enable Enhanced Objective Text", db.enabled,
+    eotEnableRow = GUI:CreateToggle(parent, "Enable Enhanced Objective Text", db.enabled,
         function(v)
             db.enabled = v
             UpdateEOTState(v)
             Refresh()
-        end, "Enhanced Objective Text"), 28)
+        end, "Enhanced Objective Text")
+    card1:AddRow(eotEnableRow, 28)
 
     card1:AddSeparator()
 
@@ -6481,472 +7257,6 @@ GUI:RegisterContent("silvermoonmapicon", function(parent)
 end)
 
 -- ============================================================
-
--- ============================================================
--- Page: Recuperate Button
--- ============================================================
-GUI:RegisterContent("recuperate", function(parent)
-    local T  = SP.Theme
-    local db = SP.GetDB().recuperate
-
-    local function Refresh()
-        if SP.Recuperate then SP.Recuperate.Refresh() end
-    end
-
-    -- Child rows grayed when disabled
-    local recChildRows  = {}
-    local recChildCards = {}
-    local function UpdateRecState(en)
-        for _, r in ipairs(recChildRows)  do r:SetEnabled(en) end
-        for _, c in ipairs(recChildCards) do c:SetAlpha(en and 1 or 0.4) end
-    end
-
-    local y = 0
-
-    local card1 = GUI:CreateCard(parent, "Recuperate Button", y)
-    card1:AddLabel(
-        "Shows a clickable Recuperate spell button when you are out of combat, alive, and below 50% health. Hidden at full health and automatically hidden when you enter combat.",
-        T.textMuted)
-    card1:AddSeparator()
-    card1:AddRow(GUI:CreateToggle(parent, "Enable Recuperate Button", db.enabled,
-        function(v)
-            db.enabled = v
-            UpdateRecState(v)
-            Refresh()
-        end, "Recuperate Button"), 28)
-    y = y + card1:GetTotalHeight() + T.paddingSmall
-
-    -- Appearance card
-    local cardApp = GUI:CreateCard(parent, "Appearance", y)
-    cardApp:AddLabel("Customise the glow style and colour around the Recuperate button.", T.textMuted)
-    cardApp:AddSeparator()
-    table.insert(recChildCards, cardApp)
-    local recGlowTypes = (SP.Recuperate and SP.Recuperate.GlowTypes)
-        or { "none", "pixel", "autocast", "button", "proc" }
-    local recGlowSzRow  -- forward-declared so dropdown onChange can reference it
-    local function SetGlowSzEnabled(en)
-        recGlowSzRow:SetAlpha(en and 1 or 0.4)
-        recGlowSzRow:EnableMouse(en)
-    end
-    local recGlowRow = GUI:CreateDropdown(parent, "Glow",
-        recGlowTypes, db.glowType or "pixel",
-        function(v)
-            db.glowType = v
-            SetGlowSzEnabled(v == "pixel" or v == "autocast")
-            if SP.Recuperate then SP.Recuperate:ApplyGlow() end
-        end)
-    cardApp:AddRow(recGlowRow, 44)
-    table.insert(recChildRows, recGlowRow)
-    cardApp:AddSeparator()
-    local recGlowSrcRow, recGlowSwRow = GUI:CreateColorWithSource(
-        parent, "Glow Color", db, "glowColorSource", "glowColor", { 0, 1, 0.2 },
-        function() if SP.Recuperate then SP.Recuperate:ApplyGlow() end end)
-    cardApp:AddRow(recGlowSrcRow, 44)
-    table.insert(recChildRows, recGlowSrcRow)
-    cardApp:AddSeparator()
-    cardApp:AddRow(recGlowSwRow, 52)
-    table.insert(recChildRows, recGlowSwRow)
-    cardApp:AddSeparator()
-    recGlowSzRow = GUI:CreateSlider(parent, "Glow Size", 1, 8, 0.5, db.glowSize or 2,
-        function(v) db.glowSize = v; if SP.Recuperate then SP.Recuperate:ApplyGlow() end end)
-    cardApp:AddRow(recGlowSzRow, 44)
-    table.insert(recChildRows, recGlowSzRow)
-    -- Initial state: enabled for pixel and autocast (both support a size param)
-    local _gt = db.glowType or "pixel"
-    SetGlowSzEnabled(_gt == "pixel" or _gt == "autocast")
-    y = y + cardApp:GetTotalHeight() + T.paddingSmall
-
-    -- Position card
-    local card2 = GUI:CreateCard(parent, "Position & Size", y)
-    card2:AddLabel("Set the button size and where it appears on screen.", T.textMuted)
-    card2:AddSeparator()
-    local recSzRow = GUI:CreateSlider(parent, "Button Size", 20, 80, 2, db.size or 40,
-        function(v)
-            db.size = v
-            if SP.Recuperate then SP.Recuperate:ApplySettings() end
-        end)
-    card2:AddRow(recSzRow, 44)
-    table.insert(recChildRows, recSzRow)
-    card2:AddSeparator()
-    local recAnchorRow, recAnchorRowH = GUI:CreateAnchorRow(parent, db,
-        function() if SP.Recuperate then SP.Recuperate:ApplySettings() end end,
-        { default = "HIGH", onChange = function() if SP.Recuperate then SP.Recuperate:ApplySettings() end end })
-    card2:AddRow(recAnchorRow, recAnchorRowH)
-    table.insert(recChildRows, recAnchorRow)
-    card2:AddSeparator()
-    local recXYHRow = GUI:CreateHRow(parent, 44)
-    local recXRow = GUI:CreateSlider(parent, "X Offset", -2000, 2000, 1, db.x or 0,
-        function(v)
-            db.x = v
-            if SP.Recuperate then SP.Recuperate:ApplySettings() end
-        end)
-    local recYRow = GUI:CreateSlider(parent, "Y Offset", -2000, 2000, 1, db.y or 0,
-        function(v)
-            db.y = v
-            if SP.Recuperate then SP.Recuperate:ApplySettings() end
-        end)
-    recXYHRow:Add(recXRow, 0.5)
-    recXYHRow:Add(recYRow, 0.5)
-    card2:AddRow(recXYHRow, 44)
-    table.insert(recChildRows, recXYHRow)
-    card2:AddSeparator()
-
-    -- Shared style helper for this closure (border handled via AnimateBorderFocus)
-    local function StyleRecBtn(btn, isActive)
-        if isActive then
-            btn:SetBackdropColor(T.accent[1], T.accent[2], T.accent[3], 0.25)
-            btn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-        else
-            btn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-            btn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end
-    end
-
-    -- Preview button
-    local recPreviewActive = false
-    local recPreviewWrap = CreateFrame("Frame", nil, parent)
-    recPreviewWrap:SetHeight(28)
-    function recPreviewWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-
-    local recPrevBtn = GUI:CreateButton(recPreviewWrap, "Preview", nil, 140, 28)
-    recPrevBtn:SetPoint("LEFT", recPreviewWrap, "LEFT", 0, 0)
-
-    local function UpdateRecPrevBtn()
-        StyleRecBtn(recPrevBtn, recPreviewActive)
-        recPrevBtn.lbl:SetText(recPreviewActive and "Stop Preview" or "Preview")
-        AnimateBorderFocus(recPrevBtn, recPreviewActive)
-    end
-
-    recPrevBtn:SetScript("OnLeave", function() UpdateRecPrevBtn() end)
-    recPrevBtn:SetScript("OnClick", function()
-        if SP.Recuperate then
-            recPreviewActive = not recPreviewActive
-            if recPreviewActive then
-                SP.Recuperate:ShowPreview()
-            else
-                SP.Recuperate:HidePreview()
-            end
-            UpdateRecPrevBtn()
-        end
-    end)
-    card2:AddRow(recPreviewWrap, 28)
-    table.insert(recChildRows, recPreviewWrap)
-    card2:AddSeparator()
-
-    -- Drag to Move button
-    local recDragActive = false
-    local recDragWrap = CreateFrame("Frame", nil, parent)
-    recDragWrap:SetHeight(28)
-    function recDragWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-
-    local recDragBtn = GUI:CreateButton(recDragWrap, "Drag to Move", nil, 140, 28)
-    recDragBtn:SetPoint("LEFT", recDragWrap, "LEFT", 0, 0)
-
-    local function UpdateRecDragBtn()
-        StyleRecBtn(recDragBtn, recDragActive)
-        recDragBtn.lbl:SetText(recDragActive and "Lock Position" or "Drag to Move")
-        AnimateBorderFocus(recDragBtn, recDragActive)
-    end
-
-    recDragBtn:SetScript("OnLeave", function() UpdateRecDragBtn() end)
-    recDragBtn:SetScript("OnClick", function()
-        if SP.Recuperate then
-            recDragActive = not recDragActive
-            if recDragActive then
-                SP.Recuperate:StartDragMode()
-            else
-                SP.Recuperate:EndDragMode()
-            end
-            UpdateRecDragBtn()
-        end
-    end)
-    card2:AddRow(recDragWrap, 28)
-    table.insert(recChildRows, recDragWrap)
-
-    -- Sync sliders when position updated via drag
-    if SP.Recuperate then
-        SP.Recuperate._syncSliders = function(nx, ny)
-            if recXRow and recXRow.SetValue then recXRow.SetValue(nx) end
-            if recYRow and recYRow.SetValue then recYRow.SetValue(ny) end
-        end
-    end
-
-    table.insert(recChildCards, card2)
-    y = y + card2:GetTotalHeight() + T.paddingSmall
-
-    -- Apply initial greyed state
-    UpdateRecState(db.enabled)
-
-    -- Cleanup preview/drag when navigating away (Recuperate.frame is UIParent-parented)
-    parent:HookScript("OnHide", function()
-        if recPreviewActive then
-            recPreviewActive = false
-            if SP.Recuperate then SP.Recuperate:HidePreview() end
-            UpdateRecPrevBtn()
-        end
-        if recDragActive then
-            recDragActive = false
-            if SP.Recuperate then SP.Recuperate:EndDragMode() end
-            UpdateRecDragBtn()
-        end
-    end)
-
-    parent:SetHeight(y)
-end)
-
--- ============================================================
--- Page: Repair Warning (Durability)
--- ============================================================
-GUI:RegisterContent("durability", function(parent)
-    local T  = SP.Theme
-    local db = SP.GetDB().durability
-
-    local function Refresh()
-        if SP.Durability then SP.Durability.Refresh() end
-    end
-    local function ApplyDur()
-        if SP.Durability then SP.Durability:ApplySettings() end
-    end
-
-    -- Child rows/cards grayed when disabled
-    local durChildRows  = {}
-    local durChildCards = {}
-    local function UpdateDurState(en)
-        for _, r in ipairs(durChildRows)  do r:SetEnabled(en) end
-        for _, c in ipairs(durChildCards) do c:SetAlpha(en and 1 or 0.4) end
-    end
-
-    local y = 0
-
-    -- ── Card 1: Enable ───────────────────────────────────────
-    local card1 = GUI:CreateCard(parent, "Repair Warning", y)
-    card1:AddLabel(
-        "Shows a pulsing on-screen warning when your gear durability drops below the configured threshold. Never shown during combat.",
-        T.textMuted)
-    card1:AddSeparator()
-    card1:AddRow(GUI:CreateToggle(parent, "Enable Repair Warning", db.enabled,
-        function(v)
-            db.enabled = v
-            UpdateDurState(v)
-            Refresh()
-        end, "Repair Warning"), 28)
-    y = y + card1:GetTotalHeight() + T.paddingSmall
-
-    -- ── Card 2: Threshold ─────────────────────────────────────
-    local card2 = GUI:CreateCard(parent, "Threshold", y)
-    card2:AddLabel("Warning appears when your lowest-durability item is at or below this percentage.", T.textMuted)
-    card2:AddSeparator()
-    local durThrRow = GUI:CreateSlider(parent, "Show Below (%)", 0, 100, 5, db.threshold or 30,
-        function(v)
-            db.threshold = v
-            if SP.Durability then SP.Durability:OnDurabilityCheck() end
-        end)
-    card2:AddRow(durThrRow, 44)
-    table.insert(durChildRows, durThrRow)
-    table.insert(durChildCards, card2)
-    y = y + card2:GetTotalHeight() + T.paddingSmall
-
-    -- ── Card 3: Appearance ────────────────────────────────────
-    local card3 = GUI:CreateCard(parent, "Appearance", y)
-    card3:AddLabel("Customise the font, colour, and warning text of the durability indicator.", T.textMuted)
-    card3:AddSeparator()
-
-    -- Warning text EditBox
-    local wtRow = CreateFrame("Frame", nil, parent)
-    wtRow:SetHeight(52)
-    local wtLbl = wtRow:CreateFontString(nil, "OVERLAY")
-    wtLbl:SetPoint("TOPLEFT", wtRow, "TOPLEFT", 0, -2)
-    ApplyFont(wtLbl, 11)
-    wtLbl:SetText("Warning Text")
-    wtLbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
-    local wtBox = CreateFrame("EditBox", nil, wtRow, "BackdropTemplate")
-    wtBox:SetSize(150, 26)
-    wtBox:SetPoint("BOTTOMLEFT", wtRow, "BOTTOMLEFT", 0, 2)
-    wtBox:SetAutoFocus(false)
-    wtBox:SetMaxLetters(32)
-    wtBox:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
-    wtBox:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-    wtBox:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
-    wtBox:SetTextInsets(6, 6, 0, 0)
-    ApplyFont(wtBox, 11)
-    wtBox:SetText(db.warningText or "REPAIR NOW")
-    wtBox:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-    wtBox:SetScript("OnEnterPressed", function(self2)
-        db.warningText = self2:GetText()
-        ApplyDur()
-        self2:ClearFocus()
-    end)
-    wtBox:SetScript("OnEscapePressed", function(self2)
-        self2:SetText(db.warningText or "REPAIR NOW")
-        self2:ClearFocus()
-    end)
-    function wtRow:SetEnabled(en)
-        self:SetAlpha(en and 1 or 0.4)
-        wtBox:SetEnabled(en)
-    end
-    card3:AddRow(wtRow, 52)
-    table.insert(durChildRows, wtRow)
-    card3:AddSeparator()
-
-    -- Text color with source dropdown
-    local durColorSrcRow, durColorSwRow = GUI:CreateColorWithSource(
-        parent, "Text Color", db, "colorSource", "color", { 1, 0.537, 0.2 },
-        function() ApplyDur() end)
-    card3:AddRow(durColorSrcRow, 44)
-    table.insert(durChildRows, durColorSrcRow)
-    card3:AddSeparator()
-    card3:AddRow(durColorSwRow, 52)
-    table.insert(durChildRows, durColorSwRow)
-    card3:AddSeparator()
-
-    -- Font Face + Outline on same row
-    local durFontHRow = GUI:CreateHRow(parent, 44)
-    local durFontRow = GUI:CreateFontDropdown(parent, "Font Face",
-        db.fontFace or "Expressway",
-        function(v) db.fontFace = v; ApplyDur() end)
-    local durOutlineRow = GUI:CreateDropdown(parent, "Outline",
-        { "NONE", "OUTLINE", "THICKOUTLINE", "SOFTOUTLINE" },
-        db.fontOutline or "NONE",
-        function(v) db.fontOutline = v; ApplyDur() end)
-    durFontHRow:Add(durFontRow, 0.6)
-    durFontHRow:Add(durOutlineRow, 0.4)
-    card3:AddRow(durFontHRow, 44)
-    table.insert(durChildRows, durFontHRow)
-
-    -- Font size
-    local durFszRow = GUI:CreateSlider(parent, "Font Size", 10, 40, 1, db.fontSize or 20,
-        function(v) db.fontSize = v; ApplyDur() end)
-    card3:AddRow(durFszRow, 44)
-    table.insert(durChildRows, durFszRow)
-    table.insert(durChildCards, card3)
-    y = y + card3:GetTotalHeight() + T.paddingSmall
-
-    -- ── Card 4: Position ──────────────────────────────────────
-    local card4 = GUI:CreateCard(parent, "Position", y)
-    card4:AddLabel("Set where the durability text appears on screen.", T.textMuted)
-    card4:AddSeparator()
-    local durAnchorRow, durAnchorRowH = GUI:CreateAnchorRow(parent, db, ApplyDur,
-        { default = "HIGH", onChange = function() ApplyDur() end })
-    card4:AddRow(durAnchorRow, durAnchorRowH)
-    table.insert(durChildRows, durAnchorRow)
-    card4:AddSeparator()
-    local durXYHRow = GUI:CreateHRow(parent, 44)
-    local durXRow = GUI:CreateSlider(parent, "X Offset", -2000, 2000, 1, db.x or 0,
-        function(v) db.x = v; ApplyDur() end)
-    local durYRow = GUI:CreateSlider(parent, "Y Offset", -2000, 2000, 1, db.y or -200,
-        function(v) db.y = v; ApplyDur() end)
-    durXYHRow:Add(durXRow, 0.5)
-    durXYHRow:Add(durYRow, 0.5)
-    card4:AddRow(durXYHRow, 44)
-    table.insert(durChildRows, durXYHRow)
-
-    -- Preview + Drag to Move buttons
-    card4:AddSeparator()
-
-    -- Shared style helper for this closure
-    local function StyleDurBtn(btn, isActive)
-        if isActive then
-            btn:SetBackdropColor(T.accent[1], T.accent[2], T.accent[3], 0.25)
-            btn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-        else
-            btn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-            btn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end
-    end
-
-    -- Preview button
-    local durPreviewActive = false
-    local durPreviewWrap = CreateFrame("Frame", nil, parent)
-    durPreviewWrap:SetHeight(28)
-    function durPreviewWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-
-    local durPrevBtn = GUI:CreateButton(durPreviewWrap, "Preview", nil, 140, 28)
-    durPrevBtn:SetPoint("LEFT", durPreviewWrap, "LEFT", 0, 0)
-
-    local function UpdateDurPrevBtn()
-        StyleDurBtn(durPrevBtn, durPreviewActive)
-        durPrevBtn.lbl:SetText(durPreviewActive and "Stop Preview" or "Preview")
-        AnimateBorderFocus(durPrevBtn, durPreviewActive)
-    end
-
-    durPrevBtn:SetScript("OnLeave", function() UpdateDurPrevBtn() end)
-    durPrevBtn:SetScript("OnClick", function()
-        if SP.Durability then
-            durPreviewActive = not durPreviewActive
-            if durPreviewActive then
-                SP.Durability:ShowPreview()
-            else
-                SP.Durability:HidePreview()
-            end
-            UpdateDurPrevBtn()
-        end
-    end)
-    card4:AddRow(durPreviewWrap, 28)
-    table.insert(durChildRows, durPreviewWrap)
-    card4:AddSeparator()
-
-    -- Drag to Move button
-    local durDragActive = false
-    local durDragWrap = CreateFrame("Frame", nil, parent)
-    durDragWrap:SetHeight(28)
-    function durDragWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-
-    local durDragBtn = GUI:CreateButton(durDragWrap, "Drag to Move", nil, 140, 28)
-    durDragBtn:SetPoint("LEFT", durDragWrap, "LEFT", 0, 0)
-
-    local function UpdateDurDragBtn()
-        StyleDurBtn(durDragBtn, durDragActive)
-        durDragBtn.lbl:SetText(durDragActive and "Lock Position" or "Drag to Move")
-        AnimateBorderFocus(durDragBtn, durDragActive)
-    end
-
-    durDragBtn:SetScript("OnLeave", function() UpdateDurDragBtn() end)
-    durDragBtn:SetScript("OnClick", function()
-        if SP.Durability then
-            durDragActive = not durDragActive
-            if durDragActive then
-                SP.Durability:StartDragMode()
-            else
-                SP.Durability:EndDragMode()
-            end
-            UpdateDurDragBtn()
-        end
-    end)
-    card4:AddRow(durDragWrap, 28)
-    table.insert(durChildRows, durDragWrap)
-
-    -- Sync sliders when position updated via drag
-    if SP.Durability then
-        SP.Durability._syncSliders = function(nx, ny)
-            if durXRow and durXRow.SetValue then durXRow.SetValue(nx) end
-            if durYRow and durYRow.SetValue then durYRow.SetValue(ny) end
-        end
-    end
-
-    table.insert(durChildCards, card4)
-    y = y + card4:GetTotalHeight() + T.paddingSmall
-
-    -- Apply initial greyed state
-    UpdateDurState(db.enabled)
-
-    -- Cleanup preview/drag when navigating away (Durability.frame is UIParent-parented)
-    parent:HookScript("OnHide", function()
-        if durPreviewActive then
-            durPreviewActive = false
-            if SP.Durability then SP.Durability:HidePreview() end
-            UpdateDurPrevBtn()
-        end
-        if durDragActive then
-            durDragActive = false
-            if SP.Durability then SP.Durability:EndDragMode() end
-            UpdateDurDragBtn()
-        end
-    end)
-
-    parent:SetHeight(y)
-end)
-
--- ============================================================
 -- Page: Gateway Alert
 -- ============================================================
 GUI:RegisterContent("gatewayalert", function(parent)
@@ -6956,6 +7266,8 @@ GUI:RegisterContent("gatewayalert", function(parent)
 
     local gaChildRows  = {}
     local gaChildCards = {}
+    local gaEnRow      -- forward-declared; used in UpdateGAState closure
+    local card1        -- forward-declared for UpdateGAState closure
 
     local function ApplySettings()
         if SP.GatewayAlert then SP.GatewayAlert:ApplySettings() end
@@ -6963,18 +7275,19 @@ GUI:RegisterContent("gatewayalert", function(parent)
     end
 
     local function UpdateGAState(en)
+        card1:GrayContent(en, gaEnRow)
         for _, r in ipairs(gaChildRows)  do r:SetEnabled(en) end
         for _, c in ipairs(gaChildCards) do c:SetAlpha(en and 1 or 0.4) end
     end
 
     -- ── Card 1: Enable ──────────────────────────────────────
-    local card1 = GUI:CreateCard(parent, "Gateway Alert", y)
+    card1 = GUI:CreateCard(parent, "Gateway Alert", y)
     card1:AddLabel(
         "Displays a flashing text alert when your Demonic Gateway item is ready to use (item 188152).",
         T.textMuted)
     card1:AddSeparator()
 
-    local gaEnRow = GUI:CreateToggle(parent, "Enable Gateway Alert",
+    gaEnRow = GUI:CreateToggle(parent, "Enable Gateway Alert",
         db.enabled or false,
         function(v)
             db.enabled = v
@@ -7158,6 +7471,8 @@ GUI:RegisterContent("whisperalert", function(parent)
 
     local waChildRows  = {}
     local waChildCards = {}
+    local enableRow    -- forward-declared; used in UpdateWAState closure
+    local card1        -- forward-declared for UpdateWAState closure
 
     local function ApplySettings()
         if SP.WhisperAlert then SP.WhisperAlert.Refresh() end
@@ -7165,6 +7480,7 @@ GUI:RegisterContent("whisperalert", function(parent)
     end
 
     local function UpdateWAState(en)
+        card1:GrayContent(en, enableRow)
         for _, r in ipairs(waChildRows)  do r:SetEnabled(en) end
         for _, c in ipairs(waChildCards) do c:SetAlpha(en and 1 or 0.4) end
     end
@@ -7223,11 +7539,11 @@ GUI:RegisterContent("whisperalert", function(parent)
     end
 
     -- ── Card 1: Enable ──────────────────────────────────────
-    local card1 = GUI:CreateCard(parent, "Whisper Alert", y)
+    card1 = GUI:CreateCard(parent, "Whisper Alert", y)
     card1:AddLabel("Plays a sound when you receive a whisper or a Battle.net message.", T.textMuted)
     card1:AddSeparator()
 
-    local enableRow = GUI:CreateToggle(parent, "Enable Whisper Alert",
+    enableRow = GUI:CreateToggle(parent, "Enable Whisper Alert",
         db.enabled or false,
         function(v)
             db.enabled = v
@@ -7309,7 +7625,10 @@ GUI:RegisterContent("autobuy", function(parent)
 
     local y = 0
     local childRows = {}
+    local enableRow -- forward-declared; used in UpdateChildState closure
+    local card1     -- forward-declared for UpdateChildState closure
     local function UpdateChildState(en)
+        card1:GrayContent(en, enableRow)
         for _, r in ipairs(childRows) do r:SetEnabled(en) end
     end
 
@@ -7720,12 +8039,12 @@ GUI:RegisterContent("autobuy", function(parent)
     end
 
     -- ── Card 1: Enable ────────────────────────────────────────
-    local card1 = GUI:CreateCard(parent, "Auto Buy", y)
+    card1 = GUI:CreateCard(parent, "Auto Buy", y)
     card1:AddLabel(
         "When you open a vendor window, automatically buys configured items up to the set quantity — filling only what's missing from your bags.",
         T.textMuted)
     card1:AddSeparator()
-    local enableRow = GUI:CreateToggle(parent, "Enable Auto Buy", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable Auto Buy", db.enabled,
         function(v) db.enabled = v; UpdateChildState(v); ApplySettings() end, "Auto Buy")
     card1:AddRow(enableRow, 28)
     y = y + card1:GetTotalHeight() + T.paddingSmall
@@ -7862,18 +8181,21 @@ GUI:RegisterContent("spelleffectalpha", function(parent)
 
     local y = 0
     local childRows = {}
+    local enableRow -- forward-declared; used in UpdateChildState closure
+    local card1     -- forward-declared for UpdateChildState closure
     local function UpdateChildState(en)
+        card1:GrayContent(en, enableRow)
         for _, r in ipairs(childRows) do r:SetEnabled(en) end
     end
 
     -- Card 1: Enable
-    local card1 = GUI:CreateCard(parent, "Spell Effect Alpha", y)
+    card1 = GUI:CreateCard(parent, "Spell Effect Alpha", y)
     card1:AddLabel(
         "Controls the opacity of spell activation overlays (the glowing highlights around action bar buttons when a proc fires). Set to 0 to fully hide them, 100 for default visibility.",
         T.textMuted)
     card1:AddSeparator()
 
-    local enableRow = GUI:CreateToggle(parent, "Enable Spell Effect Alpha", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable Spell Effect Alpha", db.enabled,
         function(v)
             db.enabled = v
             UpdateChildState(v)
@@ -7974,18 +8296,21 @@ GUI:RegisterContent("combatcross", function(parent)
 
     local childRows  = {}
     local childCards = {}
+    local enableRow  -- forward-declared; used in UpdateChildState closure
+    local card1      -- forward-declared for UpdateChildState closure
     local function UpdateChildState(en)
+        card1:GrayContent(en, enableRow)
         for _, r in ipairs(childRows)  do r:SetEnabled(en) end
         for _, c in ipairs(childCards) do c:SetAlpha(en and 1 or 0.4) end
     end
 
     -- ── Card 1: General ────────────────────────────────────
-    local card1 = GUI:CreateCard(parent, "Combat Cross", y)
+    card1 = GUI:CreateCard(parent, "Combat Cross", y)
     card1:AddLabel(
         "Displays a \"+\" crosshair on screen during combat. The cross turns red when your target is out of range.",
         T.textMuted)
     card1:AddSeparator()
-    card1:AddRow(GUI:CreateToggle(parent, "Enable Combat Cross", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable Combat Cross", db.enabled,
         function(v)
             db.enabled = v
             UpdateChildState(v)
@@ -7993,7 +8318,8 @@ GUI:RegisterContent("combatcross", function(parent)
             if cc then
                 if v then cc:Activate() else cc:Deactivate() end
             end
-        end, "Combat Cross"), 28)
+        end, "Combat Cross")
+    card1:AddRow(enableRow, 28)
     y = y + card1:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 2: Appearance ─────────────────────────────────

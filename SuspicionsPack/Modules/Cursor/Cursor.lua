@@ -93,8 +93,8 @@ local function CreateCursorFrame()
     -- ── Main circle ──────────────────────────────────────────
     local f = CreateFrame("Frame", "SP_CursorCircle", UIParent)
     f:SetSize(sz, sz)
-    f:SetFrameStrata("LOW")
-    f:SetFrameLevel(200)   -- above health bars / spell bars (LOW ~0-50), below addon frames (MEDIUM+)
+    f:SetFrameStrata("MEDIUM")
+    f:SetFrameLevel(200)
     f:EnableMouse(false)   -- must never intercept mouse clicks
     f:SetClampedToScreen(false)
     f:Hide()
@@ -122,8 +122,8 @@ local function CreateCursorFrame()
 
     local cf = CreateFrame("Frame", "SP_CursorClickCircle", UIParent)
     cf:SetSize(clickSz, clickSz)
-    cf:SetFrameStrata("LOW")
-    cf:SetFrameLevel(199)  -- one below main circle
+    cf:SetFrameStrata("MEDIUM")
+    cf:SetFrameLevel(199)
     cf:EnableMouse(false)
     cf:SetClampedToScreen(false)
     cf:Hide()
@@ -140,7 +140,15 @@ local function CreateCursorFrame()
     -- The click circle fades in only after 150 ms to avoid flicker on quick clicks.
     local _lastCX, _lastCY = -1, -1
     local mouseHoldTime    = 0
+    local updateElapsed    = 0
     f:SetScript("OnUpdate", function(frame, elapsed)
+        local cdb0 = GetDB()
+        if cdb0.limitUpdateRate then
+            updateElapsed = updateElapsed + elapsed
+            if updateElapsed < (cdb0.updateInterval or 0.016) then return end
+            updateElapsed = 0
+        end
+
         local x, y = GetCursorPosition()
 
         -- Update positions for both circles (skip layout if cursor hasn't moved)
