@@ -5563,9 +5563,15 @@ GUI:RegisterContent("movementalert", function(parent)
     card4:AddSeparator()
     table.insert(maChildCards, card4)
 
-    local tsRows = {}
+    local tsRows      = {}
+    local tsSoundRows = {}
+
+    local function UpdateTSSoundState(en)
+        for _, r in ipairs(tsSoundRows) do r:SetEnabled(en) end
+    end
     local function UpdateTSChildState(en)
         for _, r in ipairs(tsRows) do r:SetEnabled(en) end
+        if en then UpdateTSSoundState(db.timeSpiralPlaySound) end
     end
 
     local tsEnableRow = GUI:CreateToggle(parent, "Enable Time Spiral",
@@ -5577,7 +5583,46 @@ GUI:RegisterContent("movementalert", function(parent)
     card4:AddRow(tsEnableRow, 28)
     card4:AddSeparator()
 
-    -- Time Spiral color
+    -- ── Display text editbox ──────────────────────────────
+    local tsLabelRow = CreateFrame("Frame", nil, parent)
+    tsLabelRow:SetHeight(44)
+    local tsLabelHdr = tsLabelRow:CreateFontString(nil, "OVERLAY")
+    tsLabelHdr:SetPoint("TOPLEFT", tsLabelRow, "TOPLEFT", 0, -2)
+    ApplyFont(tsLabelHdr, 11)
+    tsLabelHdr:SetText("Display Text")
+    tsLabelHdr:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+    local tsLabelBox = CreateFrame("EditBox", nil, tsLabelRow, "BackdropTemplate")
+    tsLabelBox:SetSize(180, 22)
+    tsLabelBox:SetPoint("TOPLEFT", tsLabelRow, "TOPLEFT", 0, -18)
+    tsLabelBox:SetAutoFocus(false)
+    tsLabelBox:SetMaxLetters(64)
+    tsLabelBox:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+    tsLabelBox:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    tsLabelBox:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+    tsLabelBox:SetTextInsets(6, 6, 0, 0)
+    ApplyFont(tsLabelBox, 11)
+    tsLabelBox:SetText(db.timeSpiralText or "Free Movement")
+    tsLabelBox:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+    tsLabelBox:SetScript("OnEditFocusGained", function() AnimateBorderFocus(tsLabelBox, true)  end)
+    tsLabelBox:SetScript("OnEditFocusLost",   function() AnimateBorderFocus(tsLabelBox, false) end)
+    tsLabelBox:SetScript("OnEnterPressed", function(self)
+        db.timeSpiralText = self:GetText()
+        self:ClearFocus()
+    end)
+    tsLabelBox:SetScript("OnEscapePressed", function(self)
+        self:SetText(db.timeSpiralText or "Free Movement")
+        self:ClearFocus()
+    end)
+    function tsLabelRow:SetEnabled(en)
+        self:SetAlpha(en and 1 or 0.4)
+        tsLabelBox:SetEnabled(en)
+    end
+    card4:AddRow(tsLabelRow, 44)
+    table.insert(tsRows, tsLabelRow)
+    card4:AddLabel("Text shown during a Time Spiral proc. Press Enter to save.", T.textMuted)
+    card4:AddSeparator()
+
+    -- ── Text color ────────────────────────────────────────
     local tsSrcRow, tsSwRow = GUI:CreateColorWithSource(
         parent, "Time Spiral Color", db, "timeSpiralColorSource", "timeSpiralColor",
         { 0.451, 0.741, 0.522 },
@@ -5587,6 +5632,217 @@ GUI:RegisterContent("movementalert", function(parent)
     card4:AddRow(tsSwRow, 52)
     table.insert(tsRows, tsSrcRow)
     table.insert(tsRows, tsSwRow)
+    card4:AddSeparator()
+
+    -- ── Sound ─────────────────────────────────────────────
+    local tsPlaySoundRow = GUI:CreateToggle(parent, "Play Sound on Trigger",
+        db.timeSpiralPlaySound,
+        function(v)
+            db.timeSpiralPlaySound = v
+            UpdateTSSoundState(v)
+        end)
+    card4:AddRow(tsPlaySoundRow, 28)
+    table.insert(tsRows, tsPlaySoundRow)
+
+    -- Build sorted LSM sound list with "None" first
+    local tsSndNames = {}
+    do
+        local lsm = LibStub and LibStub("LibSharedMedia-3.0", true)
+        if lsm then
+            for name in pairs(lsm:HashTable("sound")) do
+                table.insert(tsSndNames, name)
+            end
+            table.sort(tsSndNames)
+        end
+        for i, v in ipairs(tsSndNames) do
+            if v == "None" then table.remove(tsSndNames, i); break end
+        end
+        table.insert(tsSndNames, 1, "None")
+    end
+
+    local tsSndDd = GUI:CreateDropdown(parent, "Sound",
+        tsSndNames, db.timeSpiralSound or "None",
+        function(v)
+            db.timeSpiralSound = (v ~= "None") and v or nil
+        end)
+    card4:AddRow(tsSndDd, 40)
+    table.insert(tsRows, tsSndDd)
+    table.insert(tsSoundRows, tsSndDd)
+
+    -- Inline "Listen" button
+    local tsSndHandle, tsSndPlaying = nil, false
+    local tsSndPreviewLbl
+    local tsSndPreviewBtn = CreateFrame("Button", nil, tsSndDd, "BackdropTemplate")
+    tsSndPreviewBtn:SetSize(46, 22)
+    tsSndPreviewBtn:SetPoint("TOPLEFT", tsSndDd, "TOPLEFT", 208, -16)
+    SetBackdrop(tsSndPreviewBtn, T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    tsSndPreviewLbl = tsSndPreviewBtn:CreateFontString(nil, "OVERLAY")
+    tsSndPreviewLbl:SetAllPoints(); ApplyFont(tsSndPreviewLbl, 11)
+    tsSndPreviewLbl:SetText("Listen")
+    tsSndPreviewLbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+    tsSndPreviewBtn.lbl = tsSndPreviewLbl
+    local function StopTsSound()
+        if tsSndHandle then StopSound(tsSndHandle, 200); tsSndHandle = nil end
+        tsSndPlaying = false
+        tsSndPreviewLbl:SetText("Listen")
+        tsSndPreviewLbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+    end
+    tsSndPreviewBtn:SetScript("OnEnter", function() AnimateBorderFocus(tsSndPreviewBtn, true)  end)
+    tsSndPreviewBtn:SetScript("OnLeave", function() AnimateBorderFocus(tsSndPreviewBtn, false) end)
+    tsSndPreviewBtn:SetScript("OnClick", function()
+        if tsSndPlaying then StopTsSound(); return end
+        local soundName = db.timeSpiralSound
+        if not soundName or soundName == "None" then return end
+        local lsm  = LibStub and LibStub("LibSharedMedia-3.0", true)
+        local file = lsm and lsm:Fetch("sound", soundName)
+        if not file then return end
+        local ok, h = PlaySoundFile(file, "Master")
+        if ok then
+            tsSndHandle  = h
+            tsSndPlaying = true
+            tsSndPreviewLbl:SetText("Stop")
+            tsSndPreviewLbl:SetTextColor(1, 0.3, 0.3, 1)
+        end
+    end)
+    -- Extend SetEnabled to cover the inline Listen button
+    local _origTsSndSetEnabled = tsSndDd.SetEnabled
+    function tsSndDd:SetEnabled(en)
+        _origTsSndSetEnabled(self, en)
+        tsSndPreviewBtn:EnableMouse(en)
+        tsSndPreviewBtn:SetAlpha(en and 1 or 0.4)
+        if not en then StopTsSound() end
+    end
+    card4:AddSeparator()
+
+    -- ── Anchor + strata ───────────────────────────────────
+    local tsIconDb = setmetatable({}, {
+        __index = function(_, k)
+            if k == "anchorFrame"  then return db.timeSpiralIconAnchorFrame
+            elseif k == "anchorFrom"  then return db.timeSpiralIconAnchorFrom
+            elseif k == "anchorTo"    then return db.timeSpiralIconAnchorTo
+            elseif k == "frameStrata" then return db.timeSpiralIconFrameStrata
+            else return db[k] end
+        end,
+        __newindex = function(_, k, v)
+            if k == "anchorFrame"  then db.timeSpiralIconAnchorFrame = v
+            elseif k == "anchorFrom"  then db.timeSpiralIconAnchorFrom = v
+            elseif k == "anchorTo"    then db.timeSpiralIconAnchorTo = v
+            elseif k == "frameStrata" then db.timeSpiralIconFrameStrata = v
+            else db[k] = v end
+        end,
+    })
+    local tsIconAnchorRow, tsIconAnchorRowH = GUI:CreateAnchorRow(parent, tsIconDb, function()
+        local ma = GetMA()
+        if ma and ma.Refresh then ma:Refresh() end
+    end, { default = "MEDIUM", onChange = function() end })
+    card4:AddRow(tsIconAnchorRow, tsIconAnchorRowH)
+    table.insert(tsRows, tsIconAnchorRow)
+    card4:AddSeparator()
+
+    -- ── Text position ─────────────────────────────────────
+    local tsTxtXRow = GUI:CreateSlider(parent, "Text X", -500, 500, 1,
+        db.timeSpiralTextX or 0,
+        function(v) db.timeSpiralTextX = v end)
+    local tsTxtYRow = GUI:CreateSlider(parent, "Text Y", -500, 500, 1,
+        db.timeSpiralTextY or 200,
+        function(v) db.timeSpiralTextY = v end)
+    local tsTxtXYRow = GUI:CreateHRow(parent, 44)
+    tsTxtXYRow:Add(tsTxtXRow, 0.5)
+    tsTxtXYRow:Add(tsTxtYRow, 0.5)
+    card4:AddRow(tsTxtXYRow, 44)
+    table.insert(tsRows, tsTxtXYRow)
+    card4:AddLabel("Position of the countdown text when Time Spiral is active.", T.textMuted)
+    card4:AddSeparator()
+
+    -- ── Icon display ──────────────────────────────────────
+    local tsShowIconRow = GUI:CreateToggle(parent, "Show Spell Icon",
+        db.timeSpiralShowIcon or false,
+        function(v)
+            db.timeSpiralShowIcon = v
+            local ma = GetMA()
+            if ma and ma.Refresh then ma:Refresh() end
+        end)
+    card4:AddRow(tsShowIconRow, 28)
+    table.insert(tsRows, tsShowIconRow)
+
+    local tsIconSizeRow = GUI:CreateSlider(parent, "Icon Size", 20, 100, 1,
+        db.timeSpiralIconSize or 50,
+        function(v)
+            db.timeSpiralIconSize = v
+            local ma = GetMA()
+            if ma and ma.Refresh then ma:Refresh() end
+        end)
+    card4:AddRow(tsIconSizeRow, 44)
+    table.insert(tsRows, tsIconSizeRow)
+
+    -- Icon X / Y on one line
+    local tsIconXRow = GUI:CreateSlider(parent, "Icon X", -500, 500, 1,
+        db.timeSpiralIconX or 0,
+        function(v)
+            db.timeSpiralIconX = v
+            local ma = GetMA()
+            if ma and ma.Refresh then ma:Refresh() end
+        end)
+    local tsIconYRow = GUI:CreateSlider(parent, "Icon Y", -500, 500, 1,
+        db.timeSpiralIconY or 250,
+        function(v)
+            db.timeSpiralIconY = v
+            local ma = GetMA()
+            if ma and ma.Refresh then ma:Refresh() end
+        end)
+    local tsIconXYRow = GUI:CreateHRow(parent, 44)
+    tsIconXYRow:Add(tsIconXRow, 0.5)
+    tsIconXYRow:Add(tsIconYRow, 0.5)
+    card4:AddRow(tsIconXYRow, 44)
+    table.insert(tsRows, tsIconXYRow)
+    card4:AddSeparator()
+
+    -- ── Time Spiral preview button ────────────────────────
+    local tsPreviewActive = false
+    local tsPreviewBtn    -- forward-declared; assigned below
+    local tsPreviewWrap = CreateFrame("Frame", nil, parent)
+    tsPreviewWrap:SetHeight(28)
+    function tsPreviewWrap:SetEnabled(en)
+        self:SetAlpha(en and 1 or 0.4)
+        tsPreviewBtn:EnableMouse(en)
+    end
+    tsPreviewBtn = GUI:CreateButton(tsPreviewWrap, "Preview", nil, 140, 28)
+    tsPreviewBtn:SetPoint("LEFT", tsPreviewWrap, "LEFT", 0, 0)
+    tsPreviewBtn:SetScript("OnLeave", function()
+        AnimateBorderFocus(tsPreviewBtn, tsPreviewActive)
+        tsPreviewBtn.lbl:SetTextColor(
+            tsPreviewActive and T.accent[1] or T.textPrimary[1],
+            tsPreviewActive and T.accent[2] or T.textPrimary[2],
+            tsPreviewActive and T.accent[3] or T.textPrimary[3], 1)
+    end)
+    tsPreviewBtn:SetScript("OnClick", function()
+        local ma = GetMA()
+        if not ma then return end
+        tsPreviewActive = not tsPreviewActive
+        if tsPreviewActive then
+            ma:ShowTimeSpiralPreview()
+            tsPreviewBtn.lbl:SetText("Stop Preview")
+            tsPreviewBtn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+        else
+            ma:HideTimeSpiralPreview()
+            tsPreviewBtn.lbl:SetText("Preview")
+            tsPreviewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+        end
+        AnimateBorderFocus(tsPreviewBtn, tsPreviewActive)
+    end)
+    card4:AddRow(tsPreviewWrap, 28)
+    table.insert(tsRows, tsPreviewWrap)
+
+    -- When the 5 s auto-cancel fires, reset the button label
+    local tsMa = GetMA()
+    if tsMa then
+        tsMa._tsPreviewEndCallback = function()
+            tsPreviewActive = false
+            tsPreviewBtn.lbl:SetText("Preview")
+            tsPreviewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+            AnimateBorderFocus(tsPreviewBtn, false)
+        end
+    end
 
     y = y + card4:GetTotalHeight() + T.paddingSmall
 

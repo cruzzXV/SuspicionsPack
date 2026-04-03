@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.5.3"
+SP.VERSION = "1.5.4"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -520,7 +520,17 @@ local DEFAULTS = {
             timeSpiralText   = "Free Movement",
             timeSpiralColor  = { 0.451, 0.741, 0.522, 1 },
             timeSpiralPlaySound = false,
-            timeSpiralSound  = nil,
+            timeSpiralSound  = nil,   -- LSM sound name (string)
+            timeSpiralTextX      = 0,
+            timeSpiralTextY      = 200,
+            timeSpiralShowIcon   = false,
+            timeSpiralIconSize   = 50,
+            timeSpiralIconX      = 0,
+            timeSpiralIconY      = 250,
+            timeSpiralIconAnchorFrame  = "UIParent",
+            timeSpiralIconAnchorFrom   = "CENTER",
+            timeSpiralIconAnchorTo     = "CENTER",
+            timeSpiralIconFrameStrata  = "MEDIUM",
             disabledSpells   = {},   -- [spellId] = true to skip that spell
             spellOverrides   = {},   -- [spellId] = { enabled, customText } for user-added spells
         },

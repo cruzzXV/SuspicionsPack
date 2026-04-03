@@ -24,6 +24,7 @@ local C_Timer            = C_Timer
 local C_UnitAuras        = C_UnitAuras
 local PlaySoundFile      = PlaySoundFile
 local UIParent           = UIParent
+local LSM                = LibStub and LibStub("LibSharedMedia-3.0", true)
 
 local SP_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 
@@ -51,13 +52,6 @@ end
 -- ============================================================
 local function GetDB()
     return SP.GetDB().movementAlert
-end
-
--- ============================================================
--- issecretvalue — Blizzard anti-cheat obfuscation check
--- ============================================================
-local function IsSecret(value)
-    return issecretvalue and issecretvalue(value) or false
 end
 
 -- ============================================================
@@ -122,54 +116,6 @@ local BUFF_ACTIVE_SPELLS = {
     [111400] = "Burning Rush Active!",   -- Warlock: Burning Rush
 }
 
--- ============================================================
--- Spell alias groups
--- Different spell IDs that share the same category cooldown.
--- e.g. Druid Wild Charge differs per form.
--- ============================================================
-local SPELL_ALIAS_GROUPS = {
-    { 102401, 16979, 102417, 252216 },   -- Wild Charge (all forms) + Tiger Dash
-    { 106898, 77761 },                    -- Wild Charge (Aquatic) + Aquatic form
-}
-
--- Fallback cooldown durations for category-cooldown spells (seconds)
-local SPELL_CATEGORY_DURATION = {
-    [102401] = 15, [16979] = 15, [102417] = 15, [252216] = 15,
-    [1850]   = 18,
-    [106898] = 120, [77761] = 120,
-}
-
--- Build reverse alias lookup table at load time
-local SPELL_ALIAS_MAP = {}
-do
-    for _, group in ipairs(SPELL_ALIAS_GROUPS) do
-        for _, id in ipairs(group) do
-            SPELL_ALIAS_MAP[id] = group
-        end
-        -- Propagate known durations to all aliases in the group
-        for _, id in ipairs(group) do
-            if not SPELL_CATEGORY_DURATION[id] then
-                for _, other in ipairs(group) do
-                    if SPELL_CATEGORY_DURATION[other] then
-                        SPELL_CATEGORY_DURATION[id] = SPELL_CATEGORY_DURATION[other]
-                        break
-                    end
-                end
-            end
-        end
-    end
-end
-
-local function GetKnownCategoryDuration(spellId)
-    if SPELL_CATEGORY_DURATION[spellId] then return SPELL_CATEGORY_DURATION[spellId] end
-    local group = SPELL_ALIAS_MAP[spellId]
-    if group then
-        for _, id in ipairs(group) do
-            if SPELL_CATEGORY_DURATION[id] then return SPELL_CATEGORY_DURATION[id] end
-        end
-    end
-    return 0
-end
 
 -- ============================================================
 -- Spells that trigger the Time Spiral countdown display
@@ -214,46 +160,14 @@ local GLOW_IGNORE_SPECS = {
     },
 }
 
--- (OWN_GCD_SPELLS removed — the ignoreMovementCd mechanism caused the 0.5s display
---  lag for charge spells like DH Transfer.  The hasCharges + isOnGCD condition below
---  handles the animation window cleanly without an artificial timer suppression.)
-
 -- ============================================================
--- Safe API wrappers (handle issecretvalue / anti-cheat)
+-- Spells whose GCD reports isOnGCD=false (anti-cheat quirk).
+-- We suppress the movement CD display for a short window after
+-- UNIT_SPELLCAST_SENT to avoid false positives during the GCD.
 -- ============================================================
-local knownChargeSpells = {}  -- cache when API returns secret values
-
-local function SafeGetChargeInfo(spellId)
-    local chargeInfo = C_Spell.GetSpellCharges(spellId)
-    if not chargeInfo then
-        local cached = knownChargeSpells[spellId]
-        if cached then return true, cached.maxCh, cached.rechDur end
-        return false, 1, 0
-    end
-    local m = chargeInfo.maxCharges or 1
-    local r = chargeInfo.cooldownDuration or 0
-    if IsSecret(m) or IsSecret(r) then
-        local cached = knownChargeSpells[spellId]
-        if cached then return true, cached.maxCh, cached.rechDur end
-        return false, 1, 0
-    end
-    if m > 1 then
-        knownChargeSpells[spellId] = { maxCh = m, rechDur = r }
-        return true, m, r
-    end
-    local cached = knownChargeSpells[spellId]
-    if cached then return true, cached.maxCh, cached.rechDur end
-    return false, m, r
-end
-
-local function SafeGetBaseDuration(spellId)
-    local cdInfo = C_Spell.GetSpellCooldown(spellId)
-    if cdInfo and cdInfo.duration then
-        local d = cdInfo.duration
-        if not IsSecret(d) and d > 1.5 then return d end
-    end
-    return 0
-end
+local SPELLS_WITH_OWN_GCD = {
+    [1234796] = 0.8,   -- DH Shift (Devourer) — isOnGCD returns false during its GCD
+}
 
 -- ============================================================
 -- Cast filter (DH talent gating for Time Spiral glow suppression)
@@ -276,15 +190,12 @@ local function RefreshCastFilters()
 end
 
 -- ============================================================
--- Spell list builder (replaces GetMovementSpell)
+-- Spell list builder
 -- Returns a list of entry tables for the player's spec.
--- Each entry: { spellId, baseSpellId, spellName, customText,
---              isChargeSpell, maxCharges, rechargeDuration,
---              baseDuration, checkType }
+-- Each entry: { spellId, baseSpellId, spellName, customText, checkType }
 -- checkType == "buffActive" for BUFF_ACTIVE_SPELLS entries.
+-- Detection uses GetSpellCooldown directly (Itrulia approach — no charge tracking).
 -- ============================================================
-local trackedSpellSet = {}  -- [castId] = canonicalId, alias-aware
-
 local function BuildMovementSpellList()
     local _, class = UnitClass("player")
     local spec = GetSpecialization()
@@ -345,25 +256,12 @@ local function BuildMovementSpellList()
                                     checkType  = "buffActive",
                                 })
                             else
-                                local isCharge, maxCh, rechDur = SafeGetChargeInfo(displayId)
-                                if not isCharge and baseId then
-                                    isCharge, maxCh, rechDur = SafeGetChargeInfo(baseId)
-                                end
-                                local baseDur = SafeGetBaseDuration(displayId)
-                                if baseDur <= 0 and baseId then baseDur = SafeGetBaseDuration(baseId) end
-                                if baseDur <= 0 then baseDur = GetKnownCategoryDuration(displayId) end
-                                if baseDur <= 0 and baseId then baseDur = GetKnownCategoryDuration(baseId) end
-
                                 table.insert(result, {
-                                    spellId          = displayId,
-                                    baseSpellId      = baseId,
-                                    spellName        = info.name,
-                                    customText       = override and override.customText ~= ""
-                                                       and override.customText or nil,
-                                    isChargeSpell    = isCharge,
-                                    maxCharges       = maxCh,
-                                    rechargeDuration = rechDur,
-                                    baseDuration     = isCharge and rechDur or baseDur,
+                                    spellId     = displayId,
+                                    baseSpellId = baseId,
+                                    spellName   = info.name,
+                                    customText  = override and override.customText ~= ""
+                                                  and override.customText or nil,
                                 })
                             end
                         end
@@ -380,17 +278,10 @@ local function BuildMovementSpellList()
                 seen[spellId] = true
                 local info = C_Spell.GetSpellInfo(spellId)
                 if info then
-                    local isCharge, maxCh, rechDur = SafeGetChargeInfo(spellId)
-                    local baseDur = SafeGetBaseDuration(spellId)
-                    if baseDur <= 0 then baseDur = GetKnownCategoryDuration(spellId) end
                     table.insert(result, {
-                        spellId          = spellId,
-                        spellName        = info.name,
-                        customText       = override.customText ~= "" and override.customText or nil,
-                        isChargeSpell    = isCharge,
-                        maxCharges       = maxCh,
-                        rechargeDuration = rechDur,
-                        baseDuration     = isCharge and rechDur or baseDur,
+                        spellId    = spellId,
+                        spellName  = info.name,
+                        customText = override.customText ~= "" and override.customText or nil,
                     })
                 end
             end
@@ -400,24 +291,6 @@ local function BuildMovementSpellList()
     return result
 end
 
-local function RebuildTrackedSpellSet(spellList)
-    for k in pairs(trackedSpellSet) do trackedSpellSet[k] = nil end
-    for _, entry in ipairs(spellList) do
-        trackedSpellSet[entry.spellId] = entry.spellId
-        if entry.baseSpellId then
-            trackedSpellSet[entry.baseSpellId] = entry.spellId
-        end
-        -- Register all aliases so UNIT_SPELLCAST_SENT can find them
-        local group = SPELL_ALIAS_MAP[entry.spellId]
-        if group then
-            for _, aliasId in ipairs(group) do
-                if not trackedSpellSet[aliasId] then
-                    trackedSpellSet[aliasId] = entry.spellId
-                end
-            end
-        end
-    end
-end
 
 local function GetGlowIgnoreList()
     local _, class = UnitClass("player")
@@ -445,13 +318,114 @@ f:EnableMouse(false)
 f:SetMovable(true)
 
 -- State
-f.cachedSpells       = {}   -- list of entry tables from BuildMovementSpellList
-f.ignoreGlow         = false
-f.spellsToIgnoreGlow = {}
+f.cachedSpells        = {}   -- list of entry tables from BuildMovementSpellList
+f.ignoreGlow          = false
+f.ignoreMovementCd    = false  -- true for SPELLS_WITH_OWN_GCD window (suppress GCD false positives)
+f.spellsToIgnoreGlow  = {}
 f.timeSpiralOn       = false
 f.timeSinceLastUpdate= 0
 
-local fsText = f:CreateFontString(nil, "OVERLAY")
+local TIME_SPIRAL_DURATION = 10   -- seconds (also used by OnUpdate)
+
+-- Forward declaration: icon helper closures reference fsText which is
+-- created after this block (same file-scope level, but later in the file).
+local fsText
+
+-- ============================================================
+-- Time Spiral icon frame (NorskenUI-inspired)
+-- Shows the movement spell icon + cooldown spiral + glow
+-- when Time Spiral procs. Created lazily on first use.
+-- ============================================================
+local f_tsIcon    = nil  -- icon frame, lazy-created
+local f_tsIconTex = nil  -- spell icon texture
+local f_tsIconCd  = nil  -- CooldownFrameTemplate overlay
+
+local function CreateTSIconFrame()
+    if f_tsIcon then return end
+    local db   = GetDB()
+    local size = db.timeSpiralIconSize or 50
+
+    f_tsIcon = CreateFrame("Frame", "SP_MovementAlert_TSIcon", UIParent)
+    f_tsIcon:SetSize(size, size)
+    f_tsIcon:EnableMouse(false)
+    f_tsIcon:Hide()
+
+    -- Spell icon texture (crop inner 84 % to cut the default icon border)
+    f_tsIconTex = f_tsIcon:CreateTexture(nil, "BACKGROUND")
+    f_tsIconTex:SetAllPoints()
+    f_tsIconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    -- Cooldown spiral (same template as NorskenUI)
+    f_tsIconCd = CreateFrame("Cooldown", nil, f_tsIcon, "CooldownFrameTemplate")
+    f_tsIconCd:SetAllPoints()
+    f_tsIconCd:SetDrawEdge(false)
+    f_tsIconCd:SetDrawSwipe(true)
+    f_tsIconCd:SetReverse(true)
+    f_tsIconCd:SetHideCountdownNumbers(true)
+    f_tsIconCd:SetDrawBling(false)
+
+    -- Initial position
+    f_tsIcon:SetFrameStrata(db.timeSpiralIconFrameStrata or "MEDIUM")
+    f_tsIcon:ClearAllPoints()
+    local anchorFrame = _G[db.timeSpiralIconAnchorFrame or "UIParent"] or UIParent
+    f_tsIcon:SetPoint(
+        db.timeSpiralIconAnchorFrom or "CENTER", anchorFrame,
+        db.timeSpiralIconAnchorTo   or "CENTER",
+        db.timeSpiralIconX or 0, db.timeSpiralIconY or 250)
+end
+
+local function ApplyTSIconPosition()
+    if not f_tsIcon then return end
+    local db = GetDB()
+    f_tsIcon:SetFrameStrata(db.timeSpiralIconFrameStrata or "MEDIUM")
+    f_tsIcon:ClearAllPoints()
+    local anchorFrame = _G[db.timeSpiralIconAnchorFrame or "UIParent"] or UIParent
+    f_tsIcon:SetPoint(
+        db.timeSpiralIconAnchorFrom or "CENTER", anchorFrame,
+        db.timeSpiralIconAnchorTo   or "CENTER",
+        db.timeSpiralIconX or 0, db.timeSpiralIconY or 250)
+end
+
+-- TS text positioning — separates TS countdown from normal CD text position
+local f_tsTextPositioned = false
+
+local function ApplyTSTextPosition()
+    local db = GetDB()
+    fsText:ClearAllPoints()
+    fsText:SetPoint("CENTER", UIParent, "CENTER",
+        db.timeSpiralTextX or 0, db.timeSpiralTextY or 200)
+    f_tsTextPositioned = true
+end
+
+local function ResetTSTextPosition()
+    if not f_tsTextPositioned then return end
+    fsText:ClearAllPoints()
+    fsText:SetPoint("CENTER")   -- back to center of frame f
+    f_tsTextPositioned = false
+end
+
+-- Show the icon for a given spellId. No-op if timeSpiralShowIcon is off.
+local function ShowTSIcon(spellId)
+    local db = GetDB()
+    if not db.timeSpiralShowIcon or not db.showTimeSpiral then return end
+    CreateTSIconFrame()
+    local size = db.timeSpiralIconSize or 50
+    f_tsIcon:SetSize(size, size)
+    ApplyTSIconPosition()
+    local tex = spellId and C_Spell.GetSpellTexture(spellId)
+    f_tsIconTex:SetTexture(tex or 4622479)
+    f_tsIconCd:SetCooldown(GetTime(), TIME_SPIRAL_DURATION)
+    if ActionButton_ShowOverlayGlow then ActionButton_ShowOverlayGlow(f_tsIcon) end
+    f_tsIcon:Show()
+end
+
+local function HideTSIcon()
+    if not f_tsIcon or not f_tsIcon:IsShown() then return end
+    if ActionButton_HideOverlayGlow then ActionButton_HideOverlayGlow(f_tsIcon) end
+    f_tsIcon:Hide()
+end
+
+fsText = f:CreateFontString(nil, "OVERLAY")
 fsText:SetPoint("CENTER")
 fsText:SetFont(SP_FONT, 14, "OUTLINE")
 fsText:SetTextColor(1, 1, 1, 1)
@@ -511,30 +485,23 @@ local function ApplyStyles()
 end
 
 -- ============================================================
--- CheckMovementCooldown — core detection, callable from OnUpdate AND events
+-- CheckMovementCooldown — core detection (Itrulia approach)
 -- ============================================================
--- Detection strategy (learned from NaowhQOL):
---
--- Multi-charge spells (maxCharges > 1, e.g. DH Transfer/Fel Rush, Mage Shimmer):
---   Check currentCharges DIRECTLY.  isOnGCD is unreliable for these — DH spells
---   can return isOnGCD=false even during the GCD, which would trigger a false
---   positive for the full ~1.5s GCD duration.  currentCharges==0 is unambiguous.
---
--- Regular / single-charge spells (e.g. Blink, Sprint, Demonic Circle):
---   isOnGCD semantics:
---     false → real CD active                                         → show
---     true  → GCD only                                              → hide
---     nil   → special (Demonic Circle teleport quirk, etc.)         → show ONLY if
---             GetSpellCharges returns nil (no charge system on spell)
---
--- timeUntilEndOfStartRecovery guard > 0:
---   WoW returns 0 when the spell is already usable; 0 is truthy in Lua.
---   Requiring > 0 prevents showing "0.0" when the spell is ready.
+-- Detection strategy:
+--   Gate: cdInfo.timeUntilEndOfStartRecovery is truthy (secret-value safe — no compare).
+--   Show: isOnGCD == false  (real CD — isOnGCD is a boolean, never a secret value)
+--         AND isOnGCD ~= nil  (rejects the nil quirk seen on DH/Evoker during double-jump)
+--   WARLOCK exception: isOnGCD == nil is allowed (Demonic Circle returns nil while on GCD).
+--   Spells in SPELLS_WITH_OWN_GCD (e.g. DH Shift) are gated by f.ignoreMovementCd
+--   set in UNIT_SPELLCAST_SENT — see there for details.
 local function CheckMovementCooldown()
     if MA.isPreview then return end
     if f.timeSpiralOn then return end  -- Time Spiral owns fsText during its countdown
-    local db = GetDB()
+    if f.ignoreMovementCd then fsText:Hide(); return end
+    local db   = GetDB()
     local prec = db.precision or 0
+    local _, class = UnitClass("player")
+    local isWarlock = (class == "WARLOCK")
     for _, entry in ipairs(f.cachedSpells) do
         if entry.checkType == "buffActive" then
             -- Buff-active spells (e.g. Burning Rush): show when the buff is present.
@@ -548,33 +515,17 @@ local function CheckMovementCooldown()
             end
         else
             local spellId = entry.baseSpellId or entry.spellId
-            local cdInfo = C_Spell.GetSpellCooldown(spellId)
+            local cdInfo  = C_Spell.GetSpellCooldown(spellId)
             if cdInfo
                 and cdInfo.timeUntilEndOfStartRecovery
-                and cdInfo.timeUntilEndOfStartRecovery > 0
+                and not cdInfo.isOnGCD
+                and (cdInfo.isOnGCD ~= nil or isWarlock)
             then
-                local chargeInfo = C_Spell.GetSpellCharges(spellId)
-                local shouldShow = false
-
-                if chargeInfo and chargeInfo.maxCharges and chargeInfo.maxCharges > 1
-                    and not IsSecret(chargeInfo.currentCharges)
-                then
-                    -- Multi-charge spell: show if and only if ALL charges are spent.
-                    -- This bypasses the unreliable isOnGCD value that DH spells report.
-                    shouldShow = (chargeInfo.currentCharges == 0)
-                else
-                    -- Regular/single-charge spell: rely on isOnGCD.
-                    shouldShow = (cdInfo.isOnGCD == false)
-                        or (cdInfo.isOnGCD == nil and not chargeInfo)
-                end
-
-                if shouldShow then
-                    local label = entry.customText or ("No " .. entry.spellName)
-                    fsText:SetText(label .. "\n"
-                        .. string.format("%." .. prec .. "f", cdInfo.timeUntilEndOfStartRecovery))
-                    fsText:Show()
-                    return
-                end
+                local label = entry.customText or ("No " .. entry.spellName)
+                fsText:SetText(label .. "\n"
+                    .. string.format("%." .. prec .. "f", cdInfo.timeUntilEndOfStartRecovery))
+                fsText:Show()
+                return
             end
         end
     end
@@ -598,9 +549,12 @@ local function OnUpdate(self, elapsed)
         local remaining = 10 - (GetTime() - self.timeSpiralOn)
         if remaining <= 0 then
             self.timeSpiralOn = false
+            ResetTSTextPosition()
             fsText:Hide()
+            HideTSIcon()
             return
         end
+        ApplyTSTextPosition()
         local timeSpiralColor = db.timeSpiralColor or {0.451, 0.741, 0.522, 1}
         local hex = string.format("|cff%02x%02x%02x",
             math.floor(timeSpiralColor[1] * 255),
@@ -630,7 +584,6 @@ local function OnEvent(self, event, ...)
     then
         if not InCombatLockdown() then
             self.cachedSpells = BuildMovementSpellList()
-            RebuildTrackedSpellSet(self.cachedSpells)
             self.spellsToIgnoreGlow = GetGlowIgnoreList()
             RefreshCastFilters()
         end
@@ -638,63 +591,70 @@ local function OnEvent(self, event, ...)
         return
     end
 
-    -- ── Immediate CD reactions (NaowhQOL approach) ───────────────────────────
-    -- Fire as soon as the server updates so we don't wait for the next OnUpdate tick.
+    -- ── Immediate CD reactions ────────────────────────────────────────────────
     if event == "SPELL_UPDATE_COOLDOWN"
-        or event == "SPELL_UPDATE_CHARGES"
         or event == "UNIT_AURA"
     then
         CheckMovementCooldown()
         return
     end
 
-    if event == "UNIT_SPELLCAST_SUCCEEDED" then
-        local _, _, spellId = ...
-        -- Only react when it's one of our tracked spells to avoid noise
-        if trackedSpellSet[spellId] then
-            -- Reset the OnUpdate throttle so the very next frame also polls
-            -- (belt-and-suspenders alongside the immediate call below)
-            self.timeSinceLastUpdate = 99
-            CheckMovementCooldown()
+    -- ── UNIT_SPELLCAST_SENT — always active (not gated by showTimeSpiral) ────
+    -- Handles both glow suppression (TS feature) and ignoreMovementCd (detection).
+    if event == "UNIT_SPELLCAST_SENT" then
+        local castSpellId = select(4, ...)
+        -- ignoreMovementCd: for spells whose GCD reports isOnGCD=false (e.g. DH Shift).
+        -- Suppress movement CD display for the GCD window to avoid false positives.
+        if SPELLS_WITH_OWN_GCD[castSpellId] then
+            self.ignoreMovementCd = true
+            C_Timer.After(SPELLS_WITH_OWN_GCD[castSpellId], function()
+                self.ignoreMovementCd = false
+                CheckMovementCooldown()
+            end)
         end
-        return
-    end
-
-    -- ── Time Spiral + glow suppression ──────────────────────────────────────
-    if db.showTimeSpiral then
-        local spellId = ...
-
-        if event == "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW" and not self.ignoreGlow then
-            if TIME_SPIRAL_ABILITIES[spellId] then
-                -- Suppress if a DH cast-filter spell was just used
-                if GetTime() > castFilterExpiry then
-                    self.timeSpiralOn = GetTime()
-                    if db.timeSpiralPlaySound and db.timeSpiralSound then
-                        PlaySoundFile(db.timeSpiralSound, "Master")
-                    end
-                end
-            end
-
-        elseif event == "SPELL_ACTIVATION_OVERLAY_GLOW_HIDE" then
-            if TIME_SPIRAL_ABILITIES[spellId] then
-                self.timeSpiralOn = nil
-            end
-
-        elseif event == "UNIT_SPELLCAST_SENT" then
-            local castSpellId = select(4, ...)
-            -- Glow suppression for pre-fire glows
+        -- Time Spiral glow-related (only matters when TS feature is on)
+        if db.showTimeSpiral then
             if self.spellsToIgnoreGlow and self.spellsToIgnoreGlow[castSpellId] then
                 self.ignoreGlow = true
                 C_Timer.After(self.spellsToIgnoreGlow[castSpellId], function()
                     self.ignoreGlow = false
                 end)
             end
-            -- Cast filter: suppress Time Spiral glow for DH talent-gated spells
             if castFilters[castSpellId] then
                 castFilterExpiry = GetTime() + 1.5
             end
+        end
+        return
+    end
+
+    -- ── Time Spiral glow events ──────────────────────────────────────────────
+    if db.showTimeSpiral then
+        local spellId = ...
+
+        if event == "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW" and not self.ignoreGlow then
+            if TIME_SPIRAL_ABILITIES[spellId] then
+                if GetTime() > castFilterExpiry then
+                    self.timeSpiralOn = GetTime()
+                    f_tsTextPositioned = false   -- force reposition on next OnUpdate tick
+                    if db.timeSpiralPlaySound and db.timeSpiralSound then
+                        local soundPath = LSM and LSM:Fetch("sound", db.timeSpiralSound) or db.timeSpiralSound
+                        if soundPath then PlaySoundFile(soundPath, "Master") end
+                    end
+                    ShowTSIcon(spellId)
+                end
+            end
+
+        elseif event == "SPELL_ACTIVATION_OVERLAY_GLOW_HIDE" then
+            if TIME_SPIRAL_ABILITIES[spellId] then
+                self.timeSpiralOn = nil
+                ResetTSTextPosition()
+                fsText:Hide()
+                HideTSIcon()
+            end
+
         else
             self.timeSpiralOn = nil
+            ResetTSTextPosition()
         end
     end
 end
@@ -724,6 +684,53 @@ function MA:HidePreview()
     end
 end
 
+-- ── Time Spiral display preview ──────────────────────────────────────────
+-- Independent of the main text preview — doesn't set isPreview, so it
+-- never conflicts with the drag-to-move mode.
+-- Sets timeSpiralOn so OnUpdate renders a live countdown (if the module
+-- is enabled and OnUpdate is ticking).  Also renders immediately so it
+-- works even when the module is disabled.
+-- Auto-cancels after 5 s and fires _tsPreviewEndCallback (set by the GUI)
+-- so the preview button can reset its label automatically.
+function MA:ShowTimeSpiralPreview()
+    if self.isPreview then return end  -- don't conflict with drag preview
+    local db = GetDB()
+    f.timeSpiralOn = GetTime()
+    f_tsTextPositioned = false  -- force reposition on next tick / immediate render
+    -- Immediate render so there's no 1-tick delay and it works when disabled
+    local c     = db.timeSpiralColor or { 0.451, 0.741, 0.522, 1 }
+    local hex   = string.format("|cff%02x%02x%02x",
+        math.floor(c[1]*255), math.floor(c[2]*255), math.floor(c[3]*255))
+    local label = db.timeSpiralText or "Free Movement"
+    local prec  = db.precision or 0
+    ApplyTSTextPosition()
+    fsText:SetText(hex .. label .. "\n" .. string.format("%." .. prec .. "f", 10.0) .. "|r")
+    fsText:Show()
+    -- Show icon (uses fallback TS icon texture since no real spellId in preview)
+    ShowTSIcon(nil)
+    -- Auto-cancel timer
+    if self._tsPrevTimer then self._tsPrevTimer:Cancel() end
+    self._tsPrevTimer = C_Timer.NewTimer(5, function()
+        self._tsPrevTimer = nil
+        f.timeSpiralOn = false
+        ResetTSTextPosition()
+        fsText:Hide()
+        HideTSIcon()
+        if self._tsPreviewEndCallback then self._tsPreviewEndCallback() end
+    end)
+end
+
+function MA:HideTimeSpiralPreview()
+    if self._tsPrevTimer then
+        self._tsPrevTimer:Cancel()
+        self._tsPrevTimer = nil
+    end
+    f.timeSpiralOn = false
+    ResetTSTextPosition()
+    fsText:Hide()
+    HideTSIcon()
+end
+
 -- ============================================================
 -- Module lifecycle
 -- ============================================================
@@ -734,8 +741,12 @@ end
 function MA:Refresh()
     local db = GetDB()
     ApplyStyles()
+    ApplyTSIconPosition()
+    -- If TS is not currently active, make sure fsText is anchored back to frame f
+    if not f.timeSpiralOn then
+        ResetTSTextPosition()
+    end
     f.cachedSpells = BuildMovementSpellList()
-    RebuildTrackedSpellSet(f.cachedSpells)
     f.spellsToIgnoreGlow = GetGlowIgnoreList()
     RefreshCastFilters()
 
@@ -751,11 +762,9 @@ function MA:Refresh()
         f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
         f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE")
         f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
-        -- Immediate CD reaction (NaowhQOL approach — eliminates server-tick lag)
+        -- Immediate CD reaction
         f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-        f:RegisterEvent("SPELL_UPDATE_CHARGES")
         f:RegisterUnitEvent("UNIT_AURA", "player")
-        f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
     else
         f:SetScript("OnEvent", nil)
         f:SetScript("OnUpdate", nil)
