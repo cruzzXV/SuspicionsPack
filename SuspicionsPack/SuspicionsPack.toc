@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r
 ## Notes: Collection of QoL features
 ## Author: Cruzz
-## Version: 1.5.4
+## Version: 1.5.5
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## SavedVariables: SuspicionsPackDB
 ## IconTexture: Interface\AddOns\SuspicionsPack\Media\Icons\icon.png
@@ -41,6 +41,8 @@ Modules\CombatLog\CombatLog.lua
 Modules\DeathAlert\DeathAlert.lua
 Modules\CraftShopper\CraftShopper.lua
 Modules\WhisperAlert\WhisperAlert.lua
+Modules\AutoPI\AutoPI.lua
+Modules\AutoInnervate\AutoInnervate.lua
 Modules\SilvermoonMapIcon\SilvermoonMapIcon.lua
 Modules\GroupJoinedReminder\GroupJoinedReminder.lua
 Modules\MovementAlert\MovementAlert.lua

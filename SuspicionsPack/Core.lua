@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.5.4"
+SP.VERSION = "1.5.5"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -547,6 +547,26 @@ local DEFAULTS = {
             bnetSound    = "SuspicionsPack Whisper",
             channel      = "Master",
             muteInCombat = false,
+        },
+        autoPi = {
+            enabled     = false,
+            notifyReady = true,
+            piTarget    = nil,
+            acceptFrom  = {},
+            popupX      = 0,
+            popupY      = 200,
+            toastX      = 0,
+            toastY      = 240,
+        },
+        autoInnervate = {
+            enabled     = false,
+            notifyReady = true,
+            piTarget    = nil,   -- reuses piTarget key for the druid name (same module pattern)
+            acceptFrom  = {},
+            popupX      = 0,
+            popupY      = 160,
+            toastX      = 0,
+            toastY      = 200,
         },
         gatewayAlert = {
             enabled     = false,

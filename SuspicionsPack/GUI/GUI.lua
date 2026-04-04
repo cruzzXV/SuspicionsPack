@@ -383,14 +383,16 @@ GUI.SidebarConfig = {
         type = "section", id = "combat", text = "COMBAT",
         defaultExpanded = true,
         items = {
-            { id = "tankmd",          text = "Auto Misdirection"  },
-            { id = "bloodlustalert",  text = "Bloodlust Alert"    },
-            { id = "combatcross",     text = "Combat Cross"       },
-            { id = "combattimer",     text = "Combat Timer"       },
-            { id = "cursor",          text = "Cursor Circle"      },
-            { id = "deathalert",      text = "Death Alert"        },
-            { id = "gatewayalert",    text = "Gateway Alert"      },
-            { id = "movementalert",   text = "Movement Alert"     },
+            { id = "autoinnervate",    text = "Auto Innervate"    },
+            { id = "tankmd",           text = "Auto Misdirection"  },
+            { id = "autopi",           text = "Auto PI"            },
+            { id = "bloodlustalert",   text = "Bloodlust Alert"    },
+            { id = "combatcross",      text = "Combat Cross"       },
+            { id = "combattimer",      text = "Combat Timer"       },
+            { id = "cursor",           text = "Cursor Circle"      },
+            { id = "deathalert",       text = "Death Alert"        },
+            { id = "gatewayalert",     text = "Gateway Alert"      },
+            { id = "movementalert",    text = "Movement Alert"     },
             { id = "spelleffectalpha", text = "Spell Effect Alpha" },
         },
     },
@@ -893,13 +895,34 @@ function GUI:CreateDropdown(parent, labelText, options, currentValue, onChange, 
     row:SetScript("OnHide", function() CloseMenu(true) end)
 
     -- Responsive width: shrink to fit HRow cells, but never grow past MAX_BTN_W.
+    local _labelOffset = 0  -- px reserved on the left for an inline label
     row:SetScript("OnSizeChanged", function(self, w)
         if w < 4 then return end
-        local bw = math.min(w, MAX_BTN_W)
+        local bw = math.min(w - _labelOffset, MAX_BTN_W)
+        if bw < 20 then bw = 20 end
         btn:SetWidth(bw)
         local newItemAreaW = bw - (needsBar and (SBAR_W + SBAR_GAP) or 0)
         if newItemAreaW > 0 then inner:SetWidth(newItemAreaW) end
     end)
+
+    -- Repositions the label to the left of the button (inline mode).
+    -- px = horizontal space reserved for the label text.
+    function row:SetLabelInline(px)
+        _labelOffset = px or 50
+        label:ClearAllPoints()
+        label:SetPoint("LEFT", row, "LEFT", 0, -22)  -- vertically centred with the button
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPLEFT", row, "TOPLEFT", _labelOffset, -16)
+        -- Re-trigger sizing with the new offset
+        local w = row:GetWidth()
+        if w and w > 1 then
+            local bw = math.min(w - _labelOffset, MAX_BTN_W)
+            if bw < 20 then bw = 20 end
+            btn:SetWidth(bw)
+            local newItemAreaW = bw - (needsBar and (SBAR_W + SBAR_GAP) or 0)
+            if newItemAreaW > 0 then inner:SetWidth(newItemAreaW) end
+        end
+    end
 
     return row
 end
@@ -1041,6 +1064,18 @@ function GUI:CreateSlider(parent, labelText, minVal, maxVal, step, currentValue,
         valBox:SetEnabled(en)
     end
     row.SetValue = function(v) slider:SetValue(v); valBox:SetText(tostring(v)); UpdateFill(v) end
+
+    -- Repositions the label to the left of the slider bar (inline mode).
+    -- px = horizontal space reserved for the label text.
+    function row:SetLabelInline(px)
+        px = px or 60
+        label:ClearAllPoints()
+        label:SetPoint("LEFT", row, "LEFT", 0, -26)  -- vertically centred with the slider bar
+        slider:ClearAllPoints()
+        slider:SetPoint("TOPLEFT",  row,    "TOPLEFT",  px, -16)
+        slider:SetPoint("TOPRIGHT", valBox, "TOPLEFT",  -6,   0)
+    end
+
     return row
 end
 
@@ -2259,6 +2294,8 @@ local function ItemEnabledState(id)
     elseif id == "enhancedobjectivetext"      then return db.enhancedObjectiveText      and db.enhancedObjectiveText.enabled      or false
     elseif id == "cleanobjectivetrackerheader" then return db.cleanObjectiveTrackerHeader and db.cleanObjectiveTrackerHeader.enabled or false
     elseif id == "whisperalert"      then return db.whisperAlert and db.whisperAlert.enabled or false
+    elseif id == "autopi"            then return db.autoPi and db.autoPi.enabled or false
+    elseif id == "autoinnervate"     then return db.autoInnervate and db.autoInnervate.enabled or false
     elseif id == "filterexpansiononly" then return db.filterExpansionOnly and db.filterExpansionOnly.enabled or false
     elseif id == "autobuy"           then local cdb = SP.GetCharDB(); return cdb.autoBuy and cdb.autoBuy.enabled or false
     elseif id == "spelleffectalpha"  then return db.spellEffectAlpha  and db.spellEffectAlpha.enabled  or false
@@ -5194,10 +5231,14 @@ GUI:RegisterContent("combattimer", function(parent)
     card2:AddRow(ctAnchorRow, ctAnchorRowH)
     card2:AddSeparator()
 
-    card2:AddRow(GUI:CreateSlider(parent, "X Offset", -2000, 2000, 1, db.x or 0,
-        function(v) db.x = v; ApplySettings() end), 44)
-    card2:AddRow(GUI:CreateSlider(parent, "Y Offset", -2000, 2000, 1, db.y or 250,
-        function(v) db.y = v; ApplySettings() end), 44)
+    local ctXRow = GUI:CreateSlider(parent, "X Offset", -2000, 2000, 1, db.x or 0,
+        function(v) db.x = v; ApplySettings() end)
+    local ctYRow = GUI:CreateSlider(parent, "Y Offset", -2000, 2000, 1, db.y or 250,
+        function(v) db.y = v; ApplySettings() end)
+    local ctXYRow = GUI:CreateHRow(parent, 44)
+    ctXYRow:Add(ctXRow, 0.5)
+    ctXYRow:Add(ctYRow, 0.5)
+    card2:AddRow(ctXYRow, 44)
 
     -- Preview button — fixed 120px, bgMedium default, border-only hover animation
     local previewActive = false
@@ -5386,14 +5427,14 @@ GUI:RegisterContent("movementalert", function(parent)
     local precRow = GUI:CreateSlider(parent, "Decimal Precision", 0, 1, 1,
         db.precision or 0,
         function(v) db.precision = v end)
-    card1:AddRow(precRow, 44)
-    table.insert(maChildRows, precRow)
-
     local intervalRow = GUI:CreateSlider(parent, "Update Interval (ms)", 50, 500, 10,
         math.floor((db.updateInterval or 0.1) * 1000 + 0.5),
         function(v) db.updateInterval = v / 1000 end)
-    card1:AddRow(intervalRow, 44)
-    table.insert(maChildRows, intervalRow)
+    local precIntervalRow = GUI:CreateHRow(parent, 44)
+    precIntervalRow:Add(precRow, 0.5)
+    precIntervalRow:Add(intervalRow, 0.5)
+    card1:AddRow(precIntervalRow, 44)
+    table.insert(maChildRows, precIntervalRow)
 
     y = y + card1:GetTotalHeight() + T.paddingSmall
 
@@ -5521,6 +5562,13 @@ GUI:RegisterContent("movementalert", function(parent)
             if slX and slX.SetValue then slX.SetValue(nx) end
             if slY and slY.SetValue then slY.SetValue(ny) end
         end
+        -- Reset button label when the 5 s auto-cancel fires
+        ma._maPreviewEndCallback = function()
+            previewActive = false
+            previewBtn.lbl:SetText("Preview")
+            previewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+            AnimateBorderFocus(previewBtn, false)
+        end
     end
 
     y = y + card2:GetTotalHeight() + T.paddingSmall
@@ -5634,15 +5682,13 @@ GUI:RegisterContent("movementalert", function(parent)
     table.insert(tsRows, tsSwRow)
     card4:AddSeparator()
 
-    -- ── Sound ─────────────────────────────────────────────
+    -- ── Sound (toggle + dropdown + Listen on one line) ────
     local tsPlaySoundRow = GUI:CreateToggle(parent, "Play Sound on Trigger",
         db.timeSpiralPlaySound,
         function(v)
             db.timeSpiralPlaySound = v
             UpdateTSSoundState(v)
         end)
-    card4:AddRow(tsPlaySoundRow, 28)
-    table.insert(tsRows, tsPlaySoundRow)
 
     -- Build sorted LSM sound list with "None" first
     local tsSndNames = {}
@@ -5665,16 +5711,13 @@ GUI:RegisterContent("movementalert", function(parent)
         function(v)
             db.timeSpiralSound = (v ~= "None") and v or nil
         end)
-    card4:AddRow(tsSndDd, 40)
-    table.insert(tsRows, tsSndDd)
-    table.insert(tsSoundRows, tsSndDd)
 
-    -- Inline "Listen" button
+    -- "Listen" button anchored to the right edge of the dropdown
     local tsSndHandle, tsSndPlaying = nil, false
     local tsSndPreviewLbl
     local tsSndPreviewBtn = CreateFrame("Button", nil, tsSndDd, "BackdropTemplate")
     tsSndPreviewBtn:SetSize(46, 22)
-    tsSndPreviewBtn:SetPoint("TOPLEFT", tsSndDd, "TOPLEFT", 208, -16)
+    tsSndPreviewBtn:SetPoint("BOTTOMLEFT", tsSndDd, "BOTTOMRIGHT", 4, 0)
     SetBackdrop(tsSndPreviewBtn, T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
     tsSndPreviewLbl = tsSndPreviewBtn:CreateFontString(nil, "OVERLAY")
     tsSndPreviewLbl:SetAllPoints(); ApplyFont(tsSndPreviewLbl, 11)
@@ -5712,6 +5755,17 @@ GUI:RegisterContent("movementalert", function(parent)
         tsSndPreviewBtn:SetAlpha(en and 1 or 0.4)
         if not en then StopTsSound() end
     end
+
+    -- Label inline so it doesn't wrap when the dropdown is narrowed in the HRow
+    tsSndDd:SetLabelInline(40)
+
+    -- Place toggle + dropdown on one row
+    local tsSoundHRow = GUI:CreateHRow(parent, 44)
+    tsSoundHRow:Add(tsPlaySoundRow, 0.55)
+    tsSoundHRow:Add(tsSndDd, 0.45)
+    card4:AddRow(tsSoundHRow, 44)
+    table.insert(tsRows, tsSoundHRow)
+    table.insert(tsSoundRows, tsSndDd)
     card4:AddSeparator()
 
     -- ── Anchor + strata ───────────────────────────────────
@@ -5762,9 +5816,6 @@ GUI:RegisterContent("movementalert", function(parent)
             local ma = GetMA()
             if ma and ma.Refresh then ma:Refresh() end
         end)
-    card4:AddRow(tsShowIconRow, 28)
-    table.insert(tsRows, tsShowIconRow)
-
     local tsIconSizeRow = GUI:CreateSlider(parent, "Icon Size", 20, 100, 1,
         db.timeSpiralIconSize or 50,
         function(v)
@@ -5772,8 +5823,14 @@ GUI:RegisterContent("movementalert", function(parent)
             local ma = GetMA()
             if ma and ma.Refresh then ma:Refresh() end
         end)
-    card4:AddRow(tsIconSizeRow, 44)
-    table.insert(tsRows, tsIconSizeRow)
+    -- Label inline so it doesn't sit above the slider when narrowed in the HRow
+    tsIconSizeRow:SetLabelInline(60)
+
+    local tsShowIconHRow = GUI:CreateHRow(parent, 44)
+    tsShowIconHRow:Add(tsShowIconRow, 0.45)
+    tsShowIconHRow:Add(tsIconSizeRow, 0.55)
+    card4:AddRow(tsShowIconHRow, 44)
+    table.insert(tsRows, tsShowIconHRow)
 
     -- Icon X / Y on one line
     local tsIconXRow = GUI:CreateSlider(parent, "Icon X", -500, 500, 1,
@@ -8697,6 +8754,578 @@ GUI:RegisterContent("combatcross", function(parent)
     card4:AddRow(previewWrap, 28)
 
     y = y + card4:GetTotalHeight() + T.paddingSmall
+
+    UpdateChildState(db.enabled)
+    parent:SetHeight(y)
+end)
+
+
+
+-- Helper shared by AutoPI and AutoInnervate GUI sections.
+-- Creates a "label above / editbox + button" sub-frame for use inside HRows.
+-- parent  = panel parent, labelText = string, btnText = string,
+-- placeholder = string, onCommit(rawText, box)
+local function MakeCoordInput(parent, labelText, btnText, placeholder, onCommit)
+    local BTN_W = 48
+    local frame = CreateFrame("Frame", nil, parent)
+    frame:SetHeight(50)
+
+    local lbl = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    lbl:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    lbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+    lbl:SetText(labelText)
+
+    local btn = GUI:CreateButton(frame, btnText, nil, BTN_W, 24)
+    btn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -16)
+
+    local box = CreateFrame("EditBox", nil, frame, "BackdropTemplate")
+    box:SetPoint("TOPLEFT",  frame, "TOPLEFT",  0, -16)
+    box:SetPoint("TOPRIGHT", btn,   "TOPLEFT",  -4, 0)
+    box:SetHeight(24)
+    box:SetAutoFocus(false)
+    box:SetMaxLetters(48)
+    box:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+    box:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    box:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+    box:SetTextInsets(6, 6, 0, 0)
+    box:SetFontObject("GameFontHighlightSmall")
+    box:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+
+    local ph = box:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    ph:SetPoint("LEFT", box, "LEFT", 6, 0)
+    ph:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.5)
+    ph:SetText(placeholder or "")
+    local function syncPh() ph:SetShown(box:GetText() == "") end
+    box:SetScript("OnEditFocusGained", function() ph:Hide() end)
+    box:SetScript("OnEditFocusLost",   syncPh)
+    box:SetScript("OnTextChanged",     syncPh)
+    syncPh()
+
+    local function commit()
+        box:ClearFocus()
+        onCommit(box:GetText(), box)
+    end
+    btn:SetScript("OnClick", commit)
+    box:SetScript("OnEnterPressed", commit)
+    box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+    function frame:SetEnabled(en)
+        self:SetAlpha(en and 1 or 0.4)
+        box:SetEnabled(en)
+        btn:SetEnabled(en)
+    end
+    frame._box = box
+    frame._btn = btn
+    return frame
+end
+
+-- ============================================================
+-- AutoPI
+-- ============================================================
+GUI:RegisterContent("autopi", function(parent)
+    local db = SP.GetDB().autoPi
+    local y  = 0
+
+    local childRows  = {}
+    local childCards = {}
+    local card1
+    local enableRow
+
+    local function UpdateChildState(enabled)
+        card1:GrayContent(enabled, enableRow)
+        for _, r in ipairs(childRows)  do r:SetEnabled(enabled) end
+        for _, c in ipairs(childCards) do c:SetAlpha(enabled and 1 or 0.4) end
+    end
+
+    -- ── Card 1: General ──────────────────────────────────
+    card1 = GUI:CreateCard(parent, "Auto PI", y)
+    card1:AddLabel("PI Callout & Request coordination between DPS and Priests.", T.textMuted)
+    card1:AddLabel("/pi to request Power Infusion  •  /picast to confirm a cast.", T.textMuted)
+    card1:AddSeparator()
+
+    enableRow = GUI:CreateToggle(parent, "Enable Auto PI", db.enabled or false,
+        function(v)
+            db.enabled = v
+            UpdateChildState(v)
+            if v then SP:EnableModule("AutoPI") else SP:DisableModule("AutoPI") end
+            GUI.UpdateSidebarCheckmarks()
+        end, "AutoPI")
+    card1:AddRow(enableRow, 28)
+
+    y = y + card1:GetTotalHeight() + T.paddingSmall
+    local card1End = y
+
+    -- ── Card 2: Configuration + Accept From ─────────────
+    local card2 = GUI:CreateCard(parent, "Configuration", y)
+    table.insert(childCards, card2)
+
+    local RefreshAcceptList  -- forward ref
+    local card3              -- forward ref (assigned after card3 is built)
+
+    -- Left column: target input (50px) + notify toggle (28px) + 4px gap = 82px
+    local LEFT_H   = 82
+    local GAP_COLS = 8
+
+    local cols = CreateFrame("Frame", nil, parent)
+    cols:SetHeight(LEFT_H)
+
+    local leftCol = CreateFrame("Frame", nil, cols)
+    leftCol:SetPoint("TOPLEFT", cols, "TOPLEFT", 0, 0)
+    leftCol:SetHeight(LEFT_H)
+
+    local rightCol = CreateFrame("Frame", nil, cols)
+    rightCol:SetPoint("TOPRIGHT", cols, "TOPRIGHT", 0, 0)
+    rightCol:SetHeight(LEFT_H)
+
+    -- Drive column widths from cols width (avoids CENTER vertical-midpoint bug)
+    cols:SetScript("OnSizeChanged", function(self, w)
+        local hw = math.floor((w - GAP_COLS) / 2)
+        if hw < 1 then hw = 1 end
+        leftCol:SetWidth(hw)
+        rightCol:SetWidth(hw)
+    end)
+
+    -- Left: target input
+    local tgtFrame = MakeCoordInput(parent, "Request PI from:", "Set", "Priest name...",
+        function(raw)
+            local name = strtrim(raw)
+            db.piTarget = (name ~= "") and name or nil
+        end)
+    tgtFrame:SetParent(leftCol)
+    tgtFrame:ClearAllPoints()
+    tgtFrame:SetPoint("TOPLEFT",  leftCol, "TOPLEFT",  0, 0)
+    tgtFrame:SetPoint("TOPRIGHT", leftCol, "TOPRIGHT", 0, 0)
+    tgtFrame._box:SetText(db.piTarget or "")
+
+    -- Left: notify toggle (below target input)
+    local notifyRow = GUI:CreateToggle(parent, "Notify when PI is ready", db.notifyReady ~= false,
+        function(v) db.notifyReady = v end, "AutoPI")
+    notifyRow:SetParent(leftCol)
+    notifyRow:ClearAllPoints()
+    notifyRow:SetPoint("TOPLEFT",  leftCol, "TOPLEFT",  0, -54)
+    notifyRow:SetPoint("TOPRIGHT", leftCol, "TOPRIGHT", 0, -54)
+    table.insert(childRows, notifyRow)
+
+    -- Right: accept input
+    local addFrame = MakeCoordInput(parent, "Accept from:", "Add", "Player name...",
+        function(raw, box)
+            local name = strtrim(raw)
+            if name == "" then return end
+            if not db.acceptFrom then db.acceptFrom = {} end
+            db.acceptFrom[name] = true
+            box:SetText("")
+            RefreshAcceptList()
+        end)
+    addFrame:SetParent(rightCol)
+    addFrame:ClearAllPoints()
+    addFrame:SetPoint("TOPLEFT",  rightCol, "TOPLEFT",  0, 0)
+    addFrame:SetPoint("TOPRIGHT", rightCol, "TOPRIGHT", 0, 0)
+
+    -- Right: name list (below accept input)
+    local MAX_ACCEPT    = 8
+    local listRowFrames = {}
+    local listHolder    = CreateFrame("Frame", nil, rightCol)
+    listHolder:SetPoint("TOPLEFT",  rightCol, "TOPLEFT",  0, -54)
+    listHolder:SetPoint("TOPRIGHT", rightCol, "TOPRIGHT", 0, -54)
+    listHolder:SetHeight(1)
+
+    for i = 1, MAX_ACCEPT do
+        local row = CreateFrame("Frame", nil, listHolder, "BackdropTemplate")
+        row:SetHeight(24)
+        row:SetPoint("TOPLEFT",  listHolder, "TOPLEFT",  0, -(i - 1) * 26)
+        row:SetPoint("TOPRIGHT", listHolder, "TOPRIGHT", 0, -(i - 1) * 26)
+        row:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+        row:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 0.5)
+        row:SetBackdropBorderColor(0, 0, 0, 0)
+
+        local rowText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        rowText:SetPoint("LEFT", row, "LEFT", 8, 0)
+        rowText:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+        row._text = rowText
+
+        local delBtn = CreateFrame("Button", nil, row)
+        delBtn:SetSize(20, 20)
+        delBtn:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+        local delLbl = delBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        delLbl:SetText("X")
+        delLbl:SetTextColor(0.55, 0.18, 0.18, 1)
+        delLbl:SetAllPoints()
+        delBtn:SetScript("OnEnter", function() delLbl:SetTextColor(1, 0.3, 0.3, 1) end)
+        delBtn:SetScript("OnLeave", function() delLbl:SetTextColor(0.55, 0.18, 0.18, 1) end)
+        row._delBtn = delBtn
+
+        row:Hide()
+        listRowFrames[i] = row
+    end
+
+    -- Compound SetEnabled wrapper for childRows
+    local colsEnabled = {}
+    colsEnabled.SetEnabled = function(_, en)
+        tgtFrame:SetEnabled(en)
+        addFrame:SetEnabled(en)
+        notifyRow:SetEnabled(en)
+    end
+    table.insert(childRows, colsEnabled)
+
+    -- Add cols as a single card row; height tracked dynamically
+    local colsBaseY = card2.currentY
+    card2:AddRow(cols, LEFT_H)
+
+    RefreshAcceptList = function()
+        local names = {}
+        if db.acceptFrom then
+            for name in pairs(db.acceptFrom) do table.insert(names, name) end
+            table.sort(names)
+        end
+        local count  = math.min(#names, MAX_ACCEPT)
+        local listH  = count * 26
+        listHolder:SetHeight(math.max(listH, 1))
+
+        for i = 1, MAX_ACCEPT do
+            local row = listRowFrames[i]
+            if i <= count then
+                local name = names[i]
+                row._text:SetText(name)
+                row._delBtn:SetScript("OnClick", function()
+                    db.acceptFrom[name] = nil
+                    RefreshAcceptList()
+                end)
+                row:Show()
+            else
+                row:Hide()
+            end
+        end
+
+        local rightH = 54 + listH  -- addFrame(50) + gap(4) + list
+        local colsH  = math.max(LEFT_H, rightH)
+        rightCol:SetHeight(colsH)
+        cols:SetHeight(colsH)
+
+        card2.currentY = colsBaseY + colsH + T.paddingSmall
+        card2.content:SetHeight(card2.currentY)
+        card2:_UpdateHeight()
+        if card3 then
+            parent:SetHeight(card1End + card2:GetTotalHeight() + T.paddingSmall + card3:GetTotalHeight() + T.paddingSmall)
+        end
+    end
+
+    RefreshAcceptList()
+
+    y = y + card2:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 3: Alert Positions ───────────────────────────
+    card3 = GUI:CreateCard(parent, "Alert Positions", y)
+    table.insert(childCards, card3)
+
+    card3:AddLabel("PI Request Popup:", T.textSecondary)
+    local popXRow = GUI:CreateSlider(parent, "X", -1500, 1500, 1, db.popupX or 0,
+        function(v) db.popupX = v; if SP.AutoPI then SP.AutoPI:ApplyPopupPosition() end end)
+    local popYRow = GUI:CreateSlider(parent, "Y", -1500, 1500, 1, db.popupY or 200,
+        function(v) db.popupY = v; if SP.AutoPI then SP.AutoPI:ApplyPopupPosition() end end)
+    local popXYRow = GUI:CreateHRow(parent, 44)
+    popXYRow:Add(popXRow, 0.5)
+    popXYRow:Add(popYRow, 0.5)
+    card3:AddRow(popXYRow, 44)
+    table.insert(childRows, popXYRow)
+
+    card3:AddSeparator()
+
+    card3:AddLabel("CD / Ready Mini Toast:", T.textSecondary)
+    local toastXRow = GUI:CreateSlider(parent, "X", -1500, 1500, 1, db.toastX or 0,
+        function(v) db.toastX = v; if SP.AutoPI then SP.AutoPI:ApplyToastPosition() end end)
+    local toastYRow = GUI:CreateSlider(parent, "Y", -1500, 1500, 1, db.toastY or 240,
+        function(v) db.toastY = v; if SP.AutoPI then SP.AutoPI:ApplyToastPosition() end end)
+    local toastXYRow = GUI:CreateHRow(parent, 44)
+    toastXYRow:Add(toastXRow, 0.5)
+    toastXYRow:Add(toastYRow, 0.5)
+    card3:AddRow(toastXYRow, 44)
+    table.insert(childRows, toastXYRow)
+
+    card3:AddSeparator()
+
+    local previewWrap = CreateFrame("Frame", nil, parent)
+    previewWrap:SetHeight(28)
+    local isPreviewing = false
+
+    local previewBtn = GUI:CreateButton(previewWrap, "Preview", function()
+        isPreviewing = not isPreviewing
+        if SP.AutoPI then SP.AutoPI:SetPreview(isPreviewing) end
+        previewBtn.lbl:SetText(isPreviewing and "Stop Preview" or "Preview")
+        previewBtn.lbl:SetTextColor(
+            isPreviewing and T.accent[1] or T.textPrimary[1],
+            isPreviewing and T.accent[2] or T.textPrimary[2],
+            isPreviewing and T.accent[3] or T.textPrimary[3], 1)
+    end, 140, 28)
+    previewBtn:SetPoint("LEFT", previewWrap, "LEFT", 0, 0)
+    function previewWrap:SetEnabled(en)
+        self:SetAlpha(en and 1 or 0.4)
+        previewBtn:SetEnabled(en)
+    end
+    card3:AddRow(previewWrap, 28)
+    table.insert(childRows, previewWrap)
+
+    -- Reanchor card3 so it follows card2's bottom as the accept list grows/shrinks
+    card3:ClearAllPoints()
+    card3:SetPoint("TOPLEFT", card2, "BOTTOMLEFT", 0, -T.paddingSmall)
+    card3:SetPoint("RIGHT", parent, "RIGHT", -T.paddingSmall, 0)
+
+    y = y + card3:GetTotalHeight() + T.paddingSmall
+
+    UpdateChildState(db.enabled)
+    parent:SetHeight(y)
+end)
+
+-- ============================================================
+-- AutoInnervate
+-- ============================================================
+GUI:RegisterContent("autoinnervate", function(parent)
+    local db = SP.GetDB().autoInnervate
+    local y  = 0
+
+    local childRows  = {}
+    local childCards = {}
+    local card1
+    local enableRow
+
+    local function UpdateChildState(enabled)
+        card1:GrayContent(enabled, enableRow)
+        for _, r in ipairs(childRows)  do r:SetEnabled(enabled) end
+        for _, c in ipairs(childCards) do c:SetAlpha(enabled and 1 or 0.4) end
+    end
+
+    -- ── Card 1: General ──────────────────────────────────
+    card1 = GUI:CreateCard(parent, "Auto Innervate", y)
+    card1:AddLabel("Innervate Callout & Request coordination between healers and Druids.", T.textMuted)
+    card1:AddLabel("/innerv to request Innervate  •  /innervcast to confirm a cast.", T.textMuted)
+    card1:AddSeparator()
+
+    enableRow = GUI:CreateToggle(parent, "Enable Auto Innervate", db.enabled or false,
+        function(v)
+            db.enabled = v
+            UpdateChildState(v)
+            if v then SP:EnableModule("AutoInnervate") else SP:DisableModule("AutoInnervate") end
+            GUI.UpdateSidebarCheckmarks()
+        end, "AutoInnervate")
+    card1:AddRow(enableRow, 28)
+
+    y = y + card1:GetTotalHeight() + T.paddingSmall
+    local card1End = y
+
+    -- ── Card 2: Configuration + Accept From ─────────────
+    local card2 = GUI:CreateCard(parent, "Configuration", y)
+    table.insert(childCards, card2)
+
+    local RefreshAcceptList
+    local card3              -- forward ref (assigned after card3 is built)
+
+    -- Left column: target input (50px) + notify toggle (28px) + 4px gap = 82px
+    local LEFT_H   = 82
+    local GAP_COLS = 8
+
+    local cols = CreateFrame("Frame", nil, parent)
+    cols:SetHeight(LEFT_H)
+
+    local leftCol = CreateFrame("Frame", nil, cols)
+    leftCol:SetPoint("TOPLEFT", cols, "TOPLEFT", 0, 0)
+    leftCol:SetHeight(LEFT_H)
+
+    local rightCol = CreateFrame("Frame", nil, cols)
+    rightCol:SetPoint("TOPRIGHT", cols, "TOPRIGHT", 0, 0)
+    rightCol:SetHeight(LEFT_H)
+
+    -- Drive column widths from cols width (avoids CENTER vertical-midpoint bug)
+    cols:SetScript("OnSizeChanged", function(self, w)
+        local hw = math.floor((w - GAP_COLS) / 2)
+        if hw < 1 then hw = 1 end
+        leftCol:SetWidth(hw)
+        rightCol:SetWidth(hw)
+    end)
+
+    -- Left: target input
+    local tgtFrame = MakeCoordInput(parent, "Request Innervate from:", "Set", "Druid name...",
+        function(raw)
+            local name = strtrim(raw)
+            db.piTarget = (name ~= "") and name or nil
+        end)
+    tgtFrame:SetParent(leftCol)
+    tgtFrame:ClearAllPoints()
+    tgtFrame:SetPoint("TOPLEFT",  leftCol, "TOPLEFT",  0, 0)
+    tgtFrame:SetPoint("TOPRIGHT", leftCol, "TOPRIGHT", 0, 0)
+    tgtFrame._box:SetText(db.piTarget or "")
+
+    -- Left: notify toggle (below target input)
+    local notifyRow = GUI:CreateToggle(parent, "Notify when Innervate is ready", db.notifyReady ~= false,
+        function(v) db.notifyReady = v end, "AutoInnervate")
+    notifyRow:SetParent(leftCol)
+    notifyRow:ClearAllPoints()
+    notifyRow:SetPoint("TOPLEFT",  leftCol, "TOPLEFT",  0, -54)
+    notifyRow:SetPoint("TOPRIGHT", leftCol, "TOPRIGHT", 0, -54)
+    table.insert(childRows, notifyRow)
+
+    -- Right: accept input
+    local addFrame = MakeCoordInput(parent, "Accept from:", "Add", "Player name...",
+        function(raw, box)
+            local name = strtrim(raw)
+            if name == "" then return end
+            if not db.acceptFrom then db.acceptFrom = {} end
+            db.acceptFrom[name] = true
+            box:SetText("")
+            RefreshAcceptList()
+        end)
+    addFrame:SetParent(rightCol)
+    addFrame:ClearAllPoints()
+    addFrame:SetPoint("TOPLEFT",  rightCol, "TOPLEFT",  0, 0)
+    addFrame:SetPoint("TOPRIGHT", rightCol, "TOPRIGHT", 0, 0)
+
+    -- Right: name list (below accept input)
+    local MAX_ACCEPT    = 8
+    local listRowFrames = {}
+    local listHolder    = CreateFrame("Frame", nil, rightCol)
+    listHolder:SetPoint("TOPLEFT",  rightCol, "TOPLEFT",  0, -54)
+    listHolder:SetPoint("TOPRIGHT", rightCol, "TOPRIGHT", 0, -54)
+    listHolder:SetHeight(1)
+
+    for i = 1, MAX_ACCEPT do
+        local row = CreateFrame("Frame", nil, listHolder, "BackdropTemplate")
+        row:SetHeight(24)
+        row:SetPoint("TOPLEFT",  listHolder, "TOPLEFT",  0, -(i - 1) * 26)
+        row:SetPoint("TOPRIGHT", listHolder, "TOPRIGHT", 0, -(i - 1) * 26)
+        row:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+        row:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 0.5)
+        row:SetBackdropBorderColor(0, 0, 0, 0)
+
+        local rowText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        rowText:SetPoint("LEFT", row, "LEFT", 8, 0)
+        rowText:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+        row._text = rowText
+
+        local delBtn = CreateFrame("Button", nil, row)
+        delBtn:SetSize(20, 20)
+        delBtn:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+        local delLbl = delBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        delLbl:SetText("X")
+        delLbl:SetTextColor(0.55, 0.18, 0.18, 1)
+        delLbl:SetAllPoints()
+        delBtn:SetScript("OnEnter", function() delLbl:SetTextColor(1, 0.3, 0.3, 1) end)
+        delBtn:SetScript("OnLeave", function() delLbl:SetTextColor(0.55, 0.18, 0.18, 1) end)
+        row._delBtn = delBtn
+
+        row:Hide()
+        listRowFrames[i] = row
+    end
+
+    -- Compound SetEnabled wrapper for childRows
+    local colsEnabled = {}
+    colsEnabled.SetEnabled = function(_, en)
+        tgtFrame:SetEnabled(en)
+        addFrame:SetEnabled(en)
+        notifyRow:SetEnabled(en)
+    end
+    table.insert(childRows, colsEnabled)
+
+    -- Add cols as a single card row; height tracked dynamically
+    local colsBaseY = card2.currentY
+    card2:AddRow(cols, LEFT_H)
+
+    RefreshAcceptList = function()
+        local names = {}
+        if db.acceptFrom then
+            for name in pairs(db.acceptFrom) do table.insert(names, name) end
+            table.sort(names)
+        end
+        local count  = math.min(#names, MAX_ACCEPT)
+        local listH  = count * 26
+        listHolder:SetHeight(math.max(listH, 1))
+
+        for i = 1, MAX_ACCEPT do
+            local row = listRowFrames[i]
+            if i <= count then
+                local name = names[i]
+                row._text:SetText(name)
+                row._delBtn:SetScript("OnClick", function()
+                    db.acceptFrom[name] = nil
+                    RefreshAcceptList()
+                end)
+                row:Show()
+            else
+                row:Hide()
+            end
+        end
+
+        local rightH = 54 + listH  -- addFrame(50) + gap(4) + list
+        local colsH  = math.max(LEFT_H, rightH)
+        rightCol:SetHeight(colsH)
+        cols:SetHeight(colsH)
+
+        card2.currentY = colsBaseY + colsH + T.paddingSmall
+        card2.content:SetHeight(card2.currentY)
+        card2:_UpdateHeight()
+        if card3 then
+            parent:SetHeight(card1End + card2:GetTotalHeight() + T.paddingSmall + card3:GetTotalHeight() + T.paddingSmall)
+        end
+    end
+
+    RefreshAcceptList()
+
+    y = y + card2:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 3: Alert Positions ───────────────────────────
+    card3 = GUI:CreateCard(parent, "Alert Positions", y)
+    table.insert(childCards, card3)
+
+    card3:AddLabel("Innervate Request Popup:", T.textSecondary)
+    local popXRow = GUI:CreateSlider(parent, "X", -1500, 1500, 1, db.popupX or 0,
+        function(v) db.popupX = v; if SP.AutoInnervate then SP.AutoInnervate:ApplyPopupPosition() end end)
+    local popYRow = GUI:CreateSlider(parent, "Y", -1500, 1500, 1, db.popupY or 160,
+        function(v) db.popupY = v; if SP.AutoInnervate then SP.AutoInnervate:ApplyPopupPosition() end end)
+    local popXYRow = GUI:CreateHRow(parent, 44)
+    popXYRow:Add(popXRow, 0.5)
+    popXYRow:Add(popYRow, 0.5)
+    card3:AddRow(popXYRow, 44)
+    table.insert(childRows, popXYRow)
+
+    card3:AddSeparator()
+
+    card3:AddLabel("CD / Ready Mini Toast:", T.textSecondary)
+    local toastXRow = GUI:CreateSlider(parent, "X", -1500, 1500, 1, db.toastX or 0,
+        function(v) db.toastX = v; if SP.AutoInnervate then SP.AutoInnervate:ApplyToastPosition() end end)
+    local toastYRow = GUI:CreateSlider(parent, "Y", -1500, 1500, 1, db.toastY or 200,
+        function(v) db.toastY = v; if SP.AutoInnervate then SP.AutoInnervate:ApplyToastPosition() end end)
+    local toastXYRow = GUI:CreateHRow(parent, 44)
+    toastXYRow:Add(toastXRow, 0.5)
+    toastXYRow:Add(toastYRow, 0.5)
+    card3:AddRow(toastXYRow, 44)
+    table.insert(childRows, toastXYRow)
+
+    card3:AddSeparator()
+
+    local previewWrap = CreateFrame("Frame", nil, parent)
+    previewWrap:SetHeight(28)
+    local isPreviewing = false
+
+    local previewBtn = GUI:CreateButton(previewWrap, "Preview", function()
+        isPreviewing = not isPreviewing
+        if SP.AutoInnervate then SP.AutoInnervate:SetPreview(isPreviewing) end
+        previewBtn.lbl:SetText(isPreviewing and "Stop Preview" or "Preview")
+        previewBtn.lbl:SetTextColor(
+            isPreviewing and T.accent[1] or T.textPrimary[1],
+            isPreviewing and T.accent[2] or T.textPrimary[2],
+            isPreviewing and T.accent[3] or T.textPrimary[3], 1)
+    end, 140, 28)
+    previewBtn:SetPoint("LEFT", previewWrap, "LEFT", 0, 0)
+    function previewWrap:SetEnabled(en)
+        self:SetAlpha(en and 1 or 0.4)
+        previewBtn:SetEnabled(en)
+    end
+    card3:AddRow(previewWrap, 28)
+    table.insert(childRows, previewWrap)
+
+    -- Reanchor card3 so it follows card2's bottom as the accept list grows/shrinks
+    card3:ClearAllPoints()
+    card3:SetPoint("TOPLEFT", card2, "BOTTOMLEFT", 0, -T.paddingSmall)
+    card3:SetPoint("RIGHT", parent, "RIGHT", -T.paddingSmall, 0)
+
+    y = y + card3:GetTotalHeight() + T.paddingSmall
 
     UpdateChildState(db.enabled)
     parent:SetHeight(y)

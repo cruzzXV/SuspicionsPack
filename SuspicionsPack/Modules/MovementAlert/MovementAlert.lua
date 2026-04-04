@@ -672,9 +672,20 @@ function MA:ShowPreview()
     fsText:Show()
     f:Show()
     ApplyStyles()
+    -- Auto-cancel after 5 s (same pattern as ShowTimeSpiralPreview)
+    if self._maPrevTimer then self._maPrevTimer:Cancel() end
+    self._maPrevTimer = C_Timer.NewTimer(5, function()
+        self._maPrevTimer = nil
+        self:HidePreview()
+        if self._maPreviewEndCallback then self._maPreviewEndCallback() end
+    end)
 end
 
 function MA:HidePreview()
+    if self._maPrevTimer then
+        self._maPrevTimer:Cancel()
+        self._maPrevTimer = nil
+    end
     self.isPreview = false
     f:EnableMouse(false)
     f:SetMouseClickEnabled(false)
