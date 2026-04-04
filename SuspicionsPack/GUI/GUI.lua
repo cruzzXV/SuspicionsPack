@@ -8839,8 +8839,9 @@ GUI:RegisterContent("autopi", function(parent)
 
     -- ── Card 1: General ──────────────────────────────────
     card1 = GUI:CreateCard(parent, "Auto PI", y)
-    card1:AddLabel("PI Callout & Request coordination between DPS and Priests.", T.textMuted)
-    card1:AddLabel("/pi to request Power Infusion  •  /picast to confirm a cast.", T.textMuted)
+    card1:AddLabel("PI coordination between DPS and Priests.", T.textMuted)
+    card1:AddLabel("Add /pi at the end of your DPS macro to request PI.", T.textMuted)
+    card1:AddLabel("Add /picast at the end of your PI cast macro to confirm.", T.textMuted)
     card1:AddSeparator()
 
     enableRow = GUI:CreateToggle(parent, "Enable Auto PI", db.enabled or false,
@@ -9045,18 +9046,27 @@ GUI:RegisterContent("autopi", function(parent)
 
     local previewWrap = CreateFrame("Frame", nil, parent)
     previewWrap:SetHeight(28)
-    local isPreviewing = false
-
-    local previewBtn = GUI:CreateButton(previewWrap, "Preview", function()
-        isPreviewing = not isPreviewing
-        if SP.AutoPI then SP.AutoPI:SetPreview(isPreviewing) end
-        previewBtn.lbl:SetText(isPreviewing and "Stop Preview" or "Preview")
-        previewBtn.lbl:SetTextColor(
-            isPreviewing and T.accent[1] or T.textPrimary[1],
-            isPreviewing and T.accent[2] or T.textPrimary[2],
-            isPreviewing and T.accent[3] or T.textPrimary[3], 1)
-    end, 140, 28)
+    local previewActive = false
+    local previewBtn = GUI:CreateButton(previewWrap, "Preview", nil, 140, 28)
     previewBtn:SetPoint("LEFT", previewWrap, "LEFT", 0, 0)
+    previewBtn:SetScript("OnLeave", function()
+        AnimateBorderFocus(previewBtn, previewActive)
+        previewBtn.lbl:SetTextColor(
+            previewActive and T.accent[1] or T.textPrimary[1],
+            previewActive and T.accent[2] or T.textPrimary[2],
+            previewActive and T.accent[3] or T.textPrimary[3], 1)
+    end)
+    previewBtn:SetScript("OnClick", function()
+        previewActive = not previewActive
+        if SP.AutoPI then SP.AutoPI:SetPreview(previewActive) end
+        if previewActive then
+            previewBtn.lbl:SetText("Stop Preview")
+            previewBtn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+        else
+            previewBtn.lbl:SetText("Preview")
+            previewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+        end
+    end)
     function previewWrap:SetEnabled(en)
         self:SetAlpha(en and 1 or 0.4)
         previewBtn:SetEnabled(en)
@@ -9095,8 +9105,9 @@ GUI:RegisterContent("autoinnervate", function(parent)
 
     -- ── Card 1: General ──────────────────────────────────
     card1 = GUI:CreateCard(parent, "Auto Innervate", y)
-    card1:AddLabel("Innervate Callout & Request coordination between healers and Druids.", T.textMuted)
-    card1:AddLabel("/innerv to request Innervate  •  /innervcast to confirm a cast.", T.textMuted)
+    card1:AddLabel("Innervate coordination between healers and Druids.", T.textMuted)
+    card1:AddLabel("Add /innerv at the end of your healer macro to request Innervate.", T.textMuted)
+    card1:AddLabel("Add /innervcast at the end of your Innervate cast macro to confirm.", T.textMuted)
     card1:AddSeparator()
 
     enableRow = GUI:CreateToggle(parent, "Enable Auto Innervate", db.enabled or false,
@@ -9301,18 +9312,27 @@ GUI:RegisterContent("autoinnervate", function(parent)
 
     local previewWrap = CreateFrame("Frame", nil, parent)
     previewWrap:SetHeight(28)
-    local isPreviewing = false
-
-    local previewBtn = GUI:CreateButton(previewWrap, "Preview", function()
-        isPreviewing = not isPreviewing
-        if SP.AutoInnervate then SP.AutoInnervate:SetPreview(isPreviewing) end
-        previewBtn.lbl:SetText(isPreviewing and "Stop Preview" or "Preview")
-        previewBtn.lbl:SetTextColor(
-            isPreviewing and T.accent[1] or T.textPrimary[1],
-            isPreviewing and T.accent[2] or T.textPrimary[2],
-            isPreviewing and T.accent[3] or T.textPrimary[3], 1)
-    end, 140, 28)
+    local previewActive = false
+    local previewBtn = GUI:CreateButton(previewWrap, "Preview", nil, 140, 28)
     previewBtn:SetPoint("LEFT", previewWrap, "LEFT", 0, 0)
+    previewBtn:SetScript("OnLeave", function()
+        AnimateBorderFocus(previewBtn, previewActive)
+        previewBtn.lbl:SetTextColor(
+            previewActive and T.accent[1] or T.textPrimary[1],
+            previewActive and T.accent[2] or T.textPrimary[2],
+            previewActive and T.accent[3] or T.textPrimary[3], 1)
+    end)
+    previewBtn:SetScript("OnClick", function()
+        previewActive = not previewActive
+        if SP.AutoInnervate then SP.AutoInnervate:SetPreview(previewActive) end
+        if previewActive then
+            previewBtn.lbl:SetText("Stop Preview")
+            previewBtn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+        else
+            previewBtn.lbl:SetText("Preview")
+            previewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+        end
+    end)
     function previewWrap:SetEnabled(en)
         self:SetAlpha(en and 1 or 0.4)
         previewBtn:SetEnabled(en)
