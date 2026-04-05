@@ -6853,6 +6853,19 @@ GUI:RegisterContent("autoplaystyle", function(parent)
     card1:AddRow(playstyleRow, 44)
     table.insert(childRows, playstyleRow)
 
+    card1:AddSeparator()
+
+    local mpRow = GUI:CreateToggle(parent, "Auto-select Mythic+", db.defaultMythicPlus,
+        function(v)
+            db.defaultMythicPlus = v
+        end, "Auto-select Mythic+")
+    card1:AddRow(mpRow, 28)
+    table.insert(childRows, mpRow)
+
+    card1:AddLabel(
+        "When the listing creation dialog opens, automatically select the Mythic+ group instead of Mythic.",
+        T.textMuted)
+
     y = y + card1:GetTotalHeight() + T.paddingSmall
 
     UpdateChildState(db.enabled)
