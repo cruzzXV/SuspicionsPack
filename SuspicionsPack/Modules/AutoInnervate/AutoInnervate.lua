@@ -14,6 +14,7 @@ SP.AutoInnervate = AutoInnervate
 -- ============================================================
 local ADDON_PREFIX    = "SPINV"   -- SuspicionsPack INnervate
 local INNERVATE_ID    = 29166
+C_ChatInfo.RegisterAddonMessagePrefix(ADDON_PREFIX)  -- register at load time, not inside DB guard
 local POPUP_DURATION  = 15
 local INNERVATE_CD    = 180       -- 3-minute base cooldown
 
@@ -431,7 +432,6 @@ function AutoInnervate:OnInitialize()
     if not db then return end
     if db.acceptFrom == nil then db.acceptFrom = {} end
     if db.notifyReady == nil then db.notifyReady = true end
-    C_ChatInfo.RegisterAddonMessagePrefix(ADDON_PREFIX)
 end
 
 function AutoInnervate:OnEnable()

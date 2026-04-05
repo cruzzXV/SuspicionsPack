@@ -12,8 +12,9 @@ SP.AutoPI = AutoPI
 -- ============================================================
 -- Constants
 -- ============================================================
-local ADDON_PREFIX   = "SPPI"   -- distinct from standalone AutoPI to avoid cross-addon conflicts
+local ADDON_PREFIX   = "AutoPI"   -- matches standalone AutoPI for cross-addon interoperability
 local PI_SPELL_ID    = 10060
+C_ChatInfo.RegisterAddonMessagePrefix(ADDON_PREFIX)  -- register at load time, like standalone
 local POPUP_DURATION = 15
 local PI_BASE_CD     = 120
 
@@ -436,7 +437,6 @@ function AutoPI:OnInitialize()
     if not db then return end
     if db.acceptFrom == nil then db.acceptFrom = {} end
     if db.notifyReady == nil then db.notifyReady = true end
-    C_ChatInfo.RegisterAddonMessagePrefix(ADDON_PREFIX)
 end
 
 function AutoPI:OnEnable()
