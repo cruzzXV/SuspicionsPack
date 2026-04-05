@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.5.7"
+SP.VERSION = "1.5.8"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -535,8 +535,9 @@ local DEFAULTS = {
             spellOverrides   = {},   -- [spellId] = { enabled, customText } for user-added spells
         },
         autoPlaystyle = {
-            enabled   = false,
-            playstyle = 3,  -- 1=Learning 2=Relaxed 3=Competitive 4=Carry Offered
+            enabled          = false,
+            playstyle        = 3,     -- 1=Learning 2=Relaxed 3=Competitive 4=Carry Offered
+            defaultMythicPlus = false, -- auto-select Mythic+ group when dialog opens
         },
         craftShopper = {
             enabled = false,
