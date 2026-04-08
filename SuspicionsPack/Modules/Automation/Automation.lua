@@ -34,7 +34,7 @@ local function SetupAutoFillDelete()
     deleteHooked = true
     hooksecurefunc(StaticPopupDialogs["DELETE_GOOD_ITEM"], "OnShow", function(self)
         local eb = self.EditBox or self.editBox
-        if eb then eb:SetText("DELETE") end
+        if eb then eb:SetText(_G["DELETE"] or "DELETE") end
     end)
 end
 

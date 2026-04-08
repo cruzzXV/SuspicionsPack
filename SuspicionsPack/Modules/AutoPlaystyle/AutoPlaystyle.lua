@@ -67,72 +67,6 @@ local function ApplyPlaystyle(entryCreation)
 end
 
 -- ============================================================
--- Auto-select Mythic+ group when dialog opens
--- ============================================================
-
---- Find the groupID for Mythic+ within a given categoryID.
---- Uses pcall around C_LFGList calls so unknown API variants don't hard-error.
-local function FindMythicPlusGroupID(categoryID)
-    if not categoryID then return nil end
-
-    local ok, groups = pcall(C_LFGList.GetAvailableActivityGroups, categoryID)
-    if not ok or type(groups) ~= "table" then
-        SP:Debug("AutoPlaystyle", "[M+Auto] GetAvailableActivityGroups failed for cat=", categoryID)
-        return nil
-    end
-
-    for _, groupID in ipairs(groups) do
-        local ok2, acts = pcall(C_LFGList.GetAvailableActivities, categoryID, groupID)
-        if ok2 and type(acts) == "table" then
-            for _, aID in ipairs(acts) do
-                local info = C_LFGList.GetActivityInfoTable(aID)
-                if info and info.isMythicPlusActivity then
-                    SP:Debug("AutoPlaystyle", "[M+Auto] Found M+ groupID=", groupID)
-                    return groupID
-                end
-            end
-        end
-    end
-    return nil
-end
-
---- Called from the LFGListEntryCreation_Show hook.
---- Deferred by one frame so the dialog finishes initialising before we redirect.
-local function SelectDefaultMythicPlusGroup(entryCreation, openActivityID)
-    local db = GetDB()
-    if not db or not db.enabled or not db.defaultMythicPlus then return end
-
-    -- Per CLAUDE.md: debug print to verify args before relying on them.
-    SP:Debug("AutoPlaystyle", "[M+Auto] Show fired openActivityID=", tostring(openActivityID),
-        "entryCreation.categoryID=", tostring(entryCreation and entryCreation.categoryID))
-
-    C_Timer.After(0, function()
-        if not entryCreation or not entryCreation:IsShown() then return end
-
-        -- Derive categoryID: try the passed activityID first, then frame field.
-        local categoryID = nil
-        if openActivityID then
-            local info = C_LFGList.GetActivityInfoTable(openActivityID)
-            SP:Debug("AutoPlaystyle", "[M+Auto] openActivity isMythicPlus=",
-                tostring(info and info.isMythicPlusActivity), "cat=", tostring(info and info.categoryID))
-            if info then categoryID = info.categoryID end
-        end
-        if not categoryID then
-            categoryID = entryCreation.categoryID  -- may be nil; safe to pass to FindMythicPlusGroupID
-        end
-
-        local mpGroupID = FindMythicPlusGroupID(categoryID)
-
-        if mpGroupID then
-            SP:Debug("AutoPlaystyle", "[M+Auto] Auto-selecting M+ groupID=", mpGroupID, "cat=", categoryID)
-            LFGListEntryCreation_Select(entryCreation, nil, categoryID, mpGroupID, nil)
-        else
-            SP:Debug("AutoPlaystyle", "[M+Auto] M+ group not found for categoryID=", tostring(categoryID))
-        end
-    end)
-end
-
--- ============================================================
 -- Hook installation (once, permanent)
 -- ============================================================
 local _hooked = false
@@ -142,9 +76,8 @@ local function InstallHooks()
     _hooked = true
 
     -- Fires when the listing creation dialog is shown (activity already chosen)
-    hooksecurefunc("LFGListEntryCreation_Show", function(entryCreation, activityID)
+    hooksecurefunc("LFGListEntryCreation_Show", function(entryCreation)
         ApplyPlaystyle(entryCreation)
-        SelectDefaultMythicPlusGroup(entryCreation, activityID)
     end)
 
     -- Fires when the player manually picks an activity in the dialog
