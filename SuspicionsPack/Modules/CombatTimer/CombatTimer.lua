@@ -266,14 +266,13 @@ function CT:OnEnterCombat()
     local db = GetDB()
     if self.running or not db.enabled then return end
 
-    self.startTime = GetTime()
-    self.running   = true
-    self.isPreview = false
+    self.startTime        = GetTime()
+    self.running          = true
+    self.isPreview        = false
     SP.lastCombatDuration = 0
-    self.lastText  = ""
+    self.lastText         = ""
 
     if self.frame then
-        -- Disable drag + hide MOVABLE label when real combat starts
         self.frame:EnableMouse(false)
         self.frame:SetMouseClickEnabled(false)
         if self.frame.movableLbl then self.frame.movableLbl:Hide() end
@@ -287,8 +286,8 @@ function CT:OnExitCombat()
     if not self.running then return end
 
     SP.lastCombatDuration = GetTime() - self.startTime
-    self.running   = false
-    self.startTime = 0
+    self.running          = false
+    self.startTime        = 0
 
     local db  = GetDB()
     local dur = FormatTime(SP.lastCombatDuration, db.format or "MM:SS")
@@ -304,12 +303,10 @@ function CT:OnExitCombat()
     self:ApplySettings()
     self:UpdateText()
 
-    -- Hide the timer unless the player wants to keep the last duration visible.
-    -- If the preview button is active it stays visible (isPreview check in ShowPreview).
-    if not self.isPreview then
-        if self.frame and not db.showLastDuration then
-            self.frame:Hide()
-        end
+    -- If showLastDuration is on, keep the frame visible (like Norsken).
+    -- Otherwise hide it — it reappears next time combat starts.
+    if self.frame and not db.showLastDuration then
+        self.frame:Hide()
     end
 end
 
@@ -330,13 +327,14 @@ end
 
 function CT:HidePreview()
     self.isPreview = false
-    -- Disable drag + hide label
     if self.frame then
         self.frame:EnableMouse(false)
         self.frame:SetMouseClickEnabled(false)
         if self.frame.movableLbl then self.frame.movableLbl:Hide() end
-        -- Always hide the frame when not actively in combat
-        if not self.running then self.frame:Hide() end
+        local db = GetDB()
+        if not self.running and (not db or not db.showLastDuration) then
+            self.frame:Hide()
+        end
     end
 end
 
@@ -360,8 +358,9 @@ function CT:Activate()
         self:OnUpdate(elapsed)
     end)
 
-    -- Do NOT show the frame here — it only appears during active combat.
-    -- OnEnterCombat will show it when the player enters combat.
+    -- If showLastDuration is on, show immediately (always visible like Norsken).
+    -- Otherwise the frame only appears when combat starts.
+    if db.showLastDuration then self.frame:Show() end
 end
 
 function CT:Deactivate()
@@ -369,8 +368,9 @@ function CT:Deactivate()
         self.frame:SetScript("OnUpdate", nil)
         self.frame:Hide()
     end
-    self.running   = false
-    self.isPreview = false
+    self.running          = false
+    self.isPreview        = false
+    SP.lastCombatDuration = 0
     self:UnregisterAllEvents()
 end
 

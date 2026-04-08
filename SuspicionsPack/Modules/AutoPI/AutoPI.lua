@@ -35,6 +35,7 @@ local piWasOnCD      = false
 local piCastTime     = 0
 local alertsUnlocked = false
 local framesCreated  = false
+-- Set to true when an ACK is received so the aura handler doesn't double-notify
 
 -- Frame refs (created lazily in CreateFrames)
 local popup, miniToast, frameIcon
@@ -559,8 +560,17 @@ SlashCmdList["SPPI"] = function()
     Send("REQ:" .. db.piTarget)
 end
 
--- /picast  — Priest: dismiss the alert (they are casting)
+-- /picast  — Priest: confirm they are casting PI
+-- If a DPS requested (popup showing): ACK the requester.
+-- Otherwise: ACK whoever the priest is currently targeting (proactive PI).
 SLASH_SPPICAST1 = "/picast"
 SlashCmdList["SPPICAST"] = function()
-    if popupShowing then DismissAlerts() end
+    if popupShowing then
+        DismissAlerts()
+    else
+        local targetName = UnitName("target")
+        if targetName and IsInMyGroup(targetName) then
+            Send("ACK:" .. BaseName(targetName))
+        end
+    end
 end

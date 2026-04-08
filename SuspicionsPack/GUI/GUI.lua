@@ -5214,7 +5214,16 @@ GUI:RegisterContent("combattimer", function(parent)
 
     local showLastRow = GUI:CreateToggle(parent, "Show last duration on frame",
         db.showLastDuration or false,
-        function(v) db.showLastDuration = v end)
+        function(v)
+            db.showLastDuration = v
+            local ct = GetCT()
+            if not ct or not ct.frame then return end
+            if v then
+                ct.frame:Show()
+            elseif not ct.running then
+                ct.frame:Hide()
+            end
+        end)
     card1:AddRow(showLastRow, 28)
     table.insert(ctChildRows, showLastRow)
 
@@ -6852,19 +6861,6 @@ GUI:RegisterContent("autoplaystyle", function(parent)
         end)
     card1:AddRow(playstyleRow, 44)
     table.insert(childRows, playstyleRow)
-
-    card1:AddSeparator()
-
-    local mpRow = GUI:CreateToggle(parent, "Auto-select Mythic+", db.defaultMythicPlus,
-        function(v)
-            db.defaultMythicPlus = v
-        end, "Auto-select Mythic+")
-    card1:AddRow(mpRow, 28)
-    table.insert(childRows, mpRow)
-
-    card1:AddLabel(
-        "When the listing creation dialog opens, automatically select the Mythic+ group instead of Mythic.",
-        T.textMuted)
 
     y = y + card1:GetTotalHeight() + T.paddingSmall
 
