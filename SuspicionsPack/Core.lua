@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.5.9"
+SP.VERSION = "1.6.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -239,9 +239,123 @@ SP.ThemePresets = {
         success       = { 0.30,  0.80,  0.40,  1    },
         warning       = { 0.90,  0.75,  0.30,  1    },
     },
+    -- Catppuccin Mocha: #11111b bg / #313244 surface / #89b4fa blue accent
+    ["Catppuccin"] = {
+        bgDark        = { 0.067, 0.067, 0.106, 0.97 },
+        bgMedium      = { 0.067, 0.067, 0.106, 1    },
+        bgLight       = { 0.192, 0.196, 0.267, 1    },
+        bgHover       = { 0.22,  0.22,  0.28,  1    },
+        border        = { 0,     0,     0,     1    },
+        accent        = { 0.537, 0.706, 0.980, 1    },
+        accentHover   = { 0.537, 0.706, 0.980, 0.25 },
+        accentDim     = { 0.537, 0.706, 0.980, 1    },
+        textPrimary   = { 0.95,  0.95,  0.95,  1    },
+        textSecondary = { 0.70,  0.70,  0.70,  1    },
+        textMuted     = { 0.50,  0.50,  0.50,  1    },
+        selectedBg    = { 0.537, 0.706, 0.980, 0.20 },
+        selectedText  = { 0.537, 0.706, 0.980, 1    },
+        error         = { 0.90,  0.30,  0.30,  1    },
+        success       = { 0.30,  0.80,  0.40,  1    },
+        warning       = { 0.90,  0.75,  0.30,  1    },
+    },
+    -- Rosé Pine: #191724 bg / #1f1d2e surface / #eb6f92 rose accent
+    ["Rosé Pine"] = {
+        bgDark        = { 0.098, 0.090, 0.141, 0.97 },
+        bgMedium      = { 0.098, 0.090, 0.141, 1    },
+        bgLight       = { 0.122, 0.114, 0.180, 1    },
+        bgHover       = { 0.22,  0.20,  0.26,  1    },
+        border        = { 0,     0,     0,     1    },
+        accent        = { 0.922, 0.435, 0.573, 1    },
+        accentHover   = { 0.922, 0.435, 0.573, 0.25 },
+        accentDim     = { 0.922, 0.435, 0.573, 1    },
+        textPrimary   = { 0.95,  0.95,  0.95,  1    },
+        textSecondary = { 0.70,  0.70,  0.70,  1    },
+        textMuted     = { 0.50,  0.50,  0.50,  1    },
+        selectedBg    = { 0.922, 0.435, 0.573, 0.20 },
+        selectedText  = { 0.922, 0.435, 0.573, 1    },
+        error         = { 0.90,  0.30,  0.30,  1    },
+        success       = { 0.30,  0.80,  0.40,  1    },
+        warning       = { 0.90,  0.75,  0.30,  1    },
+    },
+    -- Tokyo Night: #1a1b26 bg / #24283b surface / #bb9af7 purple accent
+    ["Tokyo Night"] = {
+        bgDark        = { 0.102, 0.106, 0.149, 0.97 },
+        bgMedium      = { 0.102, 0.106, 0.149, 1    },
+        bgLight       = { 0.141, 0.157, 0.231, 1    },
+        bgHover       = { 0.22,  0.22,  0.28,  1    },
+        border        = { 0,     0,     0,     1    },
+        accent        = { 0.733, 0.604, 0.969, 1    },
+        accentHover   = { 0.733, 0.604, 0.969, 0.25 },
+        accentDim     = { 0.733, 0.604, 0.969, 1    },
+        textPrimary   = { 0.95,  0.95,  0.95,  1    },
+        textSecondary = { 0.70,  0.70,  0.70,  1    },
+        textMuted     = { 0.50,  0.50,  0.50,  1    },
+        selectedBg    = { 0.733, 0.604, 0.969, 0.20 },
+        selectedText  = { 0.733, 0.604, 0.969, 1    },
+        error         = { 0.90,  0.30,  0.30,  1    },
+        success       = { 0.30,  0.80,  0.40,  1    },
+        warning       = { 0.90,  0.75,  0.30,  1    },
+    },
+    -- Nord: #2e3440 bg / #3b4252 surface / #88c0d0 arctic cyan accent
+    ["Nord"] = {
+        bgDark        = { 0.180, 0.204, 0.251, 0.97 },
+        bgMedium      = { 0.180, 0.204, 0.251, 1    },
+        bgLight       = { 0.231, 0.259, 0.322, 1    },
+        bgHover       = { 0.27,  0.29,  0.36,  1    },
+        border        = { 0,     0,     0,     1    },
+        accent        = { 0.533, 0.753, 0.816, 1    },
+        accentHover   = { 0.533, 0.753, 0.816, 0.25 },
+        accentDim     = { 0.533, 0.753, 0.816, 1    },
+        textPrimary   = { 0.95,  0.95,  0.95,  1    },
+        textSecondary = { 0.70,  0.70,  0.70,  1    },
+        textMuted     = { 0.50,  0.50,  0.50,  1    },
+        selectedBg    = { 0.533, 0.753, 0.816, 0.20 },
+        selectedText  = { 0.533, 0.753, 0.816, 1    },
+        error         = { 0.90,  0.30,  0.30,  1    },
+        success       = { 0.30,  0.80,  0.40,  1    },
+        warning       = { 0.90,  0.75,  0.30,  1    },
+    },
+    -- Dracula: #282a36 bg / #44475a surface / #bd93f9 purple accent
+    ["Dracula"] = {
+        bgDark        = { 0.157, 0.165, 0.212, 0.97 },
+        bgMedium      = { 0.157, 0.165, 0.212, 1    },
+        bgLight       = { 0.267, 0.278, 0.353, 1    },
+        bgHover       = { 0.30,  0.30,  0.38,  1    },
+        border        = { 0,     0,     0,     1    },
+        accent        = { 0.741, 0.576, 0.976, 1    },
+        accentHover   = { 0.741, 0.576, 0.976, 0.25 },
+        accentDim     = { 0.741, 0.576, 0.976, 1    },
+        textPrimary   = { 0.95,  0.95,  0.95,  1    },
+        textSecondary = { 0.70,  0.70,  0.70,  1    },
+        textMuted     = { 0.50,  0.50,  0.50,  1    },
+        selectedBg    = { 0.741, 0.576, 0.976, 0.20 },
+        selectedText  = { 0.741, 0.576, 0.976, 1    },
+        error         = { 0.90,  0.30,  0.30,  1    },
+        success       = { 0.30,  0.80,  0.40,  1    },
+        warning       = { 0.90,  0.75,  0.30,  1    },
+    },
+    -- Gruvbox: #282828 bg / #3c3836 surface / #fabd2f warm yellow accent
+    ["Gruvbox"] = {
+        bgDark        = { 0.157, 0.157, 0.157, 0.97 },
+        bgMedium      = { 0.157, 0.157, 0.157, 1    },
+        bgLight       = { 0.235, 0.220, 0.212, 1    },
+        bgHover       = { 0.28,  0.26,  0.24,  1    },
+        border        = { 0,     0,     0,     1    },
+        accent        = { 0.980, 0.741, 0.184, 1    },
+        accentHover   = { 0.980, 0.741, 0.184, 0.25 },
+        accentDim     = { 0.980, 0.741, 0.184, 1    },
+        textPrimary   = { 0.95,  0.95,  0.95,  1    },
+        textSecondary = { 0.70,  0.70,  0.70,  1    },
+        textMuted     = { 0.50,  0.50,  0.50,  1    },
+        selectedBg    = { 0.980, 0.741, 0.184, 0.20 },
+        selectedText  = { 0.980, 0.741, 0.184, 1    },
+        error         = { 0.90,  0.30,  0.30,  1    },
+        success       = { 0.30,  0.80,  0.40,  1    },
+        warning       = { 0.90,  0.75,  0.30,  1    },
+    },
 }
 
-SP.ThemePresetOrder = { "Suspicion", "Warpaint", "Greenwake", "Timberfall", "Obsidian", "Blorb", "Frost" }
+SP.ThemePresetOrder = { "Suspicion", "Warpaint", "Greenwake", "Timberfall", "Obsidian", "Blorb", "Frost", "Catppuccin", "Rosé Pine", "Tokyo Night", "Nord", "Dracula", "Gruvbox" }
 
 -- ============================================================
 -- SP.Theme — live table referenced by the GUI
@@ -547,26 +661,6 @@ local DEFAULTS = {
             bnetSound    = "SuspicionsPack Whisper",
             channel      = "Master",
             muteInCombat = false,
-        },
-        autoPi = {
-            enabled     = false,
-            notifyReady = true,
-            piTarget    = nil,
-            acceptFrom  = {},
-            popupX      = 0,
-            popupY      = 200,
-            toastX      = 0,
-            toastY      = 240,
-        },
-        autoInnervate = {
-            enabled     = false,
-            notifyReady = true,
-            piTarget    = nil,   -- reuses piTarget key for the druid name (same module pattern)
-            acceptFrom  = {},
-            popupX      = 0,
-            popupY      = 160,
-            toastX      = 0,
-            toastY      = 200,
         },
         gatewayAlert = {
             enabled     = false,
