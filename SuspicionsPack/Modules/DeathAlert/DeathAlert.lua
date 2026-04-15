@@ -200,13 +200,42 @@ local function ProcessDeath(unitId, name, classToken)
 end
 
 -- ============================================================
+-- Safe UnitTokenFromGUID wrapper
+-- UnitTokenFromGUID() can return nil for valid group members in 12.x
+-- (Blizzard regression). Fall back to manual GUID scan as per ItruliaQoL v0.4.1.
+-- ============================================================
+local function SafeUnitTokenFromGUID(guid)
+    if not guid or hasanysecretvalues(guid) then return nil end
+
+    local token = UnitTokenFromGUID(guid)
+    if token then return token end
+
+    if guid == UnitGUID("player") then return "player" end
+
+    if IsInRaid() then
+        for i = 1, 40 do
+            local unit = "raid" .. i
+            if guid == UnitGUID(unit) then return unit end
+        end
+    end
+
+    if IsInGroup() then
+        for i = 1, 4 do
+            local unit = "party" .. i
+            if guid == UnitGUID(unit) then return unit end
+        end
+    end
+
+    return nil
+end
+
+-- ============================================================
 -- Event handler
 -- ============================================================
 function DeathAlert:OnUnitDied(_, deadGUID)
     if not deadGUID then return end
-    if not canaccessvalue(deadGUID) then return end
 
-    local unitToken = UnitTokenFromGUID(deadGUID)
+    local unitToken = SafeUnitTokenFromGUID(deadGUID)
     if not unitToken or not canaccessvalue(unitToken) then return end
 
     -- Hunters can feign death — verify truly dead
