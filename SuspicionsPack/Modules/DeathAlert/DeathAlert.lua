@@ -236,10 +236,9 @@ function DeathAlert:OnUnitDied(_, deadGUID)
     if not deadGUID then return end
 
     local unitToken = SafeUnitTokenFromGUID(deadGUID)
-    if not unitToken or not canaccessvalue(unitToken) then return end
 
     -- Hunters can feign death — verify truly dead
-    if not UnitIsDead(unitToken) then return end
+    if not unitToken or not UnitIsDead(unitToken) then return end
 
     local db      = GetDB()
     local isSelf  = (unitToken == "player")
