@@ -1127,17 +1127,17 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
-    ["1.6.1"] = {
-        { type = "fix",  text = "DeathAlert: mort de membres du groupe non détectée corrigée (régression Blizzard UnitTokenFromGUID en 12.x)" },
+    ["1.6.2"] = {
+        { type = "fix",  text = "DeathAlert: group member deaths no longer missed (Blizzard UnitTokenFromGUID regression in 12.x)" },
     },
     ["1.6.0"] = {
-        { type = "new",  text = "6 nouveaux thèmes de couleurs : Catppuccin, Rosé Pine, Tokyo Night, Nord, Dracula, Gruvbox" },
-        { type = "remove", text = "Modules AutoPI et AutoInnervate supprimés" },
-        { type = "fix",  text = "Corrections de bugs divers" },
+        { type = "new",    text = "6 new color themes: Catppuccin, Rose Pine, Tokyo Night, Nord, Dracula, Gruvbox" },
+        { type = "remove", text = "Removed AutoPI and AutoInnervate modules" },
+        { type = "fix",    text = "Various bug fixes" },
     },
 }
 
-SP.ChangelogOrder = { "1.6.1", "1.6.0" }
+SP.ChangelogOrder = { "1.6.2", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
@@ -1229,7 +1229,7 @@ function SP.ShowChangelogPopup()
     subFS:SetPoint("RIGHT", titleBar, "RIGHT", -12, 0)
     subFS:SetFont(SP_CL_FONT, 10, "")
     subFS:SetTextColor(ac[1], ac[2], ac[3], 0.9)
-    subFS:SetText("Nouveautés")
+    subFS:SetText("What's New")
 
     -- ── body ─────────────────────────────────────────────────
     local body = CreateFrame("Frame", nil, f, "BackdropTemplate")
@@ -1303,7 +1303,7 @@ function SP.ShowChangelogPopup()
     closeLbl:SetPoint("CENTER")
     closeLbl:SetFont(SP_CL_FONT, 11, "")
     closeLbl:SetTextColor(0.04, 0.04, 0.04, 1)
-    closeLbl:SetText("OK, compris !")
+    closeLbl:SetText("Got it!")
 
     closeBtn:SetScript("OnEnter", function(btn)
         btn:SetBackdropColor(ac[1]*1.15, ac[2]*1.15, ac[3]*1.15, 1)
