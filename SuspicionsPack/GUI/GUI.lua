@@ -2872,6 +2872,33 @@ function GUI:BuildMainFrame()
         end
     end)
 
+    -- "Changelog" button — left of Preview All, opens SP.ShowChangelogPopup()
+    local changelogBtn = CreateFrame("Frame", nil, footer, "BackdropTemplate")
+    changelogBtn:SetSize(90, T.footerHeight - 6)
+    changelogBtn:SetPoint("RIGHT", previewAllBtn, "LEFT", -6, 0)
+    changelogBtn:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+    changelogBtn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    changelogBtn:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+    changelogBtn:EnableMouse(true)
+
+    local changelogLbl = changelogBtn:CreateFontString(nil, "OVERLAY")
+    changelogLbl:SetAllPoints(changelogBtn)
+    changelogLbl:SetJustifyH("CENTER"); changelogLbl:SetJustifyV("MIDDLE")
+    ApplyFont(changelogLbl, 11)
+    changelogLbl:SetText("Changelog")
+    changelogLbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+
+    changelogBtn:SetScript("OnEnter", function()
+        AnimateBorderFocus(changelogBtn, true)
+        changelogLbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+    end)
+    changelogBtn:SetScript("OnLeave", function()
+        AnimateBorderFocus(changelogBtn, false)
+        changelogLbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+    end)
+    changelogBtn:SetScript("OnMouseDown", function()
+        if SP.ShowChangelogPopup then SP.ShowChangelogPopup() end
+    end)
 
     -- Sidebar (flush layout — no gaps between sidebar, topbar, content)
     local LAYOUT_GAP = 0

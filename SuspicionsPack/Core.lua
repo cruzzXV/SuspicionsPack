@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.6.2"
+SP.VERSION = "1.6.3"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1127,8 +1127,9 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
-    ["1.6.2"] = {
-        { type = "fix",  text = "DeathAlert: group member deaths no longer missed (Blizzard UnitTokenFromGUID regression in 12.x)" },
+    ["1.6.3"] = {
+        { type = "new", text = "Changelog button added to GUI footer (next to Preview All)" },
+        { type = "fix", text = "DeathAlert: group member deaths no longer missed (Blizzard UnitTokenFromGUID regression in 12.x)" },
     },
     ["1.6.0"] = {
         { type = "new",    text = "6 new color themes: Catppuccin, Rose Pine, Tokyo Night, Nord, Dracula, Gruvbox" },
@@ -1137,29 +1138,53 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.6.2", "1.6.0" }
+SP.ChangelogOrder = { "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
 -- Displays a themed popup with the changelog for the current version.
 -- Called automatically on login when the version has changed.
 -- ============================================================
-local SP_CL_FONT      = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
-local SP_CL_W         = 420
-local SP_CL_PADDING   = 18
+local SP_CL_FONT    = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
+local SP_CL_LOGO    = "Interface\\AddOns\\SuspicionsPack\\Media\\Icons\\icon.png"
+local SP_CL_W       = 420
+local SP_CL_PADDING = 18
 
 local TAG_COLOR = {
-    new    = { 0.20, 0.85, 0.45 },   -- green
-    fix    = { 0.40, 0.70, 1.00 },   -- blue
-    remove = { 1.00, 0.45, 0.35 },   -- red
-    change = { 1.00, 0.80, 0.20 },   -- yellow
+    new    = { 0.20, 0.85, 0.45 },
+    fix    = { 0.40, 0.70, 1.00 },
+    remove = { 1.00, 0.45, 0.35 },
+    change = { 1.00, 0.80, 0.20 },
 }
 local TAG_LABEL = {
-    new    = "NOUVEAU",
-    fix    = "FIXÉ",
-    remove = "RETIRÉ",
-    change = "MODIFIÉ",
+    new    = "NEW",
+    fix    = "FIXED",
+    remove = "REMOVED",
+    change = "CHANGED",
 }
+
+-- Mirrors GUI.lua's AnimateBorderFocus — 0.15 s ease-out accent ↔ border transition.
+local function CL_AnimateBorderFocus(frame, focused)
+    if frame._clBorderTicker then frame._clBorderTicker:Cancel(); frame._clBorderTicker = nil end
+    local T  = SP.Theme
+    local startTime = GetTime()
+    local DUR = 0.15
+    local sr, sg, sb = frame:GetBackdropBorderColor()
+    if not sr then
+        sr = focused and T.border[1] or T.accent[1]
+        sg = focused and T.border[2] or T.accent[2]
+        sb = focused and T.border[3] or T.accent[3]
+    end
+    local tr = focused and T.accent[1] or T.border[1]
+    local tg = focused and T.accent[2] or T.border[2]
+    local tb = focused and T.accent[3] or T.border[3]
+    frame._clBorderTicker = C_Timer.NewTicker(0.016, function()
+        local p = math.min((GetTime() - startTime) / DUR, 1)
+        p = 1 - (1 - p) * (1 - p)
+        frame:SetBackdropBorderColor(sr+(tr-sr)*p, sg+(tg-sg)*p, sb+(tb-sb)*p, 1)
+        if p >= 1 then frame._clBorderTicker:Cancel(); frame._clBorderTicker = nil end
+    end)
+end
 
 function SP.ShowChangelogPopup()
     if SP._changelogFrame then
@@ -1167,23 +1192,20 @@ function SP.ShowChangelogPopup()
         return
     end
 
-    local T  = SP.Theme
-    local ac = T.accent
+    local T       = SP.Theme
+    local ac      = T.accent
+    local version = SP.VERSION
+    local entries = SP.Changelog[version] or {}
 
-    -- ── collect lines to display ─────────────────────────────
-    -- Show only the current version's entries
-    local version   = SP.VERSION
-    local entries   = SP.Changelog[version] or {}
+    -- ── dimensions ───────────────────────────────────────────
+    local lineH   = 18
+    local tagW    = 62
+    local headerH = 36
+    local footerH = 48
+    local bodyH   = math.max(60, #entries * (lineH + 8) + SP_CL_PADDING * 2)
+    local totalH  = headerH + bodyH + footerH
 
-    -- ── compute height ───────────────────────────────────────
-    local lineH     = 18
-    local tagW      = 60
-    local headerH   = 46   -- title bar
-    local footerH   = 46   -- close button row
-    local bodyH     = math.max(60, #entries * (lineH + 6) + SP_CL_PADDING * 2)
-    local totalH    = headerH + bodyH + footerH
-
-    -- ── root frame ───────────────────────────────────────────
+    -- ── root frame (no outer border — flat bg only) ───────────
     local f = CreateFrame("Frame", "SP_ChangelogPopup", UIParent, "BackdropTemplate")
     f:SetSize(SP_CL_W, totalH)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
@@ -1195,66 +1217,78 @@ function SP.ShowChangelogPopup()
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop",  f.StopMovingOrSizing)
     f:SetToplevel(true)
-
-    -- outer border (1px accent line)
-    f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
-                    edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
     f:SetBackdropColor(T.bgDark[1], T.bgDark[2], T.bgDark[3], T.bgDark[4])
-    f:SetBackdropBorderColor(ac[1], ac[2], ac[3], 0.6)
 
-    -- ── title bar ────────────────────────────────────────────
-    local titleBar = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    titleBar:SetPoint("TOPLEFT",  f, "TOPLEFT",  1, -1)
-    titleBar:SetPoint("TOPRIGHT", f, "TOPRIGHT", -1, -1)
-    titleBar:SetHeight(headerH - 1)
-    titleBar:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
-    titleBar:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    -- ── header (1px accent border only here) ─────────────────
+    local header = CreateFrame("Frame", nil, f, "BackdropTemplate")
+    header:SetPoint("TOPLEFT",  f, "TOPLEFT",  0, 0)
+    header:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+    header:SetHeight(headerH)
+    header:SetBackdrop({ bgFile   = "Interface\\Buttons\\WHITE8X8",
+                         edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    header:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    header:SetBackdropBorderColor(ac[1], ac[2], ac[3], 0.25)
 
-    -- accent left stripe
-    local stripe = titleBar:CreateTexture(nil, "OVERLAY")
-    stripe:SetPoint("TOPLEFT",    titleBar, "TOPLEFT",    0, 0)
-    stripe:SetPoint("BOTTOMLEFT", titleBar, "BOTTOMLEFT", 0, 0)
+    -- left accent stripe
+    local stripe = header:CreateTexture(nil, "OVERLAY")
+    stripe:SetPoint("TOPLEFT",    header, "TOPLEFT",    1, -1)
+    stripe:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 1,  1)
     stripe:SetWidth(3)
     stripe:SetColorTexture(ac[1], ac[2], ac[3], 1)
 
-    -- title text
-    local titleFS = titleBar:CreateFontString(nil, "OVERLAY")
-    titleFS:SetPoint("LEFT", titleBar, "LEFT", 16, 0)
-    titleFS:SetFont(SP_CL_FONT, 13, "")
-    titleFS:SetTextColor(1, 1, 1, 1)
-    titleFS:SetText("Suspicion's Pack  —  v" .. version)
+    -- logo icon — 56×56, parented to root frame, overflows header top-left
+    -- (mirrors main GUI: logo bigger than header, floats above it)
+    local logoFrame = CreateFrame("Frame", nil, f)
+    logoFrame:SetSize(56, 56)
+    logoFrame:SetPoint("TOPLEFT", f, "TOPLEFT", -10, 16)
+    logoFrame:SetFrameLevel(header:GetFrameLevel() + 10)
 
-    -- sub-title "Nouveautés"
-    local subFS = titleBar:CreateFontString(nil, "OVERLAY")
-    subFS:SetPoint("RIGHT", titleBar, "RIGHT", -12, 0)
+    local logo = logoFrame:CreateTexture(nil, "ARTWORK")
+    logo:SetAllPoints(logoFrame)
+    logo:SetTexture(SP_CL_LOGO)
+    logo:SetVertexColor(ac[1], ac[2], ac[3], 0.9)
+    logo:SetTexelSnappingBias(0)
+    logo:SetSnapToPixelGrid(false)
+
+    -- version label — positioned after the logo footprint inside the header
+    local verFS = header:CreateFontString(nil, "OVERLAY")
+    verFS:SetPoint("LEFT", header, "LEFT", 38, 0)
+    verFS:SetFont(SP_CL_FONT, 12, "")
+    verFS:SetTextColor(0.9, 0.9, 0.9, 1)
+    verFS:SetText("v" .. version)
+
+    -- "What's New" label on the right
+    local subFS = header:CreateFontString(nil, "OVERLAY")
+    subFS:SetPoint("RIGHT", header, "RIGHT", -14, 0)
     subFS:SetFont(SP_CL_FONT, 10, "")
-    subFS:SetTextColor(ac[1], ac[2], ac[3], 0.9)
+    subFS:SetTextColor(ac[1], ac[2], ac[3], 0.85)
     subFS:SetText("What's New")
 
     -- ── body ─────────────────────────────────────────────────
     local body = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    body:SetPoint("TOPLEFT",     f, "TOPLEFT",  1, -(headerH - 1))
-    body:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, footerH)
+    body:SetPoint("TOPLEFT",     f, "TOPLEFT",  0, -headerH)
+    body:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, footerH)
     body:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
     body:SetBackdropColor(T.bgDark[1], T.bgDark[2], T.bgDark[3], 1)
 
-    -- separator line under title
+    -- thin separator under header
     local sepTop = body:CreateTexture(nil, "ARTWORK")
     sepTop:SetPoint("TOPLEFT",  body, "TOPLEFT",  0, 0)
     sepTop:SetPoint("TOPRIGHT", body, "TOPRIGHT", 0, 0)
     sepTop:SetHeight(1)
-    sepTop:SetColorTexture(ac[1], ac[2], ac[3], 0.25)
+    sepTop:SetColorTexture(ac[1], ac[2], ac[3], 0.20)
 
     local yOff = -SP_CL_PADDING
     for _, entry in ipairs(entries) do
-        local tc = TAG_COLOR[entry.type]  or TAG_COLOR.change
-        local tl = TAG_LABEL[entry.type]  or string.upper(entry.type)
+        local tc = TAG_COLOR[entry.type] or TAG_COLOR.change
+        local tl = TAG_LABEL[entry.type] or string.upper(entry.type)
 
-        -- tag badge
+        -- badge background
         local badge = body:CreateTexture(nil, "ARTWORK")
         badge:SetPoint("TOPLEFT", body, "TOPLEFT", SP_CL_PADDING, yOff)
         badge:SetSize(tagW, lineH)
-        badge:SetColorTexture(tc[1], tc[2], tc[3], 0.15)
+        badge:SetColorTexture(tc[1], tc[2], tc[3], 0.12)
 
         local badgeFS = body:CreateFontString(nil, "OVERLAY")
         badgeFS:SetPoint("CENTER", badge, "CENTER", 0, 0)
@@ -1262,9 +1296,8 @@ function SP.ShowChangelogPopup()
         badgeFS:SetTextColor(tc[1], tc[2], tc[3], 1)
         badgeFS:SetText(tl)
 
-        -- entry text
         local entryFS = body:CreateFontString(nil, "OVERLAY")
-        entryFS:SetPoint("LEFT",  body, "LEFT",  SP_CL_PADDING + tagW + 8, 0)
+        entryFS:SetPoint("LEFT",  body, "LEFT",  SP_CL_PADDING + tagW + 10, 0)
         entryFS:SetPoint("RIGHT", body, "RIGHT", -SP_CL_PADDING, 0)
         entryFS:SetPoint("TOP",   body, "TOP",   0, yOff - math.floor((lineH - 12) / 2))
         entryFS:SetFont(SP_CL_FONT, 11, "")
@@ -1273,47 +1306,42 @@ function SP.ShowChangelogPopup()
         entryFS:SetWordWrap(true)
         entryFS:SetText(entry.text)
 
-        yOff = yOff - lineH - 6
+        yOff = yOff - lineH - 8
     end
 
-    -- ── footer / close button ─────────────────────────────────
+    -- ── footer ────────────────────────────────────────────────
     local footer = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    footer:SetPoint("BOTTOMLEFT",  f, "BOTTOMLEFT",  1,  1)
-    footer:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
-    footer:SetHeight(footerH - 1)
+    footer:SetPoint("BOTTOMLEFT",  f, "BOTTOMLEFT",  0, 0)
+    footer:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+    footer:SetHeight(footerH)
     footer:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
     footer:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
 
-    -- separator line above footer
     local sepBot = footer:CreateTexture(nil, "ARTWORK")
     sepBot:SetPoint("TOPLEFT",  footer, "TOPLEFT",  0, 0)
     sepBot:SetPoint("TOPRIGHT", footer, "TOPRIGHT", 0, 0)
     sepBot:SetHeight(1)
-    sepBot:SetColorTexture(ac[1], ac[2], ac[3], 0.25)
+    sepBot:SetColorTexture(ac[1], ac[2], ac[3], 0.20)
 
+    -- ── close button — mirrors GUI:CreateButton style ─────────
     local closeBtn = CreateFrame("Button", nil, footer, "BackdropTemplate")
     closeBtn:SetSize(120, 26)
     closeBtn:SetPoint("CENTER", footer, "CENTER", 0, 0)
-    closeBtn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
+    closeBtn:SetBackdrop({ bgFile   = "Interface\\Buttons\\WHITE8X8",
                            edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    closeBtn:SetBackdropColor(ac[1], ac[2], ac[3], 0.85)
-    closeBtn:SetBackdropBorderColor(ac[1], ac[2], ac[3], 1)
+    closeBtn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    closeBtn:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
 
     local closeLbl = closeBtn:CreateFontString(nil, "OVERLAY")
-    closeLbl:SetPoint("CENTER")
-    closeLbl:SetFont(SP_CL_FONT, 11, "")
-    closeLbl:SetTextColor(0.04, 0.04, 0.04, 1)
+    closeLbl:SetAllPoints()
+    closeLbl:SetFont(SP_CL_FONT, 12, "")
+    closeLbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+    closeLbl:SetJustifyH("CENTER")
     closeLbl:SetText("Got it!")
 
-    closeBtn:SetScript("OnEnter", function(btn)
-        btn:SetBackdropColor(ac[1]*1.15, ac[2]*1.15, ac[3]*1.15, 1)
-    end)
-    closeBtn:SetScript("OnLeave", function(btn)
-        btn:SetBackdropColor(ac[1], ac[2], ac[3], 0.85)
-    end)
-    closeBtn:SetScript("OnClick", function()
-        f:Hide()
-    end)
+    closeBtn:SetScript("OnEnter", function(btn) CL_AnimateBorderFocus(btn, true)  end)
+    closeBtn:SetScript("OnLeave", function(btn) CL_AnimateBorderFocus(btn, false) end)
+    closeBtn:SetScript("OnClick", function() f:Hide() end)
 
     -- ESC closes the popup
     tinsert(UISpecialFrames, "SP_ChangelogPopup")
