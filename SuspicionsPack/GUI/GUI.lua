@@ -2872,10 +2872,39 @@ function GUI:BuildMainFrame()
         end
     end)
 
+    -- "Theme" button — opens the Themes page directly
+    local themeBtn = CreateFrame("Frame", nil, footer, "BackdropTemplate")
+    themeBtn:SetSize(72, T.footerHeight - 6)
+    themeBtn:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+    themeBtn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    themeBtn:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+    themeBtn:EnableMouse(true)
+
+    local themeLbl = themeBtn:CreateFontString(nil, "OVERLAY")
+    themeLbl:SetAllPoints(themeBtn)
+    themeLbl:SetJustifyH("CENTER"); themeLbl:SetJustifyV("MIDDLE")
+    ApplyFont(themeLbl, 11)
+    themeLbl:SetText("Theme")
+    themeLbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+
+    themeBtn:SetScript("OnEnter", function()
+        AnimateBorderFocus(themeBtn, true)
+        themeLbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+    end)
+    themeBtn:SetScript("OnLeave", function()
+        AnimateBorderFocus(themeBtn, false)
+        themeLbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+    end)
+    themeBtn:SetScript("OnMouseDown", function()
+        GUI:SelectItem("themes")
+    end)
+
     -- "Changelog" button — left of Preview All, opens SP.ShowChangelogPopup()
     local changelogBtn = CreateFrame("Frame", nil, footer, "BackdropTemplate")
     changelogBtn:SetSize(90, T.footerHeight - 6)
     changelogBtn:SetPoint("RIGHT", previewAllBtn, "LEFT", -6, 0)
+    -- themeBtn anchored here now that changelogBtn is defined
+    themeBtn:SetPoint("RIGHT", changelogBtn, "LEFT", -6, 0)
     changelogBtn:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
     changelogBtn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
     changelogBtn:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
@@ -3100,9 +3129,16 @@ function GUI:BuildMainFrame()
         end)
     end)
 
-    -- Register with UISpecialFrames so ESC closes the window via the engine.
-    -- WoW calls Hide() on the frame automatically when ESC is pressed.
-    tinsert(UISpecialFrames, mainFrame:GetName())
+    -- ESC closes the GUI. UISpecialFrames is unreliable in TWW — use OnKeyDown instead.
+    mainFrame:EnableKeyboard(true)
+    mainFrame:SetScript("OnKeyDown", function(self, key)
+        if key == "ESCAPE" then
+            self:SetPropagateKeyboardInput(false)
+            GUI.Hide()
+        else
+            self:SetPropagateKeyboardInput(true)
+        end
+    end)
 
     -- Default sidebar state
     for _, section in ipairs(self.SidebarConfig) do

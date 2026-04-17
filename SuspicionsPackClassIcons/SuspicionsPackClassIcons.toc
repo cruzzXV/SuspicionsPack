@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r — Class Icons
 ## Notes: Custom class icon packs for Details! (SuspicionsPack plugin)
 ## Author: Cruzz
-## Version: 1.6.3
+## Version: 1.6.4
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## Dependencies: SuspicionsPack
 ## IconTexture: Interface\AddOns\SuspicionsPack\icon.png
