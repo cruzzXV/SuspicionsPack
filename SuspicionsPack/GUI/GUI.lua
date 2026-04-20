@@ -7502,20 +7502,23 @@ GUI:RegisterContent("performance", function(parent)
     -- ── Card 3: Sound Channels ────────────────────────────────
     local card3 = GUI:CreateCard(parent, "Sound Channels", y)
 
-    local soundToggleRow = GUI:CreateToggle(parent, "Set audio channel count on login", db.setSoundChannels,
+    local soundToggleRow = GUI:CreateToggle(parent, "Set audio channel count on login / reload", db.setSoundChannels,
         function(v)
             db.setSoundChannels = v
             Refresh()
-        end)
+        end, "Sound Channels")
     card3:AddRow(soundToggleRow, 28)
 
-    local soundDesc = parent:CreateFontString(nil, "OVERLAY")
+    local soundDescWrap = CreateFrame("Frame", nil, parent)
+    local soundDesc = soundDescWrap:CreateFontString(nil, "OVERLAY")
+    soundDesc:SetPoint("TOPLEFT",  soundDescWrap, "TOPLEFT",  0, 0)
+    soundDesc:SetPoint("TOPRIGHT", soundDescWrap, "TOPRIGHT", 0, 0)
     ApplyFont(soundDesc, 10)
     soundDesc:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
     soundDesc:SetJustifyH("LEFT")
     soundDesc:SetWordWrap(true)
     soundDesc:SetText("Sets audio channel count on login. Prevents BigWigs from resetting it. Lower values improve FPS and reduce stuttering in raids — but may cause some sounds to not play in busy environments.")
-    card3:AddRow(soundDesc, 40)
+    card3:AddRow(soundDescWrap, 40)
 
     local soundDropdown = GUI:CreateDropdown(parent,
         "Audio channels",
@@ -7528,7 +7531,7 @@ GUI:RegisterContent("performance", function(parent)
         function(v)
             db.soundChannelCount = tonumber(v)
         end)
-    card3:AddRow(soundDropdown, 28)
+    card3:AddRow(soundDropdown, 40)
 
     local soundNotifyRow = GUI:CreateToggle(parent, "Show chat message when channels are changed", db.soundChannelNotify ~= false,
         function(v)

@@ -70,7 +70,7 @@ local function ApplySoundChannels(db)
             local T   = SP.Theme
             local ac  = T.accent
             local hex = string.format("|cff%02x%02x%02x", math.floor(ac[1]*255), math.floor(ac[2]*255), math.floor(ac[3]*255))
-            print(hex .. "Suspicion's Pack|r  Audio channels set to " .. desired .. " (was " .. current .. ")")
+            print(hex .. "Suspicion's|r |cffFFFFFFPack  Audio channels set to " .. desired .. " (was " .. current .. ")|r")
         end
     end
 end
@@ -91,6 +91,7 @@ function Performance:OnEnable()
     self:RegisterEvent("PLAYER_LOGIN", "OnLogin")
     local db = GetDB()
     ApplyScreenshotSetting(db and db.hideScreenshotMsg or false)
+    ApplySoundChannels(db)  -- also apply on /reload (PLAYER_LOGIN doesn't fire on reload)
 end
 
 function Performance:OnDisable()
