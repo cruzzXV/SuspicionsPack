@@ -57,12 +57,31 @@ local function ApplyScreenshotSetting(enable)
 end
 
 -- ============================================================
+-- Sound channel count — mirrors the WeakAura "Set Audio Channels"
+-- Sets Sound_NumChannels CVar on login if different from desired.
+-- ============================================================
+local function ApplySoundChannels(db)
+    if not (db and db.setSoundChannels) then return end
+    local desired = math.max(32, tonumber(db.soundChannelCount) or 32)
+    local current = tonumber(C_CVar.GetCVar("Sound_NumChannels")) or 0
+    if current ~= desired then
+        C_CVar.SetCVar("Sound_NumChannels", desired)
+        if db.soundChannelNotify then
+            local T   = SP.Theme
+            local ac  = T.accent
+            local hex = string.format("|cff%02x%02x%02x", math.floor(ac[1]*255), math.floor(ac[2]*255), math.floor(ac[3]*255))
+            print(hex .. "Suspicion's Pack|r  Audio channels set to " .. desired .. " (was " .. current .. ")")
+        end
+    end
+end
+
+-- ============================================================
 -- Auto-clear combat log on login
 -- ============================================================
 function Performance:OnLogin()
     local db = GetDB()
-    if not (db and db.autoClearCombatLog) then return end
-    CombatLogClearEntries()
+    if db and db.autoClearCombatLog then CombatLogClearEntries() end
+    ApplySoundChannels(db)
 end
 
 -- ============================================================
@@ -91,7 +110,7 @@ function Performance.Refresh()
         return
     end
 
-    local needsModule = db.autoClearCombatLog or db.hideScreenshotMsg
+    local needsModule = db.autoClearCombatLog or db.hideScreenshotMsg or db.setSoundChannels
     if needsModule then
         if not mod:IsEnabled() then mod:Enable() end
     else

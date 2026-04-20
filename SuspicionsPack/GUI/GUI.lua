@@ -7488,6 +7488,46 @@ GUI:RegisterContent("performance", function(parent)
     table.insert(perfChildCards, card2)
     y = y + card2:GetTotalHeight() + T.paddingSmall
 
+    -- ── Card 3: Sound Channels ────────────────────────────────
+    local card3 = GUI:CreateCard(parent, "Sound Channels", y)
+
+    local soundToggleRow = GUI:CreateToggle(parent, "Set audio channel count on login", db.setSoundChannels,
+        function(v)
+            db.setSoundChannels = v
+            Refresh()
+        end)
+    card3:AddRow(soundToggleRow, 28)
+
+    local soundDesc = parent:CreateFontString(nil, "OVERLAY")
+    ApplyFont(soundDesc, 10)
+    soundDesc:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
+    soundDesc:SetJustifyH("LEFT")
+    soundDesc:SetWordWrap(true)
+    soundDesc:SetText("Sets audio channel count on login. Prevents BigWigs from resetting it. Lower values improve FPS and reduce stuttering in raids — but may cause some sounds to not play in busy environments.")
+    card3:AddRow(soundDesc, 40)
+
+    local soundDropdown = GUI:CreateDropdown(parent,
+        "Audio channels",
+        {
+            { key = 32,  label = "32  (recommended)" },
+            { key = 64,  label = "64  (WoW default)"  },
+            { key = 128, label = "128 (maximum)"       },
+        },
+        db.soundChannelCount or 32,
+        function(v)
+            db.soundChannelCount = tonumber(v)
+        end)
+    card3:AddRow(soundDropdown, 28)
+
+    local soundNotifyRow = GUI:CreateToggle(parent, "Show chat message when channels are changed", db.soundChannelNotify ~= false,
+        function(v)
+            db.soundChannelNotify = v
+        end)
+    card3:AddRow(soundNotifyRow, 28)
+
+    table.insert(perfChildCards, card3)
+    y = y + card3:GetTotalHeight() + T.paddingSmall
+
     -- Apply initial state
     UpdatePerfState(db.enabled)
 

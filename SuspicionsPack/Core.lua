@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.6.5"
+SP.VERSION = "1.6.6"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -555,6 +555,9 @@ local DEFAULTS = {
             enabled             = false,
             autoClearCombatLog  = false,
             hideScreenshotMsg   = false,
+            setSoundChannels    = false,
+            soundChannelCount   = 32,
+            soundChannelNotify  = true,
         },
         enhancedObjectiveText = {
             enabled  = false,
@@ -1127,6 +1130,9 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["1.6.6"] = {
+        { type = "new", text = "For better FPS, set audio channel count on login to 32 or higher and prevent BigWigs/Nsky/Dbm to put it back to 64/128." },
+    },
     ["1.6.5"] = {
         { type = "change", text = "Bump TOC to 12.0.5 patch version" },
     },
@@ -1145,7 +1151,7 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
+SP.ChangelogOrder = { "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
@@ -1165,9 +1171,9 @@ local TAG_COLOR = {
 }
 local TAG_LABEL = {
     new    = "NEW",
-    fix    = "FIXED",
-    remove = "REMOVED",
-    change = "CHANGED",
+    fix    = "FIX",
+    remove = "REMOVE",
+    change = "CHANGE",
 }
 
 -- Mirrors GUI.lua's AnimateBorderFocus — 0.15 s ease-out accent ↔ border transition.
