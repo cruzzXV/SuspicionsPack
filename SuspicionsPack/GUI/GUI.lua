@@ -664,7 +664,15 @@ function GUI:CreateDropdown(parent, labelText, options, currentValue, onChange, 
     valText:SetPoint("RIGHT", btn, "RIGHT", -20, 0)
     valText:SetJustifyH("LEFT")
     ApplyFont(valText, 11)
-    valText:SetText(currentValue or "")
+    -- Support both plain-string options and {key, label} table options.
+    -- Find the display label that matches the initial currentValue.
+    local initLabel = tostring(currentValue or "")
+    for _, o in ipairs(options) do
+        if type(o) == "table" and o.key == currentValue then
+            initLabel = o.label; break
+        end
+    end
+    valText:SetText(initLabel)
     valText:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
 
     local arrowTex = btn:CreateTexture(nil, "OVERLAY")
@@ -787,7 +795,10 @@ function GUI:CreateDropdown(parent, labelText, options, currentValue, onChange, 
             local fp = fontResolver(opt)
             if fp then iLbl:SetFont(fp, 11, "") end
         end
-        iLbl:SetText(opt)
+        -- opt may be a plain string or a {key, label} table
+        local optKey   = (type(opt) == "table") and opt.key   or opt
+        local optLabel = (type(opt) == "table") and opt.label or opt
+        iLbl:SetText(optLabel)
         local bar = item:CreateTexture(nil, "OVERLAY")
         bar:SetWidth(2)
         bar:SetPoint("TOPLEFT",    item, "TOPLEFT",    0, 0)
@@ -795,7 +806,7 @@ function GUI:CreateDropdown(parent, labelText, options, currentValue, onChange, 
         bar:SetColorTexture(T.accent[1], T.accent[2], T.accent[3], 1)
         bar:Hide()
         local function Paint()
-            local isSel = (opt == currentValue)
+            local isSel = (optKey == currentValue)
             iLbl:SetTextColor(
                 isSel and T.accent[1] or T.textSecondary[1],
                 isSel and T.accent[2] or T.textSecondary[2],
@@ -808,8 +819,8 @@ function GUI:CreateDropdown(parent, labelText, options, currentValue, onChange, 
         end)
         item:SetScript("OnLeave", Paint)
         item:SetScript("OnClick", function()
-            currentValue = opt; valText:SetText(opt)
-            if onChange then onChange(opt) end
+            currentValue = optKey; valText:SetText(optLabel)
+            if onChange then onChange(optKey) end
             CloseMenu()
         end)
         table.insert(menuItems, item)
