@@ -1,26 +1,19 @@
 -- SuspicionsPack — BloodlustAlert Module
--- Detects Bloodlust / Heroism / Time Warp via haste-spike + exhaustion confirm:
---   1. Haste delta  : current haste - previous haste event  ≥  minGain  (default 30%)
---   2. After 0.5 s  : check player has a fresh Exhaustion/Sated/etc. aura
---      (remaining >= EXHAUSTION_DURATION - EXHAUST_FRESH_WINDOW)
+-- Detects Bloodlust / Heroism / Time Warp via UNIT_AURA debuff tracking.
 --
--- Key design principle (TWW 12.x):
---   • UnitSpellHaste() returns raw % (e.g. 10 for 10% haste) — safe to use.
---   • C_UnitAuras.GetPlayerAuraBySpellID() used directly with specific spell IDs
---     to avoid false positives from any debuff gain.
+-- Detection approach (TWW 12.0.5+):
+--   UnitSpellHaste() now returns a secret number value — arithmetic on it
+--   crashes. Instead we watch for the Sated/Exhaustion/Temporal Displacement
+--   debuffs that Blizzard applies to the player when BL fires.
 --
--- Detection approach — instantaneous absolute delta + exhaustion confirm:
---   prevHaste tracks the haste value from the previous event tick.
---   On haste spike: arm a 0.5 s delayed check.
---   After 0.5 s: confirm a fresh Sated/Exhaustion aura is present.
+--   On UNIT_AURA (player):
+--     • Fast path: updateInfo.addedAuras contains one of the exhaustion debuff IDs
+--     • Slow path (isFullUpdate): scan with C_UnitAuras.GetPlayerAuraBySpellID,
+--       confirm freshness (applied < EXHAUST_FRESH_WINDOW seconds ago)
 --
---   BL / Heroism / Time Warp add exactly +30 pp in a single server tick.
---   Eye Beam (DH) adds +20 pp in a single server tick.
---   With minGain = 30: delta 20 < 29.9 → no trigger.  delta 30 ≥ 29.9 → trigger.
---   Works at any gear level — no baseline scanning needed.
+--   All spellId reads from addedAuras are guarded with issecretvalue().
 --
--- Sound duration: 40 s (matches Bloodlust / Heroism / Time Warp)
--- Stop condition: 40 s timer expires, or player dies (buff is removed on death).
+-- Inspired by Ayije_CDM's CustomBuffs.lua bloodlust detection.
 
 local SP = SuspicionsPack
 
@@ -44,42 +37,50 @@ BLAlert.Sounds = {
 local SOUND_FILES = {}
 for _, s in ipairs(BLAlert.Sounds) do SOUND_FILES[s.key] = s.file end
 
-local DEFAULT_SOUND = "hotnigga"
-local BL_DURATION   = 40    -- seconds
-local MIN_GAIN      = 30    -- BL / Heroism / Time Warp = exactly +30 pp. Eye Beam = +20. Hardcoded.
-local POST_SPIKE_DELAY     = 0.5   -- seconds to wait after haste spike before checking for exhaustion
-local EXHAUSTION_DURATION  = 600   -- Sated / Exhaustion total duration in seconds
-local EXHAUST_FRESH_WINDOW = 5     -- aura must have >= (EXHAUSTION_DURATION - window) remaining
+local DEFAULT_SOUND        = "hotnigga"
+local BL_DURATION          = 40    -- seconds (matches Bloodlust / Heroism / Time Warp)
+local EXHAUST_FRESH_WINDOW = 5     -- aura must have been applied within last N seconds
 
--- Exhaustion / Sated / etc. spell IDs (all variants across all BL-type effects)
+-- Sated/Exhaustion debuff IDs applied to the player when any BL-type effect fires.
+-- We detect BL by watching for these debuffs appearing, not by reading haste.
 local EXHAUSTION_IDS = {
-    57723,   -- Sated            (Bloodlust)
-    57724,   -- Exhaustion       (Heroism)
-    80354,   -- Temporal Displacement (Time Warp)
-    95809,   -- Insanity         (Ancient Hysteria)
-    160455,  -- Fatigued         (Netherwinds)
-    207400,  -- Temporal Displacement (override for some encounters)
-    264689,  -- Fatigued         (Primal Rage / Drums of the Maelstrom)
-    390435,  -- Exhaustion       (Hunter Primal Rage 2)
+    57723,   -- Sated                   (Bloodlust)
+    57724,   -- Exhaustion              (Heroism)
+    80354,   -- Temporal Displacement   (Time Warp)
+    95809,   -- Insanity                (Ancient Hysteria)
+    160455,  -- Fatigued                (Netherwinds / Primal Rage)
+    264689,  -- Fatigued                (Primal Rage / Drums of the Maelstrom)
+    390435,  -- Exhaustion              (Fury of the Aspects)
 }
+
+-- Fast lookup set
+local EXHAUSTION_SET = {}
+for _, id in ipairs(EXHAUSTION_IDS) do EXHAUSTION_SET[id] = true end
 
 -- ============================================================
 -- State
 -- ============================================================
-local prevHaste       = nil   -- haste on the previous event tick (for instant-delta check)
-local active          = false
-local maybeHaste      = false
-local pendingConfirm  = nil   -- C_Timer handle for the post-spike exhaustion check
-local soundHandle     = nil
-local stopTimer       = nil
-local fadeTimer       = nil
-local rearmTimer      = nil
-local lastTimerNum    = nil
-local armed           = true
+local active        = false
+local armed         = true
+local rearmTimer    = nil
+local soundHandle   = nil
+local stopTimer     = nil
+local fadeTimer     = nil
+local lastTimerNum  = nil
 
 local timerFrame    = nil
 local timerTicker   = nil
 local blStartTime   = nil
+
+-- issecretvalue guard — API exists in 12.x; fall back to always-false on older builds
+local _issecretvalue = issecretvalue or function() return false end
+
+-- Raw frame for UNIT_AURA — AceEvent-3.0 doesn't support RegisterUnitEvent,
+-- so we mirror Ayije_CDM's approach: dedicated frame registered only for "player".
+local unitAuraFrame = CreateFrame("Frame")
+unitAuraFrame:SetScript("OnEvent", function(_, event, unit, updateInfo)
+    BLAlert:OnUnitAura(event, unit, updateInfo)
+end)
 
 local BL_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 
@@ -212,95 +213,45 @@ local function ResolveSound(key)
 end
 
 -- ============================================================
--- Exhaustion check — ExwindTools-inspired
--- Returns true if the player has a fresh Sated/Exhaustion aura
--- (applied within the last EXHAUST_FRESH_WINDOW seconds).
+-- Detection: UNIT_AURA on player
+-- Returns true if a fresh exhaustion debuff was just applied.
 -- ============================================================
-local function HasFreshExhaustion()
-    if not C_UnitAuras.GetPlayerAuraBySpellID then return false end
-    local now = GetTime()
+
+function BLAlert:OnUnitAura(event, unit, updateInfo)
+    local db = GetDB()
+    if not (db and db.enabled) then return end
+    if active or not armed then return end
+
+    -- Fast path (non-full updates only): bail early if none of the exhaustion
+    -- debuffs appear in addedAuras — avoids the more expensive API scan below.
+    if updateInfo and not updateInfo.isFullUpdate then
+        local added = updateInfo.addedAuras
+        if not added then return end
+        local found = false
+        for _, aura in ipairs(added) do
+            local sid = aura.spellId
+            if type(sid) == "number" and not _issecretvalue(sid) and EXHAUSTION_SET[sid] then
+                found = true
+                break
+            end
+        end
+        if not found then return end
+    end
+
+    -- Confirmation (mirrors Ayije_CDM exactly): always verify via
+    -- GetPlayerAuraBySpellID + freshness < 40 s (covers mid-BL zone changes too).
     for _, spellId in ipairs(EXHAUSTION_IDS) do
         local aura = C_UnitAuras.GetPlayerAuraBySpellID(spellId)
         if aura and aura.expirationTime then
-            local remaining = aura.expirationTime - now
-            if remaining >= (EXHAUSTION_DURATION - EXHAUST_FRESH_WINDOW) then
-                return true
+            local dur = aura.duration
+            if not dur or dur <= 0 then dur = 600 end
+            local appliedTime = aura.expirationTime - dur
+            if (GetTime() - appliedTime) < 40 then
+                self:StartBL()
+                return
             end
         end
     end
-    return false
-end
-
--- ============================================================
--- prevHaste initialiser
--- Called once on login/re-arm to seed prevHaste before the first event.
--- ============================================================
-local function InitPrev()
-    prevHaste = UnitSpellHaste("player")
-end
-
--- ============================================================
--- Detection: instantaneous absolute delta
--- ============================================================
--- UnitSpellHaste fires once per server tick with the NEW total.
--- BL / Heroism / Time Warp always add exactly +30 percentage points in
--- a single tick.  Eye Beam (DH) adds +20 in a single tick.
---
--- We compare current tick vs previous tick:
---   Eye Beam: current - prevHaste = 20  <  29.9  → no trigger ✓
---   BL:       current - prevHaste = 30  ≥  29.9  → trigger    ✓
---
--- No baseline snapshot needed — prevHaste tracks the live value and
--- handles gradual ramps (trinket procs, stacking buffs) automatically.
--- The −0.1 absorbs floating-point imprecision in UnitSpellHaste.
-local function IsMaybeBloodlust(current)
-    if not prevHaste then return false end
-    return (current - prevHaste) >= (MIN_GAIN - 0.1)
-end
-
--- ============================================================
--- Cancel any pending post-spike exhaustion check
--- ============================================================
-local function CancelPendingConfirm()
-    if pendingConfirm then
-        pendingConfirm:Cancel()
-        pendingConfirm = nil
-    end
-end
-
--- ============================================================
--- Core detection: haste update
--- ============================================================
-function BLAlert:OnUpdateHaste()
-    local db = GetDB()
-    if not (db and db.enabled) then return end
-    if active then return end  -- BL runs for its full 40 s; death handles early stop
-
-    local current = UnitSpellHaste("player")
-
-    -- Spike: instant delta from prevHaste ≥ minGain → schedule exhaustion check.
-    -- (not maybeHaste guard prevents re-entering an open window)
-    if armed and not maybeHaste and IsMaybeBloodlust(current) then
-        maybeHaste = true
-        CancelPendingConfirm()
-        pendingConfirm = C_Timer.NewTimer(POST_SPIKE_DELAY, function()
-            pendingConfirm = nil
-            if not active and armed and maybeHaste then
-                if HasFreshExhaustion() then
-                    BLAlert:StartBL()
-                else
-                    -- Spike without exhaustion — false alarm (e.g. trinket proc)
-                    maybeHaste = false
-                    prevHaste  = UnitSpellHaste("player")
-                end
-            end
-        end)
-        return  -- do NOT advance prevHaste — keep it as the pre-spike reference
-    end
-
-    -- Normal tick: advance prevHaste so gradual ramps (trinkets, procs)
-    -- don't accumulate into a false spike on the next big event.
-    prevHaste = current
 end
 
 -- ============================================================
@@ -376,14 +327,13 @@ end
 -- ============================================================
 function BLAlert:StartBL()
     if active then return end
-    active     = true
-    maybeHaste = false
-    CancelPendingConfirm()
+    active = true
+    armed  = false
 
     if soundHandle then StopSound(soundHandle, 500); soundHandle = nil end
-    local db   = GetDB()
-    local ch   = db and db.channel or "Master"
-    local key  = db and db.sound or DEFAULT_SOUND
+    local db  = GetDB()
+    local ch  = db and db.channel or "Master"
+    local key = db and db.sound or DEFAULT_SOUND
     if db and db.playSound ~= false then
         local file = ResolveSound(key)
         local willPlay, handle = PlaySoundFile(file, ch)
@@ -416,25 +366,21 @@ function BLAlert:StartBL()
 end
 
 function BLAlert:StopBL()
-    active     = false
-    maybeHaste = false
+    active = false
 
     if stopTimer   then stopTimer:Cancel();   stopTimer   = nil end
     if fadeTimer   then fadeTimer:Cancel();   fadeTimer   = nil end
     if timerTicker then timerTicker:Cancel(); timerTicker = nil end
-    CancelPendingConfirm()
 
     blStartTime = nil
     if timerFrame then timerFrame:Hide() end
-
     if soundHandle then StopSound(soundHandle, 500); soundHandle = nil end
 
-    armed = false
+    -- Re-arm after a short delay to avoid double-triggering
     if rearmTimer then rearmTimer:Cancel() end
     rearmTimer = C_Timer.NewTimer(8, function()
         rearmTimer = nil
-        armed      = true
-        prevHaste  = UnitSpellHaste("player")
+        armed = true
     end)
 end
 
@@ -451,12 +397,10 @@ end
 
 function BLAlert:OnDisable()
     self:UnregisterAllEvents()
+    unitAuraFrame:UnregisterEvent("UNIT_AURA")
     if active then self:StopBL() end
-    active     = false
-    maybeHaste = false
-    prevHaste  = nil
-    armed      = true
-    CancelPendingConfirm()
+    active = false
+    armed  = true
     if rearmTimer  then rearmTimer:Cancel();  rearmTimer  = nil end
     if fadeTimer   then fadeTimer:Cancel();   fadeTimer   = nil end
     if timerTicker then timerTicker:Cancel(); timerTicker = nil end
@@ -467,37 +411,17 @@ end
 function BLAlert:OnLogin()
     local db = GetDB()
     if not (db and db.enabled) then return end
-
-    -- Small delay so character stats are fully loaded before we seed prevHaste
-    C_Timer.After(2.0, function()
-        InitPrev()
-        self:RegisterEvent("COMBAT_RATING_UPDATE",  "OnUpdateHaste")
-        self:RegisterEvent("UNIT_SPELL_HASTE",      "OnUpdateHaste")
-        self:RegisterEvent("PLAYER_DEAD",           "OnPlayerDead")
-        self:RegisterEvent("PLAYER_REGEN_ENABLED",  "OnRegenEnabled")
-        self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
-    end)
+    unitAuraFrame:RegisterUnitEvent("UNIT_AURA", "player")
+    self:RegisterEvent("PLAYER_DEAD",           "OnPlayerDead")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
 end
 
--- Death removes Bloodlust — stop immediately if BL was active.
 function BLAlert:OnPlayerDead()
     if active then self:StopBL() end
 end
 
-function BLAlert:OnRegenEnabled()
-    -- Leaving combat: reset flags and re-seed prevHaste from current haste
-    if not active then
-        maybeHaste = false
-        CancelPendingConfirm()
-        prevHaste = UnitSpellHaste("player")
-    end
-end
-
 function BLAlert:OnEnteringWorld()
     if active then self:StopBL() end
-    if armed then
-        prevHaste = UnitSpellHaste("player")
-    end
 end
 
 -- ============================================================
@@ -509,16 +433,12 @@ function BLAlert:Refresh()
 
     if db.enabled then
         if not self:IsEnabled() then self:Enable() end
-        self:RegisterEvent("COMBAT_RATING_UPDATE",  "OnUpdateHaste")
-        self:RegisterEvent("UNIT_SPELL_HASTE",      "OnUpdateHaste")
+        unitAuraFrame:RegisterUnitEvent("UNIT_AURA", "player")
         self:RegisterEvent("PLAYER_DEAD",           "OnPlayerDead")
-        self:RegisterEvent("PLAYER_REGEN_ENABLED",  "OnRegenEnabled")
         self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
     else
-        self:UnregisterEvent("COMBAT_RATING_UPDATE")
-        self:UnregisterEvent("UNIT_SPELL_HASTE")
+        unitAuraFrame:UnregisterEvent("UNIT_AURA")
         self:UnregisterEvent("PLAYER_DEAD")
-        self:UnregisterEvent("PLAYER_REGEN_ENABLED")
         self:UnregisterEvent("PLAYER_ENTERING_WORLD")
         if active then self:StopBL() end
     end

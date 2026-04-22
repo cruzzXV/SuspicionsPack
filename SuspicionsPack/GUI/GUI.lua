@@ -6096,7 +6096,7 @@ GUI:RegisterContent("bloodlustalert", function(parent)
     card1 = GUI:CreateCard(parent, "Bloodlust Alert", y)
 
     card1:AddLabel(
-        "Plays a sound when Bloodlust / Heroism / Time Warp is detected. Detection uses two independent signals — a haste spike (>= 30 pp in a single event) and a new debuff on the player — both must fire within 0.3 s to confirm. Event-driven only, no polling.",
+        "Plays a sound when Bloodlust / Heroism / Time Warp is detected. Detection watches for the Sated / Exhaustion / Temporal Displacement debuff applied to the player when BL fires — confirmed via C_UnitAuras. Event-driven only, no polling.",
         T.textMuted)
     card1:AddSeparator()
 
@@ -7510,6 +7510,7 @@ GUI:RegisterContent("performance", function(parent)
     card3:AddRow(soundToggleRow, 28)
 
     local soundDescWrap = CreateFrame("Frame", nil, parent)
+    soundDescWrap:SetHeight(40)
     local soundDesc = soundDescWrap:CreateFontString(nil, "OVERLAY")
     soundDesc:SetPoint("TOPLEFT",  soundDescWrap, "TOPLEFT",  0, 0)
     soundDesc:SetPoint("TOPRIGHT", soundDescWrap, "TOPRIGHT", 0, 0)
