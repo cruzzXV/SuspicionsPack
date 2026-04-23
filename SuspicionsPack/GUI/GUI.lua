@@ -6821,7 +6821,7 @@ GUI:RegisterContent("combatlog", function(parent)
 
     local card1 = GUI:CreateCard(parent, "Auto Combat Log", y)
     card1:AddLabel(
-        "Automatically starts the combat log when you enter a dungeon or raid instance.",
+        "Automatically starts the combat log when entering a raid or Mythic+ instance. Your choice is saved per instance — you will only be asked once per dungeon/difficulty.",
         T.textMuted)
     card1:AddSeparator()
 
@@ -6831,12 +6831,6 @@ GUI:RegisterContent("combatlog", function(parent)
             ApplySettings()
         end, "Auto Combat Log")
     card1:AddRow(enableRow, 28)
-
-    local stopRow = GUI:CreateToggle(parent, "Stop logging when leaving instance", db.stopOnLeave,
-        function(v)
-            db.stopOnLeave = v
-        end, "Stop logging when leaving instance")
-    card1:AddRow(stopRow, 28)
     y = y + card1:GetTotalHeight() + T.paddingSmall
 
     parent:SetHeight(y)
