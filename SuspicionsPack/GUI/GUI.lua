@@ -391,6 +391,7 @@ GUI.SidebarConfig = {
             { id = "deathalert",       text = "Death Alert"        },
             { id = "gatewayalert",     text = "Gateway Alert"      },
             { id = "movementalert",    text = "Movement Alert"     },
+            { id = "reapmeter",        text = "Reap Meter (DH)"   },
             { id = "spelleffectalpha", text = "Spell Effect Alpha" },
         },
     },
@@ -2305,6 +2306,7 @@ local function ItemEnabledState(id)
     elseif id == "whisperalert"      then return db.whisperAlert and db.whisperAlert.enabled or false
     elseif id == "filterexpansiononly" then return db.filterExpansionOnly and db.filterExpansionOnly.enabled or false
     elseif id == "autobuy"           then local cdb = SP.GetCharDB(); return cdb.autoBuy and cdb.autoBuy.enabled or false
+    elseif id == "reapmeter"         then return db.reapMeter and db.reapMeter.enabled or false
     elseif id == "spelleffectalpha"  then return db.spellEffectAlpha  and db.spellEffectAlpha.enabled  or false
     elseif id == "combatcross"       then return db.combatCross       and db.combatCross.enabled       or false
     elseif id == "movementalert"     then return db.movementAlert     and db.movementAlert.enabled     or false
@@ -3140,16 +3142,8 @@ function GUI:BuildMainFrame()
         end)
     end)
 
-    -- ESC closes the GUI. UISpecialFrames is unreliable in TWW — use OnKeyDown instead.
-    mainFrame:EnableKeyboard(true)
-    mainFrame:SetScript("OnKeyDown", function(self, key)
-        if key == "ESCAPE" then
-            self:SetPropagateKeyboardInput(false)
-            GUI.Hide()
-        else
-            self:SetPropagateKeyboardInput(true)
-        end
-    end)
+    -- ESC closes the GUI. UISpecialFrames lets WoW handle it securely (no taint).
+    tinsert(UISpecialFrames, "SP_GUIMainFrame")
 
     -- Default sidebar state
     for _, section in ipairs(self.SidebarConfig) do
@@ -8172,12 +8166,17 @@ GUI:RegisterContent("autobuy", function(parent)
         box:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
         box:SetJustifyH("CENTER")
         box:SetText(tostring(value))
-        box:SetScript("OnEnterPressed", function(self)
+        local function Commit(self)
             local v = math.max(minV, math.min(maxV, tonumber(self:GetText()) or value))
             self:SetText(tostring(v))
-            self:ClearFocus()
+            value = v
             onSet(v)
+        end
+        box:SetScript("OnEnterPressed", function(self)
+            Commit(self)
+            self:ClearFocus()
         end)
+        box:SetScript("OnEditFocusLost", Commit)
         box:SetScript("OnEscapePressed", function(self)
             self:SetText(tostring(value))
             self:ClearFocus()
@@ -8873,6 +8872,310 @@ GUI:RegisterContent("combatcross", function(parent)
     y = y + card4:GetTotalHeight() + T.paddingSmall
 
     UpdateChildState(db.enabled)
+    parent:SetHeight(y)
+end)
+
+-- ============================================================
+-- Reap Meter page (Devourer DH)
+-- ============================================================
+GUI:RegisterContent("reapmeter", function(parent)
+    local T   = SP.Theme
+    local db  = SP.GetDB().reapMeter
+    local mod = SP.ReapPredict   -- may be nil on first open before enabling
+
+    -- Ensure sub-tables exist (module initialises them on Enable, but user
+    -- might open the page before ever toggling it on).
+    db.layout = db.layout or {}
+    db.colors = db.colors or {}
+    local L  = db.layout
+    local DC = (mod and mod.DEFAULT_COLORS) or {}
+
+    -- Helper: call a named function on the module (no-op if not loaded yet)
+    local function Call(fn)
+        if mod and mod[fn] then mod[fn]() end
+    end
+
+    -- Helper: resolve a color from db.colors with DEFAULT_COLORS fallback
+    local function GetColor(key)
+        local c = db.colors[key] or DC[key] or { 1, 1, 1, 1 }
+        return c[1], c[2], c[3]
+    end
+
+    -- Helper: color callback that preserves existing alpha
+    local function ColorCB(key)
+        return function(nr, ng, nb)
+            local cur = db.colors[key] or DC[key] or { 1, 1, 1, 1 }
+            db.colors[key] = { nr, ng, nb, cur[4] or 1 }
+            if mod and mod.ApplyColors then mod.ApplyColors() end
+        end
+    end
+
+    -- Helper: attach a Hide/Show toggle button to a color row frame.
+    -- Writes alpha 0/1 into db.colors[key][4] and calls ApplyColors.
+    local function AddHideToggle(row, key, fromAnchor, toAnchor, offX)
+        local c = db.colors[key] or DC[key] or { 1, 1, 1, 1 }
+        local hidden = (c[4] or 1) == 0
+        local btn = GUI:CreateButton(row, hidden and "Show" or "Hide", nil, 50, 22)
+        btn:SetPoint(fromAnchor, row, toAnchor, offX, 2)
+        local function SyncBtn()
+            btn.lbl:SetText(hidden and "Show" or "Hide")
+            local cr = hidden and T.accent[1] or T.textPrimary[1]
+            local cg = hidden and T.accent[2] or T.textPrimary[2]
+            local cb = hidden and T.accent[3] or T.textPrimary[3]
+            btn.lbl:SetTextColor(cr, cg, cb, 1)
+            AnimateBorderFocus(btn, hidden)
+        end
+        SyncBtn()
+        btn:SetScript("OnClick", function()
+            hidden = not hidden
+            local cur = db.colors[key] or DC[key] or { 1, 1, 1, 1 }
+            db.colors[key] = { cur[1], cur[2], cur[3], hidden and 0 or 1 }
+            if mod and mod.ApplyColors then mod.ApplyColors() end
+            SyncBtn()
+        end)
+        -- Override default OnLeave so border stays accent while hidden
+        btn:SetScript("OnLeave", function()
+            AnimateBorderFocus(btn, hidden)
+            local cr = hidden and T.accent[1] or T.textPrimary[1]
+            local cg = hidden and T.accent[2] or T.textPrimary[2]
+            local cb = hidden and T.accent[3] or T.textPrimary[3]
+            btn.lbl:SetTextColor(cr, cg, cb, 1)
+        end)
+    end
+
+    -- Helper: single stacked color swatch with Hide button at bottom-right
+    local function MakeSwatch(label, key)
+        local r, g, b = GetColor(key)
+        local row = GUI:CreateStackedColorSwatch(parent, label, r, g, b, ColorCB(key))
+        AddHideToggle(row, key, "BOTTOMRIGHT", "BOTTOMRIGHT", 0)
+        return row
+    end
+
+    -- Helper: two stacked color swatches side by side, each with a Hide button.
+    -- Left button sits just before the row centre; right button is flush right.
+    local function MakeDualRow(lbl1, key1, lbl2, key2)
+        local r1, g1, b1 = GetColor(key1)
+        local r2, g2, b2 = GetColor(key2)
+        local row = GUI:CreateDualColorRow(parent,
+            lbl1, r1, g1, b1, ColorCB(key1),
+            lbl2, r2, g2, b2, ColorCB(key2))
+        AddHideToggle(row, key1, "BOTTOMRIGHT", "BOTTOM",       -8)
+        AddHideToggle(row, key2, "BOTTOMRIGHT", "BOTTOMRIGHT",   0)
+        return row
+    end
+
+    -- Helper: reset-position button wrapped in a frame
+    -- posKey = the db key to nil before calling the apply function ("framePos" or "furyPos")
+    local function MakeResetBtn(label, posKey, fn)
+        local wrap = CreateFrame("Frame", nil, parent)
+        wrap:SetHeight(28)
+        local btn = GUI:CreateButton(wrap, label, function()
+            db[posKey] = nil; Call(fn)
+        end, 160, 26)
+        btn:SetPoint("LEFT", wrap, "LEFT", 0, 0)
+        return wrap
+    end
+
+    local y = 0
+
+    -- ── Card 1: Enable ─────────────────────────────────────────
+    local card1 = GUI:CreateCard(parent, "Reap Meter", y)
+    card1:AddLabel(
+        "Fury and Soul Fragment meter for Devourer Demon Hunter. Tracks Reap stacks to predict when Void Metamorphosis or Collapsing Star will trigger.",
+        T.textMuted)
+    card1:AddSeparator()
+    card1:AddRow(GUI:CreateToggle(parent, "Enable Reap Meter", db.enabled, function(v)
+        db.enabled = v
+        if mod then mod.Refresh() end
+    end, "Reap Meter"), 28)
+    y = y + card1:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 2: Soul Bar ────────────────────────────────────────
+    local card2 = GUI:CreateCard(parent, "Soul Bar", y)
+    card2:AddSeparator()
+
+    card2:AddRow(GUI:CreateToggle(parent, "Show soul bar",
+        L.showSoulBar ~= false, function(v)
+            L.showSoulBar = v; Call("UpdateSoulBarVisibility")
+        end), 28)
+    card2:AddSeparator()
+
+    -- Width + Height side by side
+    local soulSizeRow = GUI:CreateHRow(parent, 44)
+    soulSizeRow:Add(GUI:CreateSlider(parent, "Width",  100, 1200, 1,
+        L.width  or 360, function(v) L.width  = v; Call("ApplySize") end), 0.5)
+    soulSizeRow:Add(GUI:CreateSlider(parent, "Height",   1,  100, 1,
+        L.height or  22, function(v) L.height = v; Call("ApplySize") end), 0.5)
+    card2:AddRow(soulSizeRow, 44)
+    card2:AddSeparator()
+
+    -- Font Face (LSM) + Font Size side by side
+    local soulFontRow = GUI:CreateHRow(parent, 44)
+    soulFontRow:Add(GUI:CreateFontDropdown(parent, "Font",
+        L.fontKey or "Arial Narrow", function(v)
+            L.fontKey = v; Call("ApplySize"); Call("ApplyFurySize")
+        end), 0.5)
+    soulFontRow:Add(GUI:CreateSlider(parent, "Size", 6, 32, 1,
+        L.font or 13, function(v) L.font = v; Call("ApplySize") end), 0.5)
+    card2:AddRow(soulFontRow, 44)
+    card2:AddSeparator()
+
+    card2:AddRow(GUI:CreateToggle(parent, "Sync width to CDM (both bars)",
+        L.syncToCDM == true, function(v)
+            L.syncToCDM = v
+            if v and mod and mod.SyncToCDMNow then mod.SyncToCDMNow() end
+            if not v then Call("ApplySavedPosition"); Call("ApplyFuryPosition") end
+        end), 28)
+
+    -- X/Y offset of the soul bar from CDM's BOTTOMLEFT (fury bar stacks below automatically)
+    local cdmPosRow = GUI:CreateHRow(parent, 44)
+    cdmPosRow:Add(GUI:CreateSlider(parent, "X Offset", -800, 800, 1,
+        L.cdmOffsetX or 0, function(v)
+            L.cdmOffsetX = v; Call("ApplySavedPosition")
+        end), 0.5)
+    cdmPosRow:Add(GUI:CreateSlider(parent, "Y Offset", -800, 800, 1,
+        L.cdmOffsetY or -4, function(v)
+            L.cdmOffsetY = v; Call("ApplySavedPosition"); Call("ApplyFuryPosition")
+        end), 0.5)
+    card2:AddRow(cdmPosRow, 44)
+    card2:AddSeparator()
+
+    card2:AddRow(GUI:CreateToggle(parent, "Lock position",
+        L.locked == true, function(v) L.locked = v; Call("ApplyLock") end), 28)
+    card2:AddRow(GUI:CreateToggle(parent, "Show MoC capacity preview",
+        L.showMocPreview ~= false, function(v)
+            L.showMocPreview = v; Call("ApplyMoCPreview")
+        end), 28)
+    card2:AddRow(GUI:CreateToggle(parent, "Show CS cast counter",
+        L.showCsCounter ~= false, function(v)
+            L.showCsCounter = v; Call("ApplyCsCounter")
+        end), 28)
+    card2:AddRow(GUI:CreateToggle(parent, "Cell mode",
+        L.cellMode == true, function(v)
+            L.cellMode = v; Call("RebuildCellSeparators")
+        end), 28)
+    card2:AddSeparator()
+    card2:AddRow(MakeResetBtn("Reset Position", "framePos", "ApplySavedPosition"), 28)
+
+    y = y + card2:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 3: Fury Bar ────────────────────────────────────────
+    local card3 = GUI:CreateCard(parent, "Fury Bar", y)
+    card3:AddSeparator()
+
+    card3:AddRow(GUI:CreateToggle(parent, "Show fury bar",
+        L.showFuryBar ~= false, function(v)
+            L.showFuryBar = v; Call("UpdateFuryVisibility")
+        end), 28)
+    card3:AddSeparator()
+
+    -- Width + Height side by side
+    local furySizeRow = GUI:CreateHRow(parent, 44)
+    furySizeRow:Add(GUI:CreateSlider(parent, "Width",  100, 1200, 1,
+        L.furyWidth  or 360, function(v) L.furyWidth  = v; Call("ApplyFurySize") end), 0.5)
+    furySizeRow:Add(GUI:CreateSlider(parent, "Height",   8,   60, 1,
+        L.furyHeight or  14, function(v) L.furyHeight = v; Call("ApplyFurySize") end), 0.5)
+    card3:AddRow(furySizeRow, 44)
+    card3:AddSeparator()
+
+    -- Font size (fury bar shares the font face set on the soul bar)
+    card3:AddRow(GUI:CreateSlider(parent, "Font Size", 6, 32, 1,
+        L.furyFont or 13, function(v) L.furyFont = v; Call("ApplyFurySize") end), 44)
+    card3:AddSeparator()
+
+    card3:AddRow(GUI:CreateToggle(parent, "Lock position",
+        L.furyLocked == true, function(v) L.furyLocked = v; Call("ApplyFuryLock") end), 28)
+    card3:AddRow(GUI:CreateToggle(parent, "Show MoC capacity preview",
+        L.showFuryMocPreview == true, function(v)
+            L.showFuryMocPreview = v; Call("ApplyFuryMoCPreview")
+        end), 28)
+    card3:AddSeparator()
+    card3:AddRow(MakeResetBtn("Reset Position", "furyPos", "ApplyFuryPosition"), 28)
+
+    y = y + card3:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 4: Colors — Shared ─────────────────────────────────
+    local card4 = GUI:CreateCard(parent, "Colors — Shared", y)
+    card4:AddSeparator()
+    card4:AddRow(MakeDualRow("Background", "bg", "Outer edge", "edge"), 52)
+    y = y + card4:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 5: Colors — Soul Bar ───────────────────────────────
+    local card5 = GUI:CreateCard(parent, "Colors — Soul Bar", y)
+    card5:AddSeparator()
+    card5:AddRow(MakeDualRow("Growth bar — Build phase",      "growthBuild",    "Growth bar — VM phase",        "growthVM"),       52)
+    card5:AddSeparator()
+    card5:AddRow(MakeDualRow("Threshold tick — Build phase",  "thresholdBuild", "Threshold tick — VM phase",    "thresholdVM"),    52)
+    card5:AddSeparator()
+    card5:AddRow(MakeDualRow("Beyond threshold — Build phase","beyondBuild",    "Beyond threshold — VM phase",  "beyondVM"),       52)
+    card5:AddSeparator()
+    card5:AddRow(MakeDualRow("SF — MoC inactive",             "sfBase",         "SF — MoC active",              "sfMoc"),          52)
+    card5:AddSeparator()
+    card5:AddRow(MakeDualRow("MoC rail fill",                 "mocRailFill",    "MoC rail track",               "mocRailTrack"),   52)
+    card5:AddSeparator()
+    card5:AddRow(MakeDualRow("Growth number text",            "numberLabel",    "SF number text",               "sfNumberLabel"),  52)
+    y = y + card5:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 6: Colors — Fury Bar ───────────────────────────────
+    local card6 = GUI:CreateCard(parent, "Colors — Fury Bar", y)
+    card6:AddSeparator()
+    card6:AddRow(MakeDualRow("Fury fill",           "furyFill",  "Scythes Embrace flat", "furyFlat"),  52)
+    card6:AddSeparator()
+    card6:AddRow(MakeDualRow("Soul projection",     "furySoul",  "100-fury tick",        "furyTick"),  52)
+    card6:AddSeparator()
+    card6:AddRow(MakeSwatch("Fury value text", "furyLabel"), 52)
+    card6:AddSeparator()
+    local resetColWrap = CreateFrame("Frame", nil, parent)
+    resetColWrap:SetHeight(28)
+    local resetColBtn = GUI:CreateButton(resetColWrap, "Reset All Colors", function()
+        if mod and mod.ResetColors then mod.ResetColors() end
+    end, 160, 26)
+    resetColBtn:SetPoint("LEFT", resetColWrap, "LEFT", 0, 0)
+    card6:AddRow(resetColWrap, 28)
+    y = y + card6:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 7: Fading ──────────────────────────────────────────
+    local card7, fadeEnRow  -- forward-declared for GrayContent closure
+    local function UpdateFadeChildren(en)
+        card7:GrayContent(en, fadeEnRow)
+    end
+
+    card7 = GUI:CreateCard(parent, "Fading", y)
+    card7:AddLabel(
+        "Fade both bars to a configurable opacity based on your current state. Mirrors Ayije CDM fading behaviour.",
+        T.textMuted)
+    card7:AddSeparator()
+
+    fadeEnRow = GUI:CreateToggle(parent, "Enable fading", L.fadingEnabled == true, function(v)
+        L.fadingEnabled = v
+        UpdateFadeChildren(v)
+        Call("FadeRefresh")
+    end)
+    card7:AddRow(fadeEnRow, 28)
+    card7:AddSeparator()
+
+    card7:AddRow(GUI:CreateSlider(parent, "Faded opacity (%)", 0, 99, 1,
+        L.fadingOpacity or 0, function(v)
+            L.fadingOpacity = v; Call("FadeRefresh")
+        end), 44)
+    card7:AddSeparator()
+
+    card7:AddRow(GUI:CreateToggle(parent, "Fade when no target",
+        L.fadingTriggerNoTarget ~= false, function(v)
+            L.fadingTriggerNoTarget = v; Call("FadeRefresh")
+        end), 28)
+    card7:AddRow(GUI:CreateToggle(parent, "Fade when out of combat",
+        L.fadingTriggerOOC == true, function(v)
+            L.fadingTriggerOOC = v; Call("FadeRefresh")
+        end), 28)
+    card7:AddRow(GUI:CreateToggle(parent, "Fade when mounted",
+        L.fadingTriggerMounted == true, function(v)
+            L.fadingTriggerMounted = v; Call("FadeRefresh")
+        end), 28)
+
+    UpdateFadeChildren(L.fadingEnabled == true)
+    y = y + card7:GetTotalHeight() + T.paddingSmall
+
     parent:SetHeight(y)
 end)
 

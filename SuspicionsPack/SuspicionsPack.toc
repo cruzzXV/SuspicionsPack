@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r
 ## Notes: Collection of QoL features
 ## Author: Cruzz
-## Version: 1.7.0
+## Version: 1.7.1
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## SavedVariables: SuspicionsPackDB
 ## IconTexture: Interface\AddOns\SuspicionsPack\Media\Icons\icon.png
@@ -53,6 +53,7 @@ Modules\CombatCross\CombatCross.lua
 Modules\Durability\Durability.lua
 Modules\AutoBuy\AutoBuy.lua
 Modules\SpellEffectAlpha\SpellEffectAlpha.lua
+Modules\ReapPredict\ReapPredict.lua
 
 # Minimap Button module
 Core\MinimapButton.lua
