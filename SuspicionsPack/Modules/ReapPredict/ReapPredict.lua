@@ -79,7 +79,7 @@ local BAR_TEXTURE       = "Interface\\BUTTONS\\WHITE8X8"
 local NUMBER_FONT       = "Fonts\\ARIALN.TTF"
 local NUMBER_FONT_SIZE  = 13
 
-local COLOR_VERSION = 7
+local COLOR_VERSION = 8
 
 local DEFAULT_COLORS = {
     bg             = { 0.05, 0.04, 0.08, 0.90 },
@@ -97,9 +97,9 @@ local DEFAULT_COLORS = {
     thresholdBuild = { 0.96, 0.92, 0.78, 0.90 },
     thresholdVM    = { 0.96, 0.92, 0.78, 0.90 },
     furyTick       = { 0.96, 0.92, 0.78, 0.90 },
-    furyFill       = { 0.32, 0.28, 0.62, 0.95 },
-    furyFlat       = { 0.58, 0.50, 0.82, 0.45 },
-    furySoul       = { 0.68, 0.62, 0.90, 0.32 },
+    furyFill       = { 0.32, 0.28, 0.62, 1.00 },
+    furyFlat       = { 0.58, 0.50, 0.82, 1.00 },
+    furySoul       = { 0.68, 0.62, 0.90, 1.00 },
     furyLabel      = { 0.98, 0.95, 0.88, 1.00 },
 }
 
@@ -114,7 +114,7 @@ local function CopyColor(c)
 end
 
 local MOC_PREVIEW_ALPHA  = 0.30
-local FURY_PREVIEW_ALPHA = 0.18
+local FURY_PREVIEW_ALPHA_DEFAULT = 0.18
 
 local CS_CAST_SPELL_SET = {
     [1221167] = true,
@@ -836,22 +836,24 @@ local function ApplyFuryPosition()
     furyFrame:ClearAllPoints()
     local db  = GetDB()
     local L   = db and db.layout
+    local ox  = (L and L.furyOffsetX) or 0
+    local oy  = (L and L.furyOffsetY) or 0
     -- When synced to CDM, stack the fury bar directly below the soul bar.
     -- The soul bar is already anchored to the CDM container, so both bars
     -- follow CDM movement automatically via WoW's native anchor chain.
     if L and L.syncToCDM and frame then
-        furyFrame:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 0, -4)
+        furyFrame:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", ox, -4 + oy)
         return
     end
     local pos = db and db.furyPos
     if type(pos) == "table" and pos.x and pos.y then
         local point    = pos.point or "CENTER"
         local relPoint = pos.relativePoint or "CENTER"
-        furyFrame:SetPoint(point, UIParent, relPoint, pos.x, pos.y)
+        furyFrame:SetPoint(point, UIParent, relPoint, pos.x + ox, pos.y + oy)
     elseif frame then
-        furyFrame:SetPoint("TOP", frame, "BOTTOM", 0, -4)
+        furyFrame:SetPoint("TOP", frame, "BOTTOM", ox, -4 + oy)
     else
-        furyFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 170)
+        furyFrame:SetPoint("CENTER", UIParent, "CENTER", ox, 170 + oy)
     end
 end
 
@@ -867,6 +869,15 @@ local function SaveFuryPosition()
     }
 end
 
+local function ApplyMoCRailPosition()
+    if not (frame and frame.mocRail and frame.sfBar) then return end
+    local db = GetDB(); local L = db and db.layout
+    local ox = (L and L.mocRailOffsetX) or 0
+    local oy = (L and L.mocRailOffsetY) or 0
+    frame.mocRail:ClearAllPoints()
+    frame.mocRail:SetPoint("BOTTOMLEFT", frame.sfBar, "BOTTOMLEFT", ox, 1 + oy)
+end
+
 local function CreateFuryBar()
     if furyFrame then return furyFrame end
     local db = GetDB()
@@ -876,7 +887,12 @@ local function CreateFuryBar()
 
     furyFrame = CreateFrame("Frame", "SP_ReapPredictFuryFrame", UIParent)
     furyFrame:SetSize(W, H)
+    -- Sit just above Ayije CDM's resource bar but below its value text.
+    -- CDM resource container is MEDIUM/level ~10; CDM text overlay is bar+4 (~14).
+    -- We target level 12 (above bar, below text). Query CDM container if available.
     furyFrame:SetFrameStrata("MEDIUM")
+    local _cdmBase = _G["Ayije_CDM_ResourcesContainer"]
+    furyFrame:SetFrameLevel(_cdmBase and (_cdmBase:GetFrameLevel() + 2) or 12)
     furyFrame:SetClampedToScreen(true)
     if furyFrame.SetClipsChildren then furyFrame:SetClipsChildren(true) end
     WireDragHandlers(furyFrame, SaveFuryPosition)
@@ -889,6 +905,7 @@ local function CreateFuryBar()
                            + REAP_CAP_MOC * REAP_SOUL_FURY)
 
     local furyFillBar = CreateFrame("StatusBar", nil, furyFrame)
+    furyFillBar:SetFrameStrata("MEDIUM")
     furyFillBar:SetPoint("TOPLEFT", furyFrame, "TOPLEFT", 0, 0)
     furyFillBar:SetSize(VOID_RAY_COST * pxPerFury, H)
     furyFillBar:SetStatusBarTexture(BAR_TEXTURE)
@@ -897,6 +914,7 @@ local function CreateFuryBar()
     furyFillBar:SetValue(0)
 
     local flatBar = CreateFrame("StatusBar", nil, furyFrame)
+    flatBar:SetFrameStrata("MEDIUM")
     flatBar:SetPoint("LEFT", furyFillBar:GetStatusBarTexture(), "RIGHT", 0, 0)
     flatBar:SetSize(REAP_CAST_FURY * pxPerFury, H)
     flatBar:SetStatusBarTexture(BAR_TEXTURE)
@@ -905,6 +923,7 @@ local function CreateFuryBar()
     flatBar:SetValue(0)
 
     local soulFuryBar = CreateFrame("StatusBar", nil, furyFrame)
+    soulFuryBar:SetFrameStrata("MEDIUM")
     soulFuryBar:SetPoint("LEFT", flatBar:GetStatusBarTexture(), "RIGHT", 0, 0)
     soulFuryBar:SetSize(REAP_CAP_BASE * REAP_SOUL_FURY * pxPerFury, H)
     soulFuryBar:SetStatusBarTexture(BAR_TEXTURE)
@@ -913,15 +932,21 @@ local function CreateFuryBar()
     soulFuryBar:SetValue(0)
 
     local soulFuryPreview = CreateFrame("StatusBar", nil, furyFrame)
+    soulFuryPreview:SetFrameStrata("MEDIUM")
     soulFuryPreview:SetPoint("LEFT", soulFuryBar, "RIGHT", 0, 0)
     soulFuryPreview:SetSize((REAP_CAP_MOC - REAP_CAP_BASE) * REAP_SOUL_FURY * pxPerFury, H)
     soulFuryPreview:SetStatusBarTexture(BAR_TEXTURE)
-    soulFuryPreview:SetStatusBarColor(C("furySoul"))
+    do  -- apply preview alpha immediately so it's correct if the option is already on at load
+        local _db = GetDB(); local _L = _db and _db.layout
+        local _r, _g, _b = C("furySoul")
+        local _a = (_L and _L.furyPreviewAlpha) or FURY_PREVIEW_ALPHA_DEFAULT
+        soulFuryPreview:SetStatusBarColor(_r, _g, _b, _a)
+    end
     soulFuryPreview:SetMinMaxValues(REAP_CAP_BASE, REAP_CAP_MOC)
     soulFuryPreview:SetValue(REAP_CAP_BASE)
-    soulFuryPreview:SetAlpha(FURY_PREVIEW_ALPHA)
 
     local overlay = CreateFrame("Frame", nil, furyFrame)
+    overlay:SetFrameStrata("MEDIUM")
     overlay:SetAllPoints()
     overlay:SetFrameLevel(soulFuryBar:GetFrameLevel() + 1)
 
@@ -1011,7 +1036,12 @@ function ApplyFuryColors()
     furyFrame.furyFillBar:SetStatusBarColor(C("furyFill"))
     furyFrame.flatBar:SetStatusBarColor(C("furyFlat"))
     furyFrame.soulFuryBar:SetStatusBarColor(C("furySoul"))
-    furyFrame.soulFuryPreview:SetStatusBarColor(C("furySoul"))
+    do
+        local r, g, b = C("furySoul")
+        local db = GetDB(); local L = db and db.layout
+        local a = (L and L.furyPreviewAlpha) or FURY_PREVIEW_ALPHA_DEFAULT
+        furyFrame.soulFuryPreview:SetStatusBarColor(r, g, b, a)
+    end
     furyFrame.tick:SetColorTexture(C("furyTick"))
     furyFrame.furyLabel:SetTextColor(C("furyLabel"))
 end
@@ -1047,6 +1077,11 @@ local function LoadSizesFromDB()
     if type(L.furyHeight)     ~= "number"  then L.furyHeight     = FURY_DEFAULT_HEIGHT end
     if type(L.furyFont)       ~= "number"  then L.furyFont       = DEFAULT_FONT     end
     if type(L.furyLocked)     ~= "boolean" then L.furyLocked     = false            end
+    if type(L.furyOffsetX)      ~= "number"  then L.furyOffsetX      = 0                          end
+    if type(L.furyOffsetY)      ~= "number"  then L.furyOffsetY      = 0                          end
+    if type(L.furyPreviewAlpha) ~= "number"  then L.furyPreviewAlpha = FURY_PREVIEW_ALPHA_DEFAULT  end
+    if type(L.mocRailOffsetX)   ~= "number"  then L.mocRailOffsetX   = 0                          end
+    if type(L.mocRailOffsetY)   ~= "number"  then L.mocRailOffsetY   = 0                          end
     if type(L.syncToCDM)     ~= "boolean" then L.syncToCDM     = false            end
     if type(L.cdmOffsetX)   ~= "number"  then L.cdmOffsetX   = 0                 end
     if type(L.cdmOffsetY)   ~= "number"  then L.cdmOffsetY   = -4                end
@@ -1135,6 +1170,7 @@ function UpdateFuryVisibility()
     local hideProjection = lastVMPhase == true
     furyFrame.flatBar:SetShown(not hideProjection)
     furyFrame.soulFuryBar:SetShown(not hideProjection)
+    furyFrame.tick:SetShown(not hideProjection)
     ApplyFurySoulCap(lastMoCActive == true)
 end
 
@@ -1165,6 +1201,11 @@ local function Enable()
     ApplyLock()
 
     if not furyFrame then CreateFuryBar() end
+    -- Raise soul-bar overlay above the fury bar so growthLabel/sfLabel
+    -- remain readable when the two bars overlap in MEDIUM strata.
+    if frame and frame.overlay then
+        frame.overlay:SetFrameLevel(furyFrame:GetFrameLevel() + 1)
+    end
     UpdateFuryVisibility()
     ApplyFuryLock()
 
@@ -1549,7 +1590,7 @@ local function ShowSetupDialog(missing)
         local d = CreateFrame("Frame", "SP_ReapPredictSetupDialog", UIParent, "BackdropTemplate")
         d:SetSize(420, 180)
         d:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
-        d:SetFrameStrata("DIALOG")
+        d:SetFrameStrata("HIGH")
         d:SetBackdrop({
             bgFile   = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
             edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -1885,6 +1926,7 @@ function ReapPredict:OnEnable()
         events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP",  "player")
         events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
         events:RegisterUnitEvent("UNIT_AURA",                    "player")
+        events:RegisterUnitEvent("UNIT_POWER_FREQUENT",          "player")
 
         local CONSUMING_SPELLS = {
             [REAP_SPELLID]      = true,
@@ -1900,6 +1942,12 @@ function ReapPredict:OnEnable()
 
         events:SetScript("OnEvent", function(_, event, unit, arg1, arg2)
             if not IsDDH() then return end
+
+            if event == "UNIT_POWER_FREQUENT" then
+                -- arg1 = powerToken (e.g. "FURY") — only update for fury changes
+                if arg1 == "FURY" then UpdateMeter() end
+                return
+            end
 
             if event == "UNIT_SPELLCAST_SUCCEEDED" then
                 local spellID = arg2
@@ -2114,6 +2162,8 @@ ReapPredict.ApplyFuryPosition  = ApplyFuryPosition
 ReapPredict.UpdateSoulBarVisibility = UpdateSoulBarVisibility
 ReapPredict.UpdateFuryVisibility    = UpdateFuryVisibility
 
+ReapPredict.ApplyMoCRailPosition = ApplyMoCRailPosition
+
 ReapPredict.ApplyMoCPreview = function()
     if not (frame and frame.mocPreview) then return end
     local moc = lastMoCActive == true
@@ -2124,6 +2174,10 @@ ReapPredict.ApplyFuryMoCPreview = function()
     if not (furyFrame and furyFrame.soulFuryPreview) then return end
     local moc = lastMoCActive == true
     furyFrame.soulFuryPreview:SetShown(not moc and ShowFuryMocPreviewPref())
+    local db = GetDB(); local L = db and db.layout
+    local r, g, b = C("furySoul")
+    local a = (L and L.furyPreviewAlpha) or FURY_PREVIEW_ALPHA_DEFAULT
+    furyFrame.soulFuryPreview:SetStatusBarColor(r, g, b, a)
 end
 ReapPredict.ApplyCsCounter = function()
     if not (frame and frame.csCounterLabel) then return end

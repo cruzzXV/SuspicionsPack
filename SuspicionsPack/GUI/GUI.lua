@@ -391,7 +391,7 @@ GUI.SidebarConfig = {
             { id = "deathalert",       text = "Death Alert"        },
             { id = "gatewayalert",     text = "Gateway Alert"      },
             { id = "movementalert",    text = "Movement Alert"     },
-            { id = "reapmeter",        text = "Reap Meter (DH)"   },
+            { id = "reapmeter",        text = "ReapPredict (DH)"  },
             { id = "spelleffectalpha", text = "Spell Effect Alpha" },
         },
     },
@@ -8979,19 +8979,22 @@ GUI:RegisterContent("reapmeter", function(parent)
     local y = 0
 
     -- ── Card 1: Enable ─────────────────────────────────────────
-    local card1 = GUI:CreateCard(parent, "Reap Meter", y)
+    local card1 = GUI:CreateCard(parent, "ReapPredict", y)
     card1:AddLabel(
         "Fury and Soul Fragment meter for Devourer Demon Hunter. Tracks Reap stacks to predict when Void Metamorphosis or Collapsing Star will trigger.",
         T.textMuted)
     card1:AddSeparator()
-    card1:AddRow(GUI:CreateToggle(parent, "Enable Reap Meter", db.enabled, function(v)
+    card1:AddRow(GUI:CreateToggle(parent, "Enable ReapPredict", db.enabled, function(v)
         db.enabled = v
         if mod then mod.Refresh() end
-    end, "Reap Meter"), 28)
+    end, "ReapPredict"), 28)
     y = y + card1:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 2: Soul Bar ────────────────────────────────────────
     local card2 = GUI:CreateCard(parent, "Soul Bar", y)
+    card2:AddLabel(
+        "Tracks how many souls Reap will get on the next use to know when it will trigger Void Metamorphosis or Collapsing Star. The MoC preview extends the cap when Moment of Craving is active.",
+        T.textMuted)
     card2:AddSeparator()
 
     card2:AddRow(GUI:CreateToggle(parent, "Show soul bar",
@@ -9009,15 +9012,9 @@ GUI:RegisterContent("reapmeter", function(parent)
     card2:AddRow(soulSizeRow, 44)
     card2:AddSeparator()
 
-    -- Font Face (LSM) + Font Size side by side
-    local soulFontRow = GUI:CreateHRow(parent, 44)
-    soulFontRow:Add(GUI:CreateFontDropdown(parent, "Font",
-        L.fontKey or "Arial Narrow", function(v)
-            L.fontKey = v; Call("ApplySize"); Call("ApplyFurySize")
-        end), 0.5)
-    soulFontRow:Add(GUI:CreateSlider(parent, "Size", 6, 32, 1,
-        L.font or 13, function(v) L.font = v; Call("ApplySize") end), 0.5)
-    card2:AddRow(soulFontRow, 44)
+    -- Font size (soul bar only — font face is set in Shared)
+    card2:AddRow(GUI:CreateSlider(parent, "Font Size", 6, 32, 1,
+        L.font or 13, function(v) L.font = v; Call("ApplySize") end), 44)
     card2:AddSeparator()
 
     card2:AddRow(GUI:CreateToggle(parent, "Sync width to CDM (both bars)",
@@ -9055,12 +9052,29 @@ GUI:RegisterContent("reapmeter", function(parent)
             L.cellMode = v; Call("RebuildCellSeparators")
         end), 28)
     card2:AddSeparator()
+
+    -- MoC rail X/Y offset
+    local mocRailPosRow = GUI:CreateHRow(parent, 44)
+    mocRailPosRow:Add(GUI:CreateSlider(parent, "MoC Rail X", -200, 200, 1,
+        L.mocRailOffsetX or 0, function(v)
+            L.mocRailOffsetX = v; Call("ApplyMoCRailPosition")
+        end), 0.5)
+    mocRailPosRow:Add(GUI:CreateSlider(parent, "MoC Rail Y", -200, 200, 1,
+        L.mocRailOffsetY or 0, function(v)
+            L.mocRailOffsetY = v; Call("ApplyMoCRailPosition")
+        end), 0.5)
+    card2:AddRow(mocRailPosRow, 44)
+    card2:AddSeparator()
+
     card2:AddRow(MakeResetBtn("Reset Position", "framePos", "ApplySavedPosition"), 28)
 
     y = y + card2:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 3: Fury Bar ────────────────────────────────────────
     local card3 = GUI:CreateCard(parent, "Fury Bar", y)
+    card3:AddLabel(
+        "Displays current Fury with a projection on the next Reap fury gain. Hidden during Meta phase. The MoC preview shows the extra soul fury gain when Moment of Craving is available.",
+        T.textMuted)
     card3:AddSeparator()
 
     card3:AddRow(GUI:CreateToggle(parent, "Show fury bar",
@@ -9073,14 +9087,22 @@ GUI:RegisterContent("reapmeter", function(parent)
     local furySizeRow = GUI:CreateHRow(parent, 44)
     furySizeRow:Add(GUI:CreateSlider(parent, "Width",  100, 1200, 1,
         L.furyWidth  or 360, function(v) L.furyWidth  = v; Call("ApplyFurySize") end), 0.5)
-    furySizeRow:Add(GUI:CreateSlider(parent, "Height",   8,   60, 1,
+    furySizeRow:Add(GUI:CreateSlider(parent, "Height",   1,   60, 1,
         L.furyHeight or  14, function(v) L.furyHeight = v; Call("ApplyFurySize") end), 0.5)
     card3:AddRow(furySizeRow, 44)
-    card3:AddSeparator()
 
-    -- Font size (fury bar shares the font face set on the soul bar)
+    -- Font size (font face is set in Shared)
     card3:AddRow(GUI:CreateSlider(parent, "Font Size", 6, 32, 1,
         L.furyFont or 13, function(v) L.furyFont = v; Call("ApplyFurySize") end), 44)
+    card3:AddSeparator()
+
+    -- X/Y position offset
+    local furyPosRow = GUI:CreateHRow(parent, 44)
+    furyPosRow:Add(GUI:CreateSlider(parent, "X Offset", -800, 800, 1,
+        L.furyOffsetX or 0, function(v) L.furyOffsetX = v; Call("ApplyFuryPosition") end), 0.5)
+    furyPosRow:Add(GUI:CreateSlider(parent, "Y Offset", -800, 800, 1,
+        L.furyOffsetY or 0, function(v) L.furyOffsetY = v; Call("ApplyFuryPosition") end), 0.5)
+    card3:AddRow(furyPosRow, 44)
     card3:AddSeparator()
 
     card3:AddRow(GUI:CreateToggle(parent, "Lock position",
@@ -9089,15 +9111,33 @@ GUI:RegisterContent("reapmeter", function(parent)
         L.showFuryMocPreview == true, function(v)
             L.showFuryMocPreview = v; Call("ApplyFuryMoCPreview")
         end), 28)
+    card3:AddRow(GUI:CreateSlider(parent, "Preview opacity", 0, 100, 1,
+        math.floor(((L.furyPreviewAlpha or 0.18) * 100) + 0.5), function(v)
+            L.furyPreviewAlpha = v / 100; Call("ApplyFuryMoCPreview")
+        end), 44)
     card3:AddSeparator()
     card3:AddRow(MakeResetBtn("Reset Position", "furyPos", "ApplyFuryPosition"), 28)
 
     y = y + card3:GetTotalHeight() + T.paddingSmall
 
-    -- ── Card 4: Colors — Shared ─────────────────────────────────
-    local card4 = GUI:CreateCard(parent, "Colors — Shared", y)
+    -- ── Card 4: Shared ──────────────────────────────────────────
+    local card4 = GUI:CreateCard(parent, "Shared", y)
+    card4:AddSeparator()
+    -- Font face applies to both soul bar and fury bar
+    card4:AddRow(GUI:CreateFontDropdown(parent, "Font Face",
+        L.fontKey or "Arial Narrow", function(v)
+            L.fontKey = v; Call("ApplySize"); Call("ApplyFurySize")
+        end), 44)
     card4:AddSeparator()
     card4:AddRow(MakeDualRow("Background", "bg", "Outer edge", "edge"), 52)
+    card4:AddSeparator()
+    local resetColWrap = CreateFrame("Frame", nil, parent)
+    resetColWrap:SetHeight(28)
+    local resetColBtn = GUI:CreateButton(resetColWrap, "Reset All Colors", function()
+        if mod and mod.ResetColors then mod.ResetColors() end
+    end, 160, 26)
+    resetColBtn:SetPoint("LEFT", resetColWrap, "LEFT", 0, 0)
+    card4:AddRow(resetColWrap, 28)
     y = y + card4:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 5: Colors — Soul Bar ───────────────────────────────
@@ -9124,14 +9164,6 @@ GUI:RegisterContent("reapmeter", function(parent)
     card6:AddRow(MakeDualRow("Soul projection",     "furySoul",  "100-fury tick",        "furyTick"),  52)
     card6:AddSeparator()
     card6:AddRow(MakeSwatch("Fury value text", "furyLabel"), 52)
-    card6:AddSeparator()
-    local resetColWrap = CreateFrame("Frame", nil, parent)
-    resetColWrap:SetHeight(28)
-    local resetColBtn = GUI:CreateButton(resetColWrap, "Reset All Colors", function()
-        if mod and mod.ResetColors then mod.ResetColors() end
-    end, 160, 26)
-    resetColBtn:SetPoint("LEFT", resetColWrap, "LEFT", 0, 0)
-    card6:AddRow(resetColWrap, 28)
     y = y + card6:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 7: Fading ──────────────────────────────────────────

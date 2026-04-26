@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.7.1"
+SP.VERSION = "1.7.2"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1133,8 +1133,11 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
-    ["1.7.1"] = {
-        { type = "new", text = "ReapPredict: new module — out/in meta soul bar for Devourer DH showing live soul stacks with a prediction of how much the next Reap/Eradicate will gain, plus a separate Fury bar with its own prediction." },
+    ["1.7.2"] = {
+        { type = "fix",    text = "ReapPredict: soul bar labels (growth/SF numbers) now render above the fury bar." },
+        { type = "fix",    text = "ReapPredict: MoC capacity preview no longer shows at 100% opacity on load when the option was already enabled." },
+        { type = "fix",    text = "ReapPredict: 100-fury tick now hidden during Meta phase." },
+        { type = "add",    text = "ReapPredict: MoC rail X/Y offset sliders to reposition the MoC duration sub-rail independently." },
     },
     ["1.7.0"] = {
         { type = "new", text = "Auto Combat Log: rewrote detection — per-instance memory, ACL prompt, M+ support via CHALLENGE_MODE_START. Your choice is saved per dungeon/difficulty and never asked twice." },
@@ -1170,7 +1173,7 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.7.1", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
+SP.ChangelogOrder = { "1.7.2", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
