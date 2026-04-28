@@ -489,7 +489,8 @@ end
 -- ============================================================
 -- Detection strategy:
 --   Gate: cdInfo.timeUntilEndOfStartRecovery is truthy (secret-value safe — no compare).
---   Show: isOnGCD == false  (real CD — isOnGCD is a boolean, never a secret value)
+--   Show: isOnGCD == false  (real CD — guard with issecretvalue before comparing;
+--         isOnGCD CAN be a secret value in TWW, direct comparison causes taint)
 --         AND isOnGCD ~= nil  (rejects the nil quirk seen on DH/Evoker during double-jump)
 --   WARLOCK exception: isOnGCD == nil is allowed (Demonic Circle returns nil while on GCD).
 --   Spells in SPELLS_WITH_OWN_GCD (e.g. DH Shift) are gated by f.ignoreMovementCd
@@ -516,10 +517,14 @@ local function CheckMovementCooldown()
         else
             local spellId = entry.baseSpellId or entry.spellId
             local cdInfo  = C_Spell.GetSpellCooldown(spellId)
+            -- Read isOnGCD once; guard before comparing (secret value comparison causes taint).
+            local isOnGCD    = cdInfo and cdInfo.isOnGCD
+            local isOnGCDSafe = not (issecretvalue and issecretvalue(isOnGCD))
             if cdInfo
                 and cdInfo.timeUntilEndOfStartRecovery
-                and not cdInfo.isOnGCD
-                and (cdInfo.isOnGCD ~= nil or isWarlock)
+                and isOnGCDSafe
+                and not isOnGCD
+                and (isOnGCD ~= nil or isWarlock)
             then
                 local label = entry.customText or ("No " .. entry.spellName)
                 fsText:SetText(label .. "\n"

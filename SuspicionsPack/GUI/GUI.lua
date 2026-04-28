@@ -80,13 +80,13 @@ local function SetBackdrop(frame, bgR, bgG, bgB, bgA, brR, brG, brB, brA)
         brR or T.border[1], brG or T.border[2], brB or T.border[3], brA or 1)
 end
 
--- Animate a frame border between T.border and T.accent (0.15 s ease-out).
+-- Animate a frame border between T.border and T.accent (0.18 s ease-out).
 -- Used for both focus (editboxes) and hover (buttons, dropdowns, anchor grid).
 -- Starts from the frame's CURRENT border colour so mid-animation reversals are smooth.
 local function AnimateBorderFocus(frame, focused)
     if frame._borderTicker then frame._borderTicker:Cancel(); frame._borderTicker = nil end
     local startTime = GetTime()
-    local DUR = 0.15
+    local DUR = 0.18
     -- Read current colour so there is no flash if the animation is interrupted mid-way
     -- or if the frame is already at the target colour (e.g. a drag-active button on hover).
     local sr, sg, sb = frame:GetBackdropBorderColor()
@@ -135,7 +135,7 @@ local function CreateDropdown(parent, options, initialKey, onSelect, width)
 
     local ARROW_CLOSED = -math.pi / 2   -- ◄ collapsed
     local ARROW_OPEN   =  0             -- ▼ expanded
-    local ANIM_DUR     = 0.15
+    local ANIM_DUR     = 0.18
 
     -- ── trigger button ────────────────────────────────────────
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
@@ -689,7 +689,7 @@ function GUI:CreateDropdown(parent, labelText, options, currentValue, onChange, 
     -- -pi/2 = 90° CW rotation → DOWN becomes LEFT (◄).
     local ARROW_CLOSED = -math.pi / 2
     local ARROW_OPEN   =  0
-    local ANIM_DUR     = 0.15
+    local ANIM_DUR     = 0.18
     local arrowCurrent = ARROW_CLOSED
     arrowTex:SetRotation(arrowCurrent)
 
@@ -1087,51 +1087,6 @@ function GUI:CreateSlider(parent, labelText, minVal, maxVal, step, currentValue,
     end
 
     return row
-end
-
--- ============================================================
--- Widget: NativeSlider (MinimalSliderWithSteppersTemplate — ExwindTools approach)
--- Uses the built-in WoW template so SetWidth() resizes it correctly inside HRows.
--- ============================================================
-function GUI:CreateNativeSlider(parent, labelText, minVal, maxVal, curVal, step, onChange)
-    local slider = CreateFrame("Slider", nil, parent, "MinimalSliderWithSteppersTemplate")
-
-    -- Label above the slider track
-    if slider.Title then
-        slider.Title:SetText(labelText or "")
-    end
-
-    -- Value display: update on change
-    local function UpdateText(v)
-        if slider.ValueText then
-            slider.ValueText:SetText(tostring(math.floor(v + 0.5)))
-        end
-    end
-
-    -- Register callback once per widget (ExwindTools pattern)
-    if not slider._spInit then
-        slider:RegisterCallback("OnValueChanged", function(s, v)
-            if s._onChange then s._onChange(v) end
-            UpdateText(v)
-        end, slider)
-        slider._spInit = true
-    end
-    slider._onChange = onChange
-
-    -- Init slider (sets min/max/step/current value)
-    local steps = (maxVal - minVal) / (step or 1)
-    if slider.Init then
-        slider:Init(curVal or minVal, minVal, maxVal, steps)
-    end
-    UpdateText(curVal or minVal)
-
-    -- SetEnabled support for childRows enable/disable
-    function slider:SetEnabled(en)
-        self:SetAlpha(en and 1 or 0.4)
-        self:EnableMouse(en)
-    end
-
-    return slider
 end
 
 -- ============================================================
@@ -1688,11 +1643,22 @@ local function ColorToHex(r, g, b)
         math.floor(r*255+0.5), math.floor(g*255+0.5), math.floor(b*255+0.5))
 end
 
-local function BuildColorPickerInfo(r, g, b, onUpdate, onCancel)
+-- a = initial alpha (0-1, fully opaque = 1). When provided, shows the opacity slider.
+-- WoW's ColorPickerFrame uses INVERTED opacity: 0 = opaque, 1 = transparent.
+local function BuildColorPickerInfo(r, g, b, onUpdate, onCancel, a)
     local info = { r = r, g = g, b = b }
-    info.swatchFunc  = function()
+    if a ~= nil then
+        info.hasOpacity = true
+        info.opacity    = 1 - a   -- WoW uses inverted: 0=opaque, 1=transparent
+    end
+    info.swatchFunc = function()
         local nr, ng, nb = ColorPickerFrame:GetColorRGB()
-        onUpdate(nr or r, ng or g, nb or b)
+        local na = a
+        if info.hasOpacity then
+            local op = ColorPickerFrame:GetColorAlpha()
+            na = op ~= nil and (1 - op) or a
+        end
+        onUpdate(nr or r, ng or g, nb or b, na)
     end
     info.cancelFunc  = function() onCancel() end
     info.opacityFunc = info.swatchFunc
@@ -2435,7 +2401,7 @@ function GUI:RefreshSidebar()
                 else
                     local startRot  = currentRot
                     local startTime = GetTime()
-                    local ANIM_DUR  = 0.15
+                    local ANIM_DUR  = 0.18
                     local sid       = section.id
                     hdr._arrowTicker = C_Timer.NewTicker(0.016, function()
                         local p = math.min((GetTime() - startTime) / ANIM_DUR, 1)
@@ -4600,6 +4566,8 @@ GUI:RegisterContent("durability", function(parent)
     ApplyFont(wtBox, 11)
     wtBox:SetText(db.warningText or "REPAIR NOW")
     wtBox:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+    wtBox:SetScript("OnEditFocusGained", function() AnimateBorderFocus(wtBox, true)  end)
+    wtBox:SetScript("OnEditFocusLost",   function() AnimateBorderFocus(wtBox, false) end)
     wtBox:SetScript("OnEnterPressed", function(self)
         self:ClearFocus()
         db.warningText = self:GetText()
@@ -5170,6 +5138,8 @@ GUI:RegisterContent("invitationgroupe", function(parent)
     ApplyFont(kwBox, 11)
     kwBox:SetText(KeywordsToStr(db.keywords))
     kwBox:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+    kwBox:SetScript("OnEditFocusGained", function() AnimateBorderFocus(kwBox, true)  end)
+    kwBox:SetScript("OnEditFocusLost",   function() AnimateBorderFocus(kwBox, false) end)
     kwBox:SetScript("OnEnterPressed", function(self)
         db.keywords = StrToKeywords(self:GetText())
         self:SetText(KeywordsToStr(db.keywords))
@@ -6958,6 +6928,8 @@ GUI:RegisterContent("deathalert", function(parent)
         ApplyFont(box, 11)
         box:SetText(initialText or "")
         box:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+        box:SetScript("OnEditFocusGained", function() AnimateBorderFocus(box, true)  end)
+        box:SetScript("OnEditFocusLost",   function() AnimateBorderFocus(box, false) end)
         box:SetScript("OnEnterPressed", function(self) self:ClearFocus(); onConfirm(self:GetText()) end)
         box:SetScript("OnEscapePressed", function(self) self:ClearFocus(); self:SetText(initialText or "") end)
         function row:SetEnabled(en)
@@ -7647,16 +7619,25 @@ GUI:RegisterContent("silvermoonmapicon", function(parent)
 
     local y = 0
 
+    local enableRow  -- forward-declared; used in UpdateSMIState closure
+    local card1      -- forward-declared for UpdateSMIState closure
+    local childCards = {}
+    local function UpdateSMIState(en)
+        card1:GrayContent(en, enableRow)
+        for _, c in ipairs(childCards) do c:SetAlpha(en and 1 or 0.4) end
+    end
+
     -- Main toggle card
-    local card1 = GUI:CreateCard(parent, "Silvermoon Map Icons", y)
+    card1 = GUI:CreateCard(parent, "Silvermoon Map Icons", y)
     card1:AddLabel(
         "Adds POI pins to the Silvermoon City world map — profession trainers, Auction House, Bank, Transmogrifier, Catalyst, Crafting Orders and more. Left-click any pin to place a waypoint. Pins are only visible when Silvermoon City is the active map.",
         T.textMuted)
     card1:AddSeparator()
 
-    local enableRow = GUI:CreateToggle(parent, "Enable Map Icons", db.enabled,
+    enableRow = GUI:CreateToggle(parent, "Enable Map Icons", db.enabled,
         function(v)
             db.enabled = v
+            UpdateSMIState(v)
             ApplySettings()
         end, "Silvermoon Map Icons")
     card1:AddRow(enableRow, 28)
@@ -7664,6 +7645,7 @@ GUI:RegisterContent("silvermoonmapicon", function(parent)
 
     -- Filter card
     local card2 = GUI:CreateCard(parent, "Filter", y)
+    table.insert(childCards, card2)
     card2:AddLabel(
         "When enabled, profession trainer pins are only shown for professions your character has actually learned. Disable to show all trainers.",
         T.textMuted)
@@ -7677,6 +7659,7 @@ GUI:RegisterContent("silvermoonmapicon", function(parent)
     card2:AddRow(proOnlyRow, 28)
     y = y + card2:GetTotalHeight() + T.paddingSmall
 
+    UpdateSMIState(db.enabled)
     parent:SetHeight(y)
 end)
 
@@ -8172,11 +8155,12 @@ GUI:RegisterContent("autobuy", function(parent)
             value = v
             onSet(v)
         end
+        box:SetScript("OnEditFocusGained", function() AnimateBorderFocus(box, true)  end)
         box:SetScript("OnEnterPressed", function(self)
             Commit(self)
             self:ClearFocus()
         end)
-        box:SetScript("OnEditFocusLost", Commit)
+        box:SetScript("OnEditFocusLost",   function(self) AnimateBorderFocus(box, false); Commit(self) end)
         box:SetScript("OnEscapePressed", function(self)
             self:SetText(tostring(value))
             self:ClearFocus()
@@ -8978,29 +8962,55 @@ GUI:RegisterContent("reapmeter", function(parent)
 
     local y = 0
 
+    -- Forward declarations for GrayContent closures
+    local enableRow, soulShowRow, furyShowRow
+    local card1, card2, card3, card4, card5, card6
+    local childCards = {}  -- cards 2-7: dimmed when module is disabled
+
+    local function UpdateSoulCardState(en)
+        card2:GrayContent(en, soulShowRow)
+    end
+    local function UpdateFuryCardState(en)
+        card3:GrayContent(en, furyShowRow)
+    end
+    local function UpdateModuleEnabled(en)
+        card1:GrayContent(en, enableRow)
+        for _, c in ipairs(childCards) do c:SetAlpha(en and 1 or 0.4) end
+        if en then
+            UpdateSoulCardState(L.showSoulBar ~= false)
+            UpdateFuryCardState(L.showFuryBar ~= false)
+        end
+    end
+
     -- ── Card 1: Enable ─────────────────────────────────────────
-    local card1 = GUI:CreateCard(parent, "ReapPredict", y)
+    card1 = GUI:CreateCard(parent, "ReapPredict", y)
     card1:AddLabel(
         "Fury and Soul Fragment meter for Devourer Demon Hunter. Tracks Reap stacks to predict when Void Metamorphosis or Collapsing Star will trigger.",
         T.textMuted)
     card1:AddSeparator()
-    card1:AddRow(GUI:CreateToggle(parent, "Enable ReapPredict", db.enabled, function(v)
+    enableRow = GUI:CreateToggle(parent, "Enable ReapPredict", db.enabled, function(v)
         db.enabled = v
+        UpdateModuleEnabled(v)
         if mod then mod.Refresh() end
-    end, "ReapPredict"), 28)
+    end, "ReapPredict")
+    card1:AddRow(enableRow, 28)
     y = y + card1:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 2: Soul Bar ────────────────────────────────────────
-    local card2 = GUI:CreateCard(parent, "Soul Bar", y)
+    card2 = GUI:CreateCard(parent, "Soul Bar", y)
+    table.insert(childCards, card2)
     card2:AddLabel(
         "Tracks how many souls Reap will get on the next use to know when it will trigger Void Metamorphosis or Collapsing Star. The MoC preview extends the cap when Moment of Craving is active.",
         T.textMuted)
     card2:AddSeparator()
 
-    card2:AddRow(GUI:CreateToggle(parent, "Show soul bar",
+    soulShowRow = GUI:CreateToggle(parent, "Show soul bar",
         L.showSoulBar ~= false, function(v)
-            L.showSoulBar = v; Call("UpdateSoulBarVisibility")
-        end), 28)
+            L.showSoulBar = v
+            UpdateSoulCardState(v)
+            Call("UpdateSoulBarVisibility")
+        end)
+    card2:AddRow(soulShowRow, 28)
     card2:AddSeparator()
 
     -- Width + Height side by side
@@ -9071,16 +9081,20 @@ GUI:RegisterContent("reapmeter", function(parent)
     y = y + card2:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 3: Fury Bar ────────────────────────────────────────
-    local card3 = GUI:CreateCard(parent, "Fury Bar", y)
+    card3 = GUI:CreateCard(parent, "Fury Bar", y)
+    table.insert(childCards, card3)
     card3:AddLabel(
         "Displays current Fury with a projection on the next Reap fury gain. Hidden during Meta phase. The MoC preview shows the extra soul fury gain when Moment of Craving is available.",
         T.textMuted)
     card3:AddSeparator()
 
-    card3:AddRow(GUI:CreateToggle(parent, "Show fury bar",
+    furyShowRow = GUI:CreateToggle(parent, "Show fury bar",
         L.showFuryBar ~= false, function(v)
-            L.showFuryBar = v; Call("UpdateFuryVisibility")
-        end), 28)
+            L.showFuryBar = v
+            UpdateFuryCardState(v)
+            Call("UpdateFuryVisibility")
+        end)
+    card3:AddRow(furyShowRow, 28)
     card3:AddSeparator()
 
     -- Width + Height side by side
@@ -9121,7 +9135,8 @@ GUI:RegisterContent("reapmeter", function(parent)
     y = y + card3:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 4: Shared ──────────────────────────────────────────
-    local card4 = GUI:CreateCard(parent, "Shared", y)
+    card4 = GUI:CreateCard(parent, "Shared", y)
+    table.insert(childCards, card4)
     card4:AddSeparator()
     -- Font face applies to both soul bar and fury bar
     card4:AddRow(GUI:CreateFontDropdown(parent, "Font Face",
@@ -9141,7 +9156,8 @@ GUI:RegisterContent("reapmeter", function(parent)
     y = y + card4:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 5: Colors — Soul Bar ───────────────────────────────
-    local card5 = GUI:CreateCard(parent, "Colors — Soul Bar", y)
+    card5 = GUI:CreateCard(parent, "Colors — Soul Bar", y)
+    table.insert(childCards, card5)
     card5:AddSeparator()
     card5:AddRow(MakeDualRow("Growth bar — Build phase",      "growthBuild",    "Growth bar — VM phase",        "growthVM"),       52)
     card5:AddSeparator()
@@ -9157,7 +9173,8 @@ GUI:RegisterContent("reapmeter", function(parent)
     y = y + card5:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 6: Colors — Fury Bar ───────────────────────────────
-    local card6 = GUI:CreateCard(parent, "Colors — Fury Bar", y)
+    card6 = GUI:CreateCard(parent, "Colors — Fury Bar", y)
+    table.insert(childCards, card6)
     card6:AddSeparator()
     card6:AddRow(MakeDualRow("Fury fill",           "furyFill",  "Scythes Embrace flat", "furyFlat"),  52)
     card6:AddSeparator()
@@ -9173,6 +9190,7 @@ GUI:RegisterContent("reapmeter", function(parent)
     end
 
     card7 = GUI:CreateCard(parent, "Fading", y)
+    table.insert(childCards, card7)
     card7:AddLabel(
         "Fade both bars to a configurable opacity based on your current state. Mirrors Ayije CDM fading behaviour.",
         T.textMuted)
@@ -9205,8 +9223,11 @@ GUI:RegisterContent("reapmeter", function(parent)
             L.fadingTriggerMounted = v; Call("FadeRefresh")
         end), 28)
 
-    UpdateFadeChildren(L.fadingEnabled == true)
     y = y + card7:GetTotalHeight() + T.paddingSmall
+
+    -- Init gray states
+    UpdateModuleEnabled(db.enabled)
+    UpdateFadeChildren(L.fadingEnabled == true)
 
     parent:SetHeight(y)
 end)

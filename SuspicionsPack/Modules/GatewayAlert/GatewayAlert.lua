@@ -112,7 +112,7 @@ function GA:ApplySettings()
     self.frame:SetFrameStrata(db.frameStrata or "HIGH")
     if self.frame.label then
         local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
-        local fontPath = (LSM and db.fontFace and LSM:Fetch("font", db.fontFace)) or SP_FONT
+        local fontPath = (db.fontFace and SP.GetFontPath and SP.GetFontPath(db.fontFace)) or SP_FONT
         local outlineFlag = (db.fontOutline ~= "NONE" and db.fontOutline) or "OUTLINE"
         self.frame.label:SetFont(fontPath, db.fontSize or 16, outlineFlag)
         local cr, cg2, cb = SP.GetColorFromSource(db.colorSource or "custom",

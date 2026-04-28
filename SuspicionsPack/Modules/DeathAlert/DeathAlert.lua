@@ -17,8 +17,8 @@ local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
 local DEFAULT_FONT_PATH = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 
 local function GetFontPath(fontName)
-    if LSM and fontName then
-        local path = LSM:Fetch("font", fontName)
+    if fontName then
+        local path = SP.GetFontPath and SP.GetFontPath(fontName)
         if path then return path end
     end
     return DEFAULT_FONT_PATH

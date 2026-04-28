@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.7.2"
+SP.VERSION = "1.7.3"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -45,6 +45,25 @@ end
 -- ============================================================
 -- Font helpers (LibSharedMedia)
 -- ============================================================
+
+-- Validate a font path by attempting SetFont on a hidden Font object.
+-- Uses the same probe technique as DBM: CreateFont() gives us a lightweight
+-- Font object (no rendering), and pcall(probe.SetFont, ...) returns false if
+-- WoW can't load the file — catching bad LSM registrations before they reach
+-- any FontString or StatusBar.
+local _fontProbe
+local function GetFontProbe()
+    if not _fontProbe then
+        _fontProbe = CreateFont("SP_FontValidationProbe")
+    end
+    return _fontProbe
+end
+
+function SP.IsFontPathValid(path)
+    if type(path) ~= "string" or path == "" then return false end
+    return pcall(GetFontProbe().SetFont, GetFontProbe(), path, 12, "")
+end
+
 local _fontListCache = nil
 
 function SP.GetFontList()
@@ -68,7 +87,10 @@ function SP.GetFontPath(name)
     if not name then return nil end
     local lsm = LibStub and LibStub("LibSharedMedia-3.0", true)
     if lsm then
-        return lsm:Fetch("font", name)
+        local path = lsm:Fetch("font", name)
+        if path and SP.IsFontPathValid(path) then
+            return path
+        end
     end
     return nil
 end
@@ -1133,11 +1155,13 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
-    ["1.7.2"] = {
-        { type = "fix",    text = "ReapPredict: soul bar labels (growth/SF numbers) now render above the fury bar." },
-        { type = "fix",    text = "ReapPredict: MoC capacity preview no longer shows at 100% opacity on load when the option was already enabled." },
-        { type = "fix",    text = "ReapPredict: 100-fury tick now hidden during Meta phase." },
-        { type = "add",    text = "ReapPredict: MoC rail X/Y offset sliders to reposition the MoC duration sub-rail independently." },
+    ["1.7.3"] = {
+        { type = "fix",    text = "MovementAlert: guard isOnGCD comparisons with issecretvalue to fix taint error crashing Blizzard_CooldownViewer" },
+        { type = "fix",    text = "GUI: add AnimateBorderFocus focus animation to all remaining EditBox widgets (Durability, Auto Invite, Death Alert, Craft Shopper)" },
+        { type = "fix",    text = "GUI: Silvermoon Map Icons — Filter card now grays out when module is disabled" },
+        { type = "change", text = "GUI: unify all animation durations to 0.18s (border hover, dropdown arrows, sidebar expand)" },
+        { type = "change", text = "GUI: BuildColorPickerInfo now supports optional alpha channel — passes hasOpacity to WoW's color picker" },
+        { type = "remove", text = "GUI: remove unused CreateNativeSlider dead code" },
     },
     ["1.7.0"] = {
         { type = "new", text = "Auto Combat Log: rewrote detection — per-instance memory, ACL prompt, M+ support via CHALLENGE_MODE_START. Your choice is saved per dungeon/difficulty and never asked twice." },
@@ -1173,7 +1197,7 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.7.2", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
+SP.ChangelogOrder = { "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
