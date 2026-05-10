@@ -33,6 +33,8 @@ Modules\CVars\CVars.lua
 Modules\Automation\Automation.lua
 Modules\CombatTimer\CombatTimer.lua
 Modules\BloodlustAlert\BloodlustAlert.lua
+Modules\PotionAlert\PotionAlert.lua
+Modules\PetStatus\PetStatus.lua
 Modules\AutoInvite\AutoInvite.lua
 Modules\TankMD\TankMD.lua
 Modules\FocusTargetMarker\FocusTargetMarker.lua
@@ -54,9 +56,3 @@ Modules\Durability\Durability.lua
 Modules\AutoBuy\AutoBuy.lua
 Modules\SpellEffectAlpha\SpellEffectAlpha.lua
 Modules\ReapPredict\ReapPredict.lua
-
-# Minimap Button module
-Core\MinimapButton.lua
-
-# GUI
-GUI\GUI.lua

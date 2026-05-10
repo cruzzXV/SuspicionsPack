@@ -318,66 +318,6 @@ function DeathAlert.StopPreview()
     displayFrame.fs:SetAlpha(0)
 end
 
--- ============================================================
--- Drag mode — called by the GUI "Drag to Move" / "Lock Position" button
--- ============================================================
-function DeathAlert.StartDragMode()
-    local db = GetDB()
-    if not db then return end
-    EnsureFrame()
-    RefreshFrameStyle()
-    RefreshFramePosition()
-
-    -- Show placeholder text so the user can see where the frame is
-    local name       = UnitName("player") or "Player"
-    local _, clsTok  = UnitClass("player")
-    local classColor = clsTok and C_ClassColor.GetClassColor(clsTok)
-    local nameText   = classColor and classColor:WrapTextInColorCode(name) or name
-    local msgText    = "|cffffffff" .. (db.displayText or "died") .. "|r"
-    displayFrame.fs:SetText(nameText .. " " .. msgText)
-    displayFrame.fs:SetAlpha(0.8)
-    displayFrame.animGroup:Stop()
-
-    -- Enable dragging
-    displayFrame:EnableMouse(true)
-    displayFrame:SetMovable(true)
-    displayFrame:RegisterForDrag("LeftButton")
-    displayFrame:SetScript("OnDragStart", function(f) f:StartMoving() end)
-    displayFrame:SetScript("OnDragStop",  function(f)
-        f:StopMovingOrSizing()
-        -- Compute new offset from UIParent CENTER and reset anchor to CENTER/UIParent
-        local cx,  cy  = f:GetCenter()
-        local ucx, ucy = UIParent:GetCenter()
-        db.anchorFrom  = "CENTER"
-        db.anchorTo    = "CENTER"
-        db.anchorFrame = "UIParent"
-        db.x = math.floor(cx - ucx + 0.5)
-        db.y = math.floor(cy - ucy + 0.5)
-        -- Re-anchor cleanly so sliders stay consistent
-        f:ClearAllPoints()
-        f:SetPoint("CENTER", UIParent, "CENTER", db.x, db.y)
-        -- Notify GUI to sync sliders
-        if SP.DeathAlert._syncSliders then
-            SP.DeathAlert._syncSliders(db.x, db.y)
-        end
-    end)
-end
-
-function DeathAlert.EndDragMode()
-    if not displayFrame then return end
-    displayFrame:StopMovingOrSizing()
-    displayFrame:EnableMouse(false)
-    displayFrame:SetMovable(false)
-    displayFrame:SetScript("OnDragStart", nil)
-    displayFrame:SetScript("OnDragStop",  nil)
-    displayFrame:RegisterForDrag()
-    -- Clear placeholder unless a real animation is running
-    if not displayFrame.animGroup:IsPlaying() then
-        displayFrame.fs:SetText("")
-        displayFrame.fs:SetAlpha(0)
-    end
-end
-
 -- Called by the GUI on any setting change
 function DeathAlert.Refresh()
     local db  = GetDB()
@@ -397,3 +337,4 @@ function DeathAlert.Refresh()
         end
     end
 end
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       

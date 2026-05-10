@@ -315,7 +315,6 @@ local f = CreateFrame("Frame", "SP_MovementAlert", UIParent)
 f:SetPoint("CENTER", UIParent, "CENTER", 0, 300)
 f:SetSize(28, 28)
 f:EnableMouse(false)
-f:SetMovable(true)
 
 -- State
 f.cachedSpells        = {}   -- list of entry tables from BuildMovementSpellList
@@ -432,32 +431,6 @@ fsText:SetTextColor(1, 1, 1, 1)
 fsText:SetJustifyH("CENTER")
 fsText:Hide()
 f.fsText = fsText
-
--- "MOVABLE" label — shown only during preview/drag
-local movableLbl = f:CreateFontString(nil, "OVERLAY")
-movableLbl:SetPoint("TOP", f, "TOP", 0, 14)
-movableLbl:SetFont(FONT_FACES["Expressway"] or SP_FONT, 8, "OUTLINE")
-movableLbl:SetTextColor(1, 0.82, 0, 1)
-movableLbl:SetText("MOVABLE")
-movableLbl:Hide()
-f.movableLbl = movableLbl
-
--- Drag — saves position back to DB on release
-f:SetScript("OnDragStart", function(self) self:StartMoving() end)
-f:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    local db = GetDB()
-    if db then
-        local cx,  cy  = self:GetCenter()
-        local ucx, ucy = UIParent:GetCenter()
-        db.anchorFrom  = "CENTER"
-        db.anchorTo    = "CENTER"
-        db.anchorFrame = "UIParent"
-        db.x = math.floor(cx - ucx + 0.5)
-        db.y = math.floor(cy - ucy + 0.5)
-        if MA._syncSliders then MA._syncSliders(db.x, db.y) end
-    end
-end)
 
 MA.frame     = f
 MA.fsText    = fsText
@@ -669,35 +642,16 @@ end
 -- ============================================================
 function MA:ShowPreview()
     self.isPreview = true
-    f:EnableMouse(true)
-    f:SetMouseClickEnabled(true)
-    f:RegisterForDrag("LeftButton")
-    if f.movableLbl then f.movableLbl:Show() end
     fsText:SetText("No Blink\n3.2")
     fsText:Show()
     f:Show()
     ApplyStyles()
-    -- Auto-cancel after 5 s (same pattern as ShowTimeSpiralPreview)
-    if self._maPrevTimer then self._maPrevTimer:Cancel() end
-    self._maPrevTimer = C_Timer.NewTimer(5, function()
-        self._maPrevTimer = nil
-        self:HidePreview()
-        if self._maPreviewEndCallback then self._maPreviewEndCallback() end
-    end)
 end
 
 function MA:HidePreview()
-    if self._maPrevTimer then
-        self._maPrevTimer:Cancel()
-        self._maPrevTimer = nil
-    end
     self.isPreview = false
-    f:EnableMouse(false)
-    f:SetMouseClickEnabled(false)
-    if f.movableLbl then f.movableLbl:Hide() end
-    if not GetDB().enabled then
-        fsText:Hide()
-    end
+    if fsText then fsText:Hide() end
+    -- Normal event-driven display will re-show if conditions are met
 end
 
 -- ── Time Spiral display preview ──────────────────────────────────────────
@@ -788,3 +742,4 @@ function MA:Refresh()
         fsText:Hide()
     end
 end
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    

@@ -150,31 +150,7 @@ local function BuildTimerFrame()
     f.barFill = barFill
     f.barMaxW = 98
 
-    local movableLbl = f:CreateFontString(nil, "OVERLAY")
-    movableLbl:SetPoint("TOP", f, "TOP", 0, 14)
-    movableLbl:SetFont(BL_FONT, 8, "OUTLINE")
-    movableLbl:SetTextColor(1, 0.82, 0, 1)
-    movableLbl:SetText("MOVABLE")
-    movableLbl:Hide()
-    f.movableLbl = movableLbl
-
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    f:SetScript("OnDragStop",  function(self)
-        self:StopMovingOrSizing()
-        local db = SP.GetDB().bloodlustAlert
-        if db then
-            local cx,  cy  = self:GetCenter()
-            local ucx, ucy = UIParent:GetCenter()
-            db.timerAnchorFrom  = "CENTER"
-            db.timerAnchorTo    = "CENTER"
-            db.timerAnchorFrame = "UIParent"
-            db.timerX           = math.floor(cx - ucx + 0.5)
-            db.timerY           = math.floor(cy - ucy + 0.5)
-        end
-    end)
+    f:EnableMouse(false)
 
     timerFrame = f
 end
@@ -303,6 +279,7 @@ function BLAlert:ApplyTimerSettings()
 end
 
 function BLAlert:ShowTimerPreview()
+    self.isTimerPreview = true
     BuildTimerFrame()
     self:ApplyTimerSettings()
     if timerFrame then
@@ -310,15 +287,18 @@ function BLAlert:ShowTimerPreview()
         if timerFrame.barFill:IsShown() then
             timerFrame.barFill:SetWidth(timerFrame.barMaxW or 98)
         end
-        if timerFrame.movableLbl then timerFrame.movableLbl:Show() end
         timerFrame:Show()
     end
 end
 
 function BLAlert:HideTimerPreview()
-    if timerFrame then
-        if timerFrame.movableLbl then timerFrame.movableLbl:Hide() end
-        if not active then timerFrame:Hide() end
+    self.isTimerPreview = false
+    if timerFrame then timerFrame:Hide() end
+    -- Only restore if a real BL is in progress: blStartTime is only set by StartBL
+    -- when timerEnabled is on AND BL fired.  active=true alone is not sufficient
+    -- because active stays true during StopBL's 8-second re-arm window.
+    if active and blStartTime and timerFrame then
+        timerFrame:Show()
     end
 end
 
@@ -356,7 +336,6 @@ function BLAlert:StartBL()
         self:ApplyTimerSettings()
         blStartTime = GetTime()
         if timerFrame then
-            if timerFrame.movableLbl then timerFrame.movableLbl:Hide() end
             UpdateTimerDisplay()
             timerFrame:Show()
         end
@@ -443,3 +422,4 @@ function BLAlert:Refresh()
         if active then self:StopBL() end
     end
 end
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      

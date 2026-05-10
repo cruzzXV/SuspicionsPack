@@ -79,7 +79,7 @@ local BAR_TEXTURE       = "Interface\\BUTTONS\\WHITE8X8"
 local NUMBER_FONT       = "Fonts\\ARIALN.TTF"
 local NUMBER_FONT_SIZE  = 13
 
-local COLOR_VERSION = 8
+local COLOR_VERSION = 9
 
 local DEFAULT_COLORS = {
     bg             = { 0.05, 0.04, 0.08, 0.90 },
@@ -98,6 +98,7 @@ local DEFAULT_COLORS = {
     thresholdVM    = { 0.96, 0.92, 0.78, 0.90 },
     furyTick       = { 0.96, 0.92, 0.78, 0.90 },
     furyFill       = { 0.32, 0.28, 0.62, 1.00 },
+    furyConsume    = { 0.45, 0.38, 0.78, 1.00 },
     furyFlat       = { 0.58, 0.50, 0.82, 1.00 },
     furySoul       = { 0.68, 0.62, 0.90, 1.00 },
     furyLabel      = { 0.98, 0.95, 0.88, 1.00 },
@@ -138,10 +139,13 @@ local ERADICATE_SPELLID = 1225826
 local CULL_SPELLID      = 1245453
 local CONSUME_SPELLID   = 473662
 
-local SCYTHES_EMBRACE_SPELLID = 1246558
-local REAP_CAST_FURY          = 10
-local REAP_SOUL_FURY          = 4
-local VOID_RAY_COST           = 100
+local SCYTHES_EMBRACE_SPELLID  = 1246558
+local CELESTIAL_ECHOES_SPELLID = 1253415
+local REAP_CAST_FURY           = 10
+local REAP_SOUL_FURY           = 4
+local VOID_RAY_COST            = 100
+local CONSUME_BASE_FURY        = 8
+local CONSUME_CELESTIAL_MOD    = 2
 local FURY_POWER_TYPE         = (Enum and Enum.PowerType and Enum.PowerType.Fury) or 17
 
 local FURY_DEFAULT_WIDTH  = 360
@@ -362,7 +366,22 @@ local RebuildCellSeparators
 local EnsureCDMSyncHook
 local SyncToCDMNow
 
-local scythesEmbraceKnown = false
+local scythesEmbraceKnown   = false
+local celestialEchoesKnown  = false
+local consumeGain           = 0   -- fury predicted during an active Consume cast (0 = not casting)
+
+local function RefreshCelestialEchoes()
+    celestialEchoesKnown = false
+    if IsPlayerSpell then
+        local ok, known = pcall(IsPlayerSpell, CELESTIAL_ECHOES_SPELLID)
+        if ok and known then celestialEchoesKnown = true; return end
+    end
+    if C_SpellBook and C_SpellBook.IsSpellKnown then
+        local ok, known = pcall(C_SpellBook.IsSpellKnown, CELESTIAL_ECHOES_SPELLID)
+        if ok and known then celestialEchoesKnown = true end
+    end
+end
+
 local function RefreshScythesEmbrace()
     scythesEmbraceKnown = false
     local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, SCYTHES_EMBRACE_SPELLID)
@@ -528,6 +547,7 @@ local function UpdateFuryBar(sfStacks)
     end
     local fury = UnitPower("player", FURY_POWER_TYPE)
     ApplyToBar(furyFrame.furyFillBar,     fury)
+    ApplyToBar(furyFrame.consumeBar,      consumeGain)
     ApplyToBar(furyFrame.flatBar,         scythesEmbraceKnown and REAP_CAST_FURY or 0)
     ApplyToBar(furyFrame.soulFuryBar,     sfStacks)
     ApplyToBar(furyFrame.soulFuryPreview, sfStacks)
@@ -913,9 +933,19 @@ local function CreateFuryBar()
     furyFillBar:SetMinMaxValues(0, VOID_RAY_COST)
     furyFillBar:SetValue(0)
 
+    local consumeMax = CONSUME_BASE_FURY + CONSUME_CELESTIAL_MOD
+    local consumeBar = CreateFrame("StatusBar", nil, furyFrame)
+    consumeBar:SetFrameStrata("MEDIUM")
+    consumeBar:SetPoint("LEFT", furyFillBar:GetStatusBarTexture(), "RIGHT", 0, 0)
+    consumeBar:SetSize(consumeMax * pxPerFury, H)
+    consumeBar:SetStatusBarTexture(BAR_TEXTURE)
+    consumeBar:SetStatusBarColor(C("furyConsume"))
+    consumeBar:SetMinMaxValues(0, consumeMax)
+    consumeBar:SetValue(0)
+
     local flatBar = CreateFrame("StatusBar", nil, furyFrame)
     flatBar:SetFrameStrata("MEDIUM")
-    flatBar:SetPoint("LEFT", furyFillBar:GetStatusBarTexture(), "RIGHT", 0, 0)
+    flatBar:SetPoint("LEFT", consumeBar:GetStatusBarTexture(), "RIGHT", 0, 0)
     flatBar:SetSize(REAP_CAST_FURY * pxPerFury, H)
     flatBar:SetStatusBarTexture(BAR_TEXTURE)
     flatBar:SetStatusBarColor(C("furyFlat"))
@@ -964,6 +994,7 @@ local function CreateFuryBar()
 
     furyFrame.bgTexture       = bg
     furyFrame.furyFillBar     = furyFillBar
+    furyFrame.consumeBar      = consumeBar
     furyFrame.flatBar         = flatBar
     furyFrame.soulFuryBar     = soulFuryBar
     furyFrame.soulFuryPreview = soulFuryPreview
@@ -996,6 +1027,7 @@ function ApplyFuryLayout()
     fillBar:SetSize(W, H)
     fillBar:SetMinMaxValues(0, furyMax)
 
+    furyFrame.consumeBar:SetSize((CONSUME_BASE_FURY + CONSUME_CELESTIAL_MOD) * pxPerFury, H)
     furyFrame.flatBar:SetSize(REAP_CAST_FURY * pxPerFury, H)
     furyFrame.soulFuryPreview:SetSize((REAP_CAP_MOC - REAP_CAP_BASE) * REAP_SOUL_FURY * pxPerFury, H)
     furyFrame.soulFuryPreview:SetMinMaxValues(REAP_CAP_BASE, REAP_CAP_MOC)
@@ -1034,6 +1066,7 @@ function ApplyFuryColors()
         t:SetColorTexture(C("edge"))
     end
     furyFrame.furyFillBar:SetStatusBarColor(C("furyFill"))
+    furyFrame.consumeBar:SetStatusBarColor(C("furyConsume"))
     furyFrame.flatBar:SetStatusBarColor(C("furyFlat"))
     furyFrame.soulFuryBar:SetStatusBarColor(C("furySoul"))
     do
@@ -1044,6 +1077,34 @@ function ApplyFuryColors()
     end
     furyFrame.tick:SetColorTexture(C("furyTick"))
     furyFrame.furyLabel:SetTextColor(C("furyLabel"))
+end
+
+-- ============================================================
+-- Bar texture
+-- ============================================================
+local function GetBarTexturePath()
+    local db   = GetDB()
+    local L    = db and db.layout
+    local name = L and L.barTexture
+    if not name then return BAR_TEXTURE end
+    return SP.GetStatusBarPath(name) or BAR_TEXTURE
+end
+
+local function ApplyBarTexture()
+    local path = GetBarTexturePath()
+    if frame then
+        if frame.growthBar   then frame.growthBar:SetStatusBarTexture(path) end
+        if frame.sfBar       then frame.sfBar:SetStatusBarTexture(path) end
+        if frame.mocPreview  then frame.mocPreview:SetStatusBarTexture(path) end
+        if frame.mocRail     then frame.mocRail:SetStatusBarTexture(path) end
+    end
+    if furyFrame then
+        if furyFrame.furyFillBar     then furyFrame.furyFillBar:SetStatusBarTexture(path) end
+        if furyFrame.consumeBar      then furyFrame.consumeBar:SetStatusBarTexture(path) end
+        if furyFrame.flatBar         then furyFrame.flatBar:SetStatusBarTexture(path) end
+        if furyFrame.soulFuryBar     then furyFrame.soulFuryBar:SetStatusBarTexture(path) end
+        if furyFrame.soulFuryPreview then furyFrame.soulFuryPreview:SetStatusBarTexture(path) end
+    end
 end
 
 -- ============================================================
@@ -1208,6 +1269,7 @@ local function Enable()
     end
     UpdateFuryVisibility()
     ApplyFuryLock()
+    ApplyBarTexture()   -- restore saved texture (no-op when using default Solid)
 
     EnsurePollFrame()
     pollFrame:Show()
@@ -1234,6 +1296,7 @@ local function Refresh()
     if not (db and db.enabled) then Disable(); return end
     RefreshSpecCache()
     RefreshScythesEmbrace()
+    RefreshCelestialEchoes()
     if IsDDH() then Enable() else Disable() end
 end
 
@@ -1673,233 +1736,8 @@ end
 local DumpState
 local DumpCDMViewer
 
-local settingsCategory
 local function RegisterSettings()
-    -- Settings have moved to the SuspicionsPack GUI (/spack → Reap Meter).
-    do return end
-    --[[ kept for reference only — dead code below
-    if settingsCategory or not Settings or not Settings.RegisterAddOnCategory then return end
-    local db = GetDB()
-    if type(db) ~= "table" or type(db.layout) ~= "table" then return end
-
-    local category, layout = Settings.RegisterVerticalLayoutCategory("Reaper")
-
-    local function registerSetting(key, varType, db_, label)
-        return Settings.RegisterAddOnSetting(
-            category, "RM_" .. key, key, db_, varType, label, db_[key])
-    end
-    local function addSlider(label, key, minVal, maxVal, step, onChange, tooltip)
-        local setting = registerSetting(key, Settings.VarType.Number, db.layout, label)
-        setting:SetValueChangedCallback(function(_, value) onChange(value); ApplySize() end)
-        local options = Settings.CreateSliderOptions(minVal, maxVal, step)
-        if MinimalSliderWithSteppersMixin and MinimalSliderWithSteppersMixin.Label then
-            options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right)
-        end
-        Settings.CreateSlider(category, setting, options, tooltip)
-    end
-    local function addCheckbox(label, key, db_, tooltip, onChange)
-        local setting = registerSetting(key, Settings.VarType.Boolean, db_, label)
-        setting:SetValueChangedCallback(function(_, value) onChange(value) end)
-        Settings.CreateCheckbox(category, setting, tooltip)
-    end
-    local function addButton(left, right, fn, tooltip)
-        layout:AddInitializer(CreateSettingsButtonInitializer(left, right, fn, tooltip, true))
-    end
-    local function addSection(name)
-        layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(name))
-    end
-
-    addSection("Soul bar")
-    addCheckbox("Show soul bar", "showSoulBar", db.layout,
-        "Primary bar tracking VM/CS stacks and Soul Fragments toward the next phase ability.",
-        UpdateSoulBarVisibility)
-    addSlider("Bar width",  "width",  100, 1200, 1, function(v) CONTAINER_W      = v end, "Soul bar width in pixels.")
-    addSlider("Bar height", "height",  10,  100, 1, function(v) CONTAINER_H      = v end, "Soul bar height in pixels.")
-    addSlider("Font size",  "font",     6,   32, 1, function(v) NUMBER_FONT_SIZE = v end, "Pixel size of the growth and SF numeric labels.")
-
-    local fontSetting = registerSetting("fontKey", Settings.VarType.String, db.layout, "Font")
-    fontSetting:SetValueChangedCallback(function(_, value)
-        NUMBER_FONT = FontPath(value)
-        ApplySize()
-        ApplyFurySize()
-    end)
-    Settings.CreateDropdown(category, fontSetting, function()
-        local container = Settings.CreateControlTextContainer()
-        for _, f in ipairs(FONTS) do container:Add(f.key, f.name) end
-        return container:GetData()
-    end, "Font face for all numeric labels on both bars.")
-
-    addCheckbox("Lock soul bar position", "locked", db.layout,
-        "Prevent dragging the soul bar.", ApplyLock)
-    addCheckbox("Show MoC capacity preview", "showMocPreview", db.layout,
-        "Show the dim Moment of Craving capacity estimate on the SF region when MoC isn't up.",
-        function() if frame then ApplySFCap(lastMoCActive == true) end end)
-    addCheckbox("Show Collapsing Star cast counter", "showCsCounter", db.layout,
-        "Show the CS cast count to the right of the soul bar.",
-        function()
-            if frame and frame.csCounterLabel then
-                frame.csCounterLabel:SetShown(db.layout.showCsCounter ~= false)
-            end
-        end)
-    addButton("Soul bar position", "Reset", function()
-        db.framePos = nil
-        ApplySavedPosition()
-    end, "Reset the soul bar to its default centered position.")
-
-    addSection("Fury bar")
-    addCheckbox("Show fury bar", "showFuryBar", db.layout,
-        "Secondary bar showing current fury plus Reap's projected gain against the Void Ray threshold.",
-        UpdateFuryVisibility)
-
-    local function addFurySlider(label, key, minVal, maxVal, step, tooltip)
-        local setting = registerSetting(key, Settings.VarType.Number, db.layout, label)
-        setting:SetValueChangedCallback(function(_, value)
-            db.layout[key] = value
-            ApplyFurySize()
-        end)
-        local options = Settings.CreateSliderOptions(minVal, maxVal, step)
-        if MinimalSliderWithSteppersMixin and MinimalSliderWithSteppersMixin.Label then
-            options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right)
-        end
-        Settings.CreateSlider(category, setting, options, tooltip)
-    end
-
-    addFurySlider("Bar width",       "furyWidth",  100, 1200, 1, "Fury bar width in pixels.")
-    addFurySlider("Bar height",      "furyHeight",   8,   60, 1, "Fury bar height in pixels.")
-    addFurySlider("Fury value font", "furyFont",     6,   32, 1, "Pixel size of the centered fury value.")
-    addCheckbox("Show MoC capacity preview (fury)", "showFuryMocPreview", db.layout,
-        "Show the dim MoC capacity estimate on the fury bar.",
-        function() if furyFrame then ApplyFurySoulCap(lastMoCActive == true) end end)
-    addCheckbox("Lock fury bar position", "furyLocked", db.layout,
-        "Prevent dragging the fury bar.", ApplyFuryLock)
-    addButton("Fury bar position", "Reset", function()
-        db.furyPos = nil
-        ApplyFuryPosition()
-    end, "Reset the fury bar to its default position.")
-
-    addSection("Colors")
-
-    local function attachSwatch(row, key)
-        local sw = row._rmColorSwatch
-        if not sw then
-            local border = row:CreateTexture(nil, "OVERLAY", nil, 5)
-            border:SetColorTexture(0, 0, 0, 1)
-            local inner = row:CreateTexture(nil, "OVERLAY", nil, 6)
-            inner:SetPoint("TOPLEFT",     border, "TOPLEFT",     1, -1)
-            inner:SetPoint("BOTTOMRIGHT", border, "BOTTOMRIGHT", -1, 1)
-            row._rmColorSwatch = inner
-            row._rmColorBorder = border
-            sw = inner
-        end
-        local anchor = row.Button or row.Control or row
-        local relPoint = (anchor == row) and "RIGHT" or "LEFT"
-        local xOff = (anchor == row) and -160 or -8
-        row._rmColorBorder:ClearAllPoints()
-        row._rmColorBorder:SetPoint("RIGHT", anchor, relPoint, xOff, 0)
-        row._rmColorBorder:SetSize(22, 16)
-        row._rmColorBorder:Show()
-        sw:SetColorTexture(C(key))
-        sw:Show()
-        activeColorSwatches[sw] = key
-    end
-
-    local function detachSwatch(row)
-        local sw = row._rmColorSwatch
-        if not sw then return end
-        activeColorSwatches[sw] = nil
-        sw:Hide()
-        if row._rmColorBorder then row._rmColorBorder:Hide() end
-    end
-
-    local function addColorPicker(label, key, tooltip)
-        local function openPicker()
-            local snapshot = CopyColor(db.colors[key] or DEFAULT_COLORS[key])
-            local function onChange()
-                local nr, ng, nb = ColorPickerFrame:GetColorRGB()
-                local na = ColorPickerFrame.GetColorAlpha
-                    and ColorPickerFrame:GetColorAlpha()
-                    or snapshot[4]
-                db.colors[key] = { nr, ng, nb, na }
-                ApplyColors()
-            end
-            local function onCancel()
-                db.colors[key] = snapshot
-                ApplyColors()
-            end
-            if ColorPickerFrame.SetupColorPickerAndShow then
-                ColorPickerFrame:SetupColorPickerAndShow({
-                    r = snapshot[1], g = snapshot[2], b = snapshot[3],
-                    opacity = snapshot[4], hasOpacity = true,
-                    swatchFunc  = onChange,
-                    opacityFunc = onChange,
-                    cancelFunc  = onCancel,
-                })
-            end
-        end
-
-        local init = CreateSettingsButtonInitializer(label, "Choose...", openPicker, tooltip, true)
-        local origInit, origReset = init.InitFrame, init.Resetter
-        init.InitFrame = function(self, row)
-            if origInit then origInit(self, row) end
-            attachSwatch(row, key)
-        end
-        init.Resetter = function(self, row)
-            if origReset then origReset(self, row) end
-            detachSwatch(row)
-        end
-        layout:AddInitializer(init)
-    end
-
-    addSection("Colors - Shared")
-    addColorPicker("Background",                     "bg",             "Frame background color.")
-    addColorPicker("Outer edge",                     "edge",           "1px outer border color.")
-    addSection("Colors - Soul bar")
-    addColorPicker("Growth bar (build phase)",       "growthBuild",    "Fill color charging Void Metamorphosis.")
-    addColorPicker("Threshold tick (build phase)",   "thresholdBuild", "Vertical tick at 50 VM stacks.")
-    addColorPicker("Beyond threshold (build phase)", "beyondBuild",    "Dim backdrop of overflow region (build).")
-    addColorPicker("Growth bar (VM phase)",          "growthVM",       "Fill color charging Collapsing Star.")
-    addColorPicker("Threshold tick (VM phase)",      "thresholdVM",    "Vertical tick at 30 CS stacks.")
-    addColorPicker("Beyond threshold (VM phase)",    "beyondVM",       "Dim backdrop of overflow region (VM).")
-    addColorPicker("Soul Fragments (MoC inactive)",  "sfBase",         "SF bar color without MoC.")
-    addColorPicker("Soul Fragments (MoC active)",    "sfMoc",          "SF bar color with MoC up.")
-    addColorPicker("MoC duration bar (fill)",        "mocRailFill",    "MoC duration sub-rail fill.")
-    addColorPicker("MoC duration bar (track)",       "mocRailTrack",   "MoC duration sub-rail track.")
-    addColorPicker("Growth number text",             "numberLabel",    "Growth / CS-counter label color.")
-    addColorPicker("SF number text",                 "sfNumberLabel",  "Soul Fragments count color.")
-    addSection("Colors - Fury bar")
-    addColorPicker("Current fury fill",              "furyFill",       "Main fury fill segment.")
-    addColorPicker("Scythes Embrace flat",           "furyFlat",       "Reap flat 10-fury bonus segment.")
-    addColorPicker("Soul projection",                "furySoul",       "Reap per-soul fury gain segment.")
-    addColorPicker("100-fury tick",                  "furyTick",       "Vertical tick at Void Ray cost.")
-    addColorPicker("Fury value text",                "furyLabel",      "Centered fury number color.")
-    addButton("All colors", "Reset to defaults", function()
-        db.colors = {}
-        for k, v in pairs(DEFAULT_COLORS) do
-            db.colors[k] = CopyColor(v)
-        end
-        ApplyColors()
-    end, "Reset every color to its default value.")
-
-    addSection("CDM Tracking")
-    addButton("Tracked spells", "Add to CDM",          SetupAll,         "Add CS, VM, and MoC to CDM Tracked Buffs.")
-    addButton("",               "Remove from CDM",     UnsetupAll,       "Move tracked spells back to CDM Hidden.")
-    addButton("",               "Restore CDM snapshot",RestoreCDMLayout, "Revert CDM to pre-Reaper snapshot.")
-
-    addSection("Debug")
-    addCheckbox("Debug Logging", "debug", db,
-        "Print state changes to chat.",
-        function(v) debugOn = v end)
-    addButton("Diagnostics", "Dump State",
-        function() if DumpState then DumpState() end end,
-        "Print the addon's full state to chat.")
-    addButton("", "Dump CDM Frames", function()
-        if not DumpCDMViewer then return end
-        for _, v in ipairs(CDM_VIEWERS) do DumpCDMViewer(v, true) end
-    end, "Print every CDM frame's state to chat.")
-
-    Settings.RegisterAddOnCategory(category)
-    settingsCategory = category
-    --]] -- end dead-code block
+    -- Settings live in the SuspicionsPack GUI (/spack → Reap Meter). Nothing to do here.
 end
 
 -- ============================================================
@@ -1922,7 +1760,10 @@ function ReapPredict:OnEnable()
     -- Raw unit event frame (AceEvent doesn't support RegisterUnitEvent)
     if not ReapPredict._eventsFrame then
         local events = CreateFrame("Frame")
+        events:RegisterUnitEvent("UNIT_SPELLCAST_START",          "player")
         events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED",     "player")
+        events:RegisterUnitEvent("UNIT_SPELLCAST_FAILED",        "player")
+        events:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED",   "player")
         events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP",  "player")
         events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
         events:RegisterUnitEvent("UNIT_AURA",                    "player")
@@ -1949,8 +1790,42 @@ function ReapPredict:OnEnable()
                 return
             end
 
+            if event == "UNIT_SPELLCAST_START" then
+                local spellID = arg2
+                if spellID == CONSUME_SPELLID then
+                    consumeGain = celestialEchoesKnown
+                        and (CONSUME_BASE_FURY + CONSUME_CELESTIAL_MOD)
+                        or  CONSUME_BASE_FURY
+                    if furyFrame and furyFrame:IsShown() then
+                        ApplyToBar(furyFrame.consumeBar, consumeGain)
+                    end
+                    dbg("Consume START — consumeGain=%d (celestialEchoes=%s)",
+                        consumeGain, tostring(celestialEchoesKnown))
+                end
+                return
+            end
+
+            if event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED" then
+                local spellID = arg2
+                if spellID == CONSUME_SPELLID and consumeGain ~= 0 then
+                    consumeGain = 0
+                    if furyFrame and furyFrame:IsShown() then
+                        ApplyToBar(furyFrame.consumeBar, 0)
+                    end
+                    dbg("Consume %s — prediction cleared", event)
+                end
+                return
+            end
+
             if event == "UNIT_SPELLCAST_SUCCEEDED" then
                 local spellID = arg2
+                if spellID == CONSUME_SPELLID then
+                    -- Fury will arrive via UNIT_POWER_FREQUENT; clear prediction now.
+                    consumeGain = 0
+                    if furyFrame and furyFrame:IsShown() then
+                        ApplyToBar(furyFrame.consumeBar, 0)
+                    end
+                end
                 if CONSUMING_SPELLS[spellID] then
                     pauseUntil = GetTime() + CONSUME_PAUSE_SEC
                 end
@@ -2155,6 +2030,7 @@ ReapPredict.ApplySize = function()
 end
 ReapPredict.ApplyFurySize      = ApplyFurySize   -- already reads layout from DB internally
 ReapPredict.ApplyColors        = ApplyColors
+ReapPredict.ApplyBarTexture    = ApplyBarTexture
 ReapPredict.ApplyLock          = ApplyLock
 ReapPredict.ApplyFuryLock      = ApplyFuryLock
 ReapPredict.ApplySavedPosition = ApplySavedPosition
@@ -2201,3 +2077,4 @@ ReapPredict.ResetColors      = function()
     end
     ApplyColors()
 end
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       

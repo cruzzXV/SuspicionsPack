@@ -103,32 +103,7 @@ function CT:CreateTimerFrame()
     text:SetText("00:00")
     text:SetJustifyH("CENTER")
 
-    -- "MOVABLE" accent label — shown only during preview
-    local movableLbl = f:CreateFontString(nil, "OVERLAY")
-    movableLbl:SetPoint("TOP", f, "TOP", 0, 14)
-    movableLbl:SetFont(FONT_FACES["Expressway"] or SP_FONT, 8, "OUTLINE")
-    movableLbl:SetTextColor(1, 0.82, 0, 1)
-    movableLbl:SetText("MOVABLE")
-    movableLbl:Hide()
-    f.movableLbl = movableLbl
-
-    -- Drag support — only active during preview; saves position to DB on release
-    f:SetMovable(true)
-    f:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local db2 = GetDB()
-        if db2 then
-            local cx,  cy  = self:GetCenter()
-            local ucx, ucy = UIParent:GetCenter()
-            db2.anchorFrom  = "CENTER"
-            db2.anchorTo    = "CENTER"
-            db2.anchorFrame = "UIParent"
-            db2.x           = math.floor(cx - ucx + 0.5)
-            db2.y           = math.floor(cy - ucy + 0.5)
-        end
-    end)
-    -- Mouse disabled by default; enabled only during preview
+    -- Mouse disabled by default
     f:EnableMouse(false)
     f:SetMouseClickEnabled(false)
 
@@ -275,7 +250,6 @@ function CT:OnEnterCombat()
     if self.frame then
         self.frame:EnableMouse(false)
         self.frame:SetMouseClickEnabled(false)
-        if self.frame.movableLbl then self.frame.movableLbl:Hide() end
         self.frame:Show()
     end
     self:ApplySettings()
@@ -316,11 +290,6 @@ end
 function CT:ShowPreview()
     if not self.frame then self:CreateTimerFrame() end
     self.isPreview = true
-    -- Enable drag during preview
-    self.frame:EnableMouse(true)
-    self.frame:SetMouseClickEnabled(true)
-    self.frame:RegisterForDrag("LeftButton")
-    if self.frame.movableLbl then self.frame.movableLbl:Show() end
     self.frame:Show()
     self:ApplySettings()
 end
@@ -328,12 +297,11 @@ end
 function CT:HidePreview()
     self.isPreview = false
     if self.frame then
-        self.frame:EnableMouse(false)
-        self.frame:SetMouseClickEnabled(false)
-        if self.frame.movableLbl then self.frame.movableLbl:Hide() end
+        self.frame:Hide()
+        -- Restore if the timer is genuinely running or showLastDuration is on
         local db = GetDB()
-        if not self.running and (not db or not db.showLastDuration) then
-            self.frame:Hide()
+        if self.running or (db and db.showLastDuration) then
+            self.frame:Show()
         end
     end
 end
@@ -402,3 +370,4 @@ end
 function CT:OnDisable()
     self:Deactivate()
 end
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                

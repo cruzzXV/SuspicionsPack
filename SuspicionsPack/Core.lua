@@ -721,6 +721,48 @@ local DEFAULTS = {
             enabled             = false,
             showOnlyProfessions = true,
         },
+        petStatus = {
+            enabled      = false,
+            missingText  = "PET MISSING",
+            missingColor = { 1, 0.843, 0, 1 },      -- #FFD100 yellow
+            deadText     = "PET DEAD",
+            deadColor    = { 1, 0.2, 0.2, 1 },       -- #FF3333 red
+            passiveText  = "PET PASSIVE",
+            passiveColor = { 0.302, 0.702, 1, 1 },   -- #4DB3FF blue
+            fontFace     = "Expressway",
+            fontSize     = 25,
+            fontOutline  = "SOFTOUTLINE",
+            frameStrata  = "HIGH",
+            x            = 0,
+            y            = 105,
+            anchorFrom   = "CENTER",
+            anchorTo     = "CENTER",
+            anchorFrame  = "UIParent",
+        },
+        potionAlert = {
+            enabled           = false,
+            enabledInDungeons = true,
+            enabledInRaids    = true,
+            displayText       = "Potion Ready",
+            colorSource       = "custom",
+            color             = { 0.4, 1, 0.4, 1 },
+            fontFace          = "Expressway",
+            fontSize          = 20,
+            fontOutline       = "OUTLINE",
+            frameStrata       = "HIGH",
+            x                 = 0,
+            y                 = 200,
+            anchorFrom        = "CENTER",
+            anchorTo          = "CENTER",
+            anchorFrame       = "UIParent",
+            playSound         = false,
+            soundKey          = nil,
+            displayDuration   = 5,    -- seconds before auto-hide; 0 = stay forever
+            playTTS           = false,
+            ttsText           = "Potion Ready",
+            ttsVolume         = 75,   -- 0-100
+            ttsVoiceId        = 0,    -- voiceID from C_VoiceChat.GetTtsVoices()
+        },
         bloodlustAlert = {
             enabled    = false,
             -- Detection: BL / Heroism / Time Warp add exactly +30 pp of haste in one
@@ -1383,47 +1425,4 @@ function SP.ShowChangelogPopup()
     sepBot:SetColorTexture(ac[1], ac[2], ac[3], 0.20)
 
     -- ── close button — mirrors GUI:CreateButton style ─────────
-    local closeBtn = CreateFrame("Button", nil, footer, "BackdropTemplate")
-    closeBtn:SetSize(120, 26)
-    closeBtn:SetPoint("CENTER", footer, "CENTER", 0, 0)
-    closeBtn:SetBackdrop({ bgFile   = "Interface\\Buttons\\WHITE8X8",
-                           edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    closeBtn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-    closeBtn:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
-
-    local closeLbl = closeBtn:CreateFontString(nil, "OVERLAY")
-    closeLbl:SetAllPoints()
-    closeLbl:SetFont(SP_CL_FONT, 12, "")
-    closeLbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-    closeLbl:SetJustifyH("CENTER")
-    closeLbl:SetText("Got it!")
-
-    closeBtn:SetScript("OnEnter", function(btn) CL_AnimateBorderFocus(btn, true)  end)
-    closeBtn:SetScript("OnLeave", function(btn) CL_AnimateBorderFocus(btn, false) end)
-    closeBtn:SetScript("OnClick", function() f:Hide() end)
-
-    -- ESC closes the popup
-    tinsert(UISpecialFrames, "SP_ChangelogPopup")
-
-    SP._changelogFrame = f
-    f:Show()
-end
-
--- ============================================================
--- SP.CheckChangelog()
--- Called on PLAYER_LOGIN. Shows the popup once per version.
--- ============================================================
-function SP.CheckChangelog()
-    local db = SP.GetDB()
-    if not db or not db.settings then return end
-    if db.settings.lastSeenVersion == SP.VERSION then return end
-    -- Only show if there's actually changelog data for this version
-    if not SP.Changelog[SP.VERSION] then return end
-
-    db.settings.lastSeenVersion = SP.VERSION
-
-    -- Small delay so the UI is fully loaded before we show the popup
-    C_Timer.After(3, function()
-        SP.ShowChangelogPopup()
-    end)
-end
+    local closeBtn = CreateFrame("Button", nil, footer, "Ba

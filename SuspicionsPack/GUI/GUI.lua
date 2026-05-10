@@ -391,6 +391,8 @@ GUI.SidebarConfig = {
             { id = "deathalert",       text = "Death Alert"        },
             { id = "gatewayalert",     text = "Gateway Alert"      },
             { id = "movementalert",    text = "Movement Alert"     },
+            { id = "petstatus",        text = "Pet Status"         },
+            { id = "potionalert",      text = "Potion Alert"       },
             { id = "reapmeter",        text = "ReapPredict (DH)"  },
             { id = "spelleffectalpha", text = "Spell Effect Alpha" },
         },
@@ -1707,8 +1709,8 @@ local function MakeCheckerSwatch(parent, w, h)
     swatch:SetScript("OnLeave", function()
         brd:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
     end)
-    function swatch:Refresh(r, g, b)
-        colorTex:SetColorTexture(r, g, b, 1)
+    function swatch:Refresh(r, g, b, a)
+        colorTex:SetColorTexture(r, g, b, a ~= nil and a or 1)
     end
     return swatch
 end
@@ -1778,7 +1780,8 @@ end
 -- Widget: StackedColorSwatch  — label on top, swatch + hex below-left
 -- Used by CombatTimer and Backdrop color entries
 -- ============================================================
-function GUI:CreateStackedColorSwatch(parent, labelStr, r0, g0, b0, onChanged)
+-- a0: optional alpha (0–1). When provided, the color picker shows an opacity slider.
+function GUI:CreateStackedColorSwatch(parent, labelStr, r0, g0, b0, onChanged, a0)
     local ROW_H = 52
     local row   = CreateFrame("Frame", nil, parent)
     row:SetHeight(ROW_H)
@@ -1790,6 +1793,7 @@ function GUI:CreateStackedColorSwatch(parent, labelStr, r0, g0, b0, onChanged)
     lbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
 
     local r, g, b = r0, g0, b0
+    local a = a0 ~= nil and a0 or 1   -- tracked alpha (only used when a0 provided)
 
     local swatch = MakeCheckerSwatch(row, 64, 26)
     swatch:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 2)
@@ -1803,26 +1807,32 @@ function GUI:CreateStackedColorSwatch(parent, labelStr, r0, g0, b0, onChanged)
     hexLbl:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
     hexLbl:SetText(ColorToHex(r, g, b))
 
-    local function RefreshSwatch(nr, ng, nb)
-        swatch:Refresh(nr, ng, nb)
+    local function RefreshSwatch(nr, ng, nb, na)
+        swatch:Refresh(nr, ng, nb, na)
         hexLbl:SetText(ColorToHex(nr, ng, nb))
     end
-    RefreshSwatch(r, g, b)
+    RefreshSwatch(r, g, b, a0 ~= nil and a or nil)
 
     swatch:SetScript("OnClick", function()
-        local prevR, prevG, prevB = r, g, b
-        local function UpdateColor(nr, ng, nb)
+        local prevR, prevG, prevB, prevA = r, g, b, a
+        local function UpdateColor(nr, ng, nb, na)
             r, g, b = nr, ng, nb
-            RefreshSwatch(r, g, b)
-            if onChanged then onChanged(r, g, b) end
+            if a0 ~= nil then a = na ~= nil and na or 1 end
+            RefreshSwatch(r, g, b, a0 ~= nil and a or nil)
+            if onChanged then onChanged(r, g, b, a0 ~= nil and a or nil) end
         end
         ColorPickerFrame:SetupColorPickerAndShow(
             BuildColorPickerInfo(prevR, prevG, prevB,
                 UpdateColor,
-                function() UpdateColor(prevR, prevG, prevB) end))
+                function() UpdateColor(prevR, prevG, prevB, prevA) end,
+                a0 ~= nil and a or nil))
     end)
 
-    function row:SetColor(nr, ng, nb) r, g, b = nr, ng, nb; RefreshSwatch(nr, ng, nb) end
+    function row:SetColor(nr, ng, nb, na)
+        r, g, b = nr, ng, nb
+        if a0 ~= nil then a = na ~= nil and na or 1 end
+        RefreshSwatch(r, g, b, a0 ~= nil and a or nil)
+    end
     function row:SetEnabled(en)
         self:SetAlpha(en and 1 or 0.4)
         swatch:EnableMouse(en and true or false)
@@ -2276,6 +2286,8 @@ local function ItemEnabledState(id)
     elseif id == "spelleffectalpha"  then return db.spellEffectAlpha  and db.spellEffectAlpha.enabled  or false
     elseif id == "combatcross"       then return db.combatCross       and db.combatCross.enabled       or false
     elseif id == "movementalert"     then return db.movementAlert     and db.movementAlert.enabled     or false
+    elseif id == "petstatus"         then return db.petStatus         and db.petStatus.enabled         or false
+    elseif id == "potionalert"       then return db.potionAlert       and db.potionAlert.enabled       or false
     elseif id == "editmode"          then return true
     end
     return false
@@ -2560,6 +2572,7 @@ function GUI:BuildMainFrame()
         -- If a dropdown was open when the window closed, its fullscreen closer frame
         -- would otherwise persist and block all right-clicks globally.  Force-close it.
         if GUI._activeDropdownClose then GUI._activeDropdownClose() end
+        if SP.PreviewManager then SP.PreviewManager:Stop() end
     end)
     mainFrame:Hide()
     SetBackdrop(mainFrame,
@@ -2797,60 +2810,6 @@ function GUI:BuildMainFrame()
     footerLbl:SetText("Suspicion's Pack  ·  /spack")
     footerLbl:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.6)
 
-    -- "Preview All" button: previews every enabled module simultaneously so the
-    -- player can spot overlaps between stance alerts, gate alerts, bloodlust, etc.
-    -- Placed in the footer to the right of the label, left of the resize handle.
-    local PREVIEW_ALL_MODULES = {
-        { mod = "GatewayAlert", key = "gatewayAlert"  },
-        { mod = "Durability",   key = "durability"    },
-        { mod = "CombatTimer",  key = "combatTimer"   },
-    }
-    local _previewAllTimer = nil
-    local previewAllBtn = CreateFrame("Frame", nil, footer, "BackdropTemplate")
-    previewAllBtn:SetSize(100, T.footerHeight - 6)
-    previewAllBtn:SetPoint("RIGHT", resizeBtn, "LEFT", -8, 0)
-    previewAllBtn:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
-    previewAllBtn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-    previewAllBtn:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
-    previewAllBtn:EnableMouse(true)
-
-    local previewAllLbl = previewAllBtn:CreateFontString(nil, "OVERLAY")
-    previewAllLbl:SetAllPoints(previewAllBtn)
-    previewAllLbl:SetJustifyH("CENTER"); previewAllLbl:SetJustifyV("MIDDLE")
-    ApplyFont(previewAllLbl, 11)
-    previewAllLbl:SetText("Preview All")
-    previewAllLbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
-
-    previewAllBtn:SetScript("OnEnter", function()
-        AnimateBorderFocus(previewAllBtn, true)
-        previewAllLbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-    end)
-    previewAllBtn:SetScript("OnLeave", function()
-        AnimateBorderFocus(previewAllBtn, false)
-        previewAllLbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
-    end)
-    previewAllBtn:SetScript("OnMouseDown", function()
-        if _previewAllTimer then _previewAllTimer:Cancel(); _previewAllTimer = nil end
-        local db = SP.GetDB()
-        local shown = {}
-        for _, entry in ipairs(PREVIEW_ALL_MODULES) do
-            local mod = SP[entry.mod]
-            local mdb = db[entry.key]
-            if mod and mod.ShowPreview and mdb and mdb.enabled then
-                mod:ShowPreview()
-                shown[#shown + 1] = mod
-            end
-        end
-        if #shown > 0 then
-            _previewAllTimer = C_Timer.NewTimer(5, function()
-                _previewAllTimer = nil
-                for _, mod in ipairs(shown) do
-                    if mod.HidePreview then mod:HidePreview() end
-                end
-            end)
-        end
-    end)
-
     -- "Theme" button — opens the Themes page directly
     local themeBtn = CreateFrame("Frame", nil, footer, "BackdropTemplate")
     themeBtn:SetSize(72, T.footerHeight - 6)
@@ -2881,7 +2840,7 @@ function GUI:BuildMainFrame()
     -- "Changelog" button — left of Preview All, opens SP.ShowChangelogPopup()
     local changelogBtn = CreateFrame("Frame", nil, footer, "BackdropTemplate")
     changelogBtn:SetSize(90, T.footerHeight - 6)
-    changelogBtn:SetPoint("RIGHT", previewAllBtn, "LEFT", -6, 0)
+    changelogBtn:SetPoint("RIGHT", resizeBtn, "LEFT", -8, 0)
     -- themeBtn anchored here now that changelogBtn is defined
     themeBtn:SetPoint("RIGHT", changelogBtn, "LEFT", -6, 0)
     changelogBtn:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
@@ -3172,6 +3131,7 @@ function GUI.Show()
     mainFrame:Show()
     GUI:RefreshSidebar()
     GUI:RefreshContent()
+    if SP.PreviewManager then SP.PreviewManager:Start() end
 end
 
 function GUI.Hide()
@@ -4631,7 +4591,7 @@ GUI:RegisterContent("durability", function(parent)
     local card3 = GUI:CreateCard(parent, "Position", y)
     table.insert(durChildCards, card3)
     card3:AddLabel(
-        "Click Preview to test the current look. Click Drag to Move to drag the frame anywhere on screen, then Lock Position when done. Fine-tune with the sliders below.",
+        "Click Preview to test the current look. Fine-tune the position with the sliders below.",
         T.textMuted)
     card3:AddSeparator()
 
@@ -4653,89 +4613,6 @@ GUI:RegisterContent("durability", function(parent)
     durXYHRow:Add(durYRow, 0.5)
     card3:AddRow(durXYHRow, 44)
     table.insert(durChildRows, durXYHRow)
-
-    -- Sync sliders when position updated via drag
-    if SP.Durability then
-        SP.Durability._syncSliders = function(nx, ny)
-            if durXRow and durXRow.SetValue then durXRow.SetValue(nx) end
-            if durYRow and durYRow.SetValue then durYRow.SetValue(ny) end
-        end
-    end
-
-    card3:AddSeparator()
-
-    -- Preview button (toggle)
-    local function StyleDurBtn(btn, isActive)
-        if isActive then
-            btn:SetBackdropColor(T.accent[1], T.accent[2], T.accent[3], 0.25)
-            btn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-        else
-            btn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-            btn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end
-    end
-
-    local durPreviewActive = false
-    local durPrevWrap = CreateFrame("Frame", nil, parent)
-    durPrevWrap:SetHeight(28)
-    function durPrevWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-
-    local durPrevBtn = GUI:CreateButton(durPrevWrap, "Preview", nil, 140, 28)
-    durPrevBtn:SetPoint("LEFT", durPrevWrap, "LEFT", 0, 0)
-
-    local function UpdateDurPrevBtn()
-        StyleDurBtn(durPrevBtn, durPreviewActive)
-        durPrevBtn.lbl:SetText(durPreviewActive and "Stop Preview" or "Preview")
-        AnimateBorderFocus(durPrevBtn, durPreviewActive)
-    end
-
-    durPrevBtn:SetScript("OnLeave", function() UpdateDurPrevBtn() end)
-    durPrevBtn:SetScript("OnClick", function()
-        durPreviewActive = not durPreviewActive
-        if durPreviewActive then
-            if SP.Durability then SP.Durability:ShowPreview() end
-        else
-            if SP.Durability then SP.Durability:HidePreview() end
-        end
-        UpdateDurPrevBtn()
-    end)
-    card3:AddRow(durPrevWrap, 28)
-    table.insert(durChildRows, durPrevWrap)
-    card3:AddSeparator()
-
-    -- Drag to Move button
-    local durDragActive = false
-    local durDragWrap = CreateFrame("Frame", nil, parent)
-    durDragWrap:SetHeight(28)
-    function durDragWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-
-    local durDragBtn = GUI:CreateButton(durDragWrap, "Drag to Move", nil, 140, 28)
-    durDragBtn:SetPoint("LEFT", durDragWrap, "LEFT", 0, 0)
-
-    local function UpdateDurDragBtn()
-        if durDragActive then
-            durDragBtn.lbl:SetText("Lock Position")
-            StyleDurBtn(durDragBtn, true)
-        else
-            durDragBtn.lbl:SetText("Drag to Move")
-            StyleDurBtn(durDragBtn, false)
-        end
-        AnimateBorderFocus(durDragBtn, durDragActive)
-    end
-
-    durDragBtn:SetScript("OnLeave", function() UpdateDurDragBtn() end)
-    durDragBtn:SetScript("OnClick", function()
-        if durDragActive then
-            durDragActive = false
-            if SP.Durability then SP.Durability:EndDragMode() end
-        else
-            durDragActive = true
-            if SP.Durability then SP.Durability:StartDragMode() end
-        end
-        UpdateDurDragBtn()
-    end)
-    card3:AddRow(durDragWrap, 28)
-    table.insert(durChildRows, durDragWrap)
 
     y = y + card3:GetTotalHeight() + T.paddingSmall
 
@@ -5283,38 +5160,6 @@ GUI:RegisterContent("combattimer", function(parent)
     ctXYRow:Add(ctYRow, 0.5)
     card2:AddRow(ctXYRow, 44)
 
-    -- Preview button — fixed 120px, bgMedium default, border-only hover animation
-    local previewActive = false
-    local previewWrap = CreateFrame("Frame", nil, parent)
-    previewWrap:SetHeight(28)
-    local previewBtn = GUI:CreateButton(previewWrap, "Preview", nil, 140, 28)
-    previewBtn:SetPoint("LEFT", previewWrap, "LEFT", 0, 0)
-    previewBtn:SetScript("OnLeave", function()
-        AnimateBorderFocus(previewBtn, previewActive)
-        previewBtn.lbl:SetTextColor(
-            previewActive and T.accent[1] or T.textPrimary[1],
-            previewActive and T.accent[2] or T.textPrimary[2],
-            previewActive and T.accent[3] or T.textPrimary[3], 1)
-    end)
-    previewBtn:SetScript("OnClick", function()
-        local ct = GetCT()
-        if not ct then return end
-        previewActive = not previewActive
-        if previewActive then
-            ct:ShowPreview()
-            -- Tint the MOVABLE label with theme accent (T is in scope here)
-            if ct.frame and ct.frame.movableLbl then
-                ct.frame.movableLbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-            end
-            previewBtn.lbl:SetText("Stop Preview")
-            previewBtn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-        else
-            ct:HidePreview()
-            previewBtn.lbl:SetText("Preview")
-            previewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end
-    end)
-    card2:AddRow(previewWrap, 28)
     y = y + card2:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 3: Font ──────────────────────────────────────
@@ -5540,7 +5385,7 @@ GUI:RegisterContent("movementalert", function(parent)
 
     -- ── Card 2: Position ──────────────────────────────────
     local card2 = GUI:CreateCard(parent, "Position", y)
-    card2:AddLabel("Click Preview to see the text on screen. Drag it anywhere, then fine-tune with the sliders.", T.textMuted)
+    card2:AddLabel("Click Preview to see the text on screen. Fine-tune the position with the sliders.", T.textMuted)
     card2:AddSeparator()
     table.insert(maChildCards, card2)
 
@@ -5561,58 +5406,6 @@ GUI:RegisterContent("movementalert", function(parent)
     maXYRow:Add(slY, 0.5)
     card2:AddRow(maXYRow, 44)
     table.insert(maChildRows, maXYRow)
-    card2:AddSeparator()
-
-    -- Preview button (toggle: shows frame + enables drag)
-    local previewActive = false
-    local previewWrap = CreateFrame("Frame", nil, parent)
-    previewWrap:SetHeight(28)
-    function previewWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-    local previewBtn = GUI:CreateButton(previewWrap, "Preview", nil, 140, 28)
-    previewBtn:SetPoint("LEFT", previewWrap, "LEFT", 0, 0)
-    previewBtn:SetScript("OnLeave", function()
-        AnimateBorderFocus(previewBtn, previewActive)
-        previewBtn.lbl:SetTextColor(
-            previewActive and T.accent[1] or T.textPrimary[1],
-            previewActive and T.accent[2] or T.textPrimary[2],
-            previewActive and T.accent[3] or T.textPrimary[3], 1)
-    end)
-    previewBtn:SetScript("OnClick", function()
-        local ma = SP.MovementAlert
-        if not ma then return end
-        previewActive = not previewActive
-        if previewActive then
-            ma:ShowPreview()
-            if ma.frame and ma.frame.movableLbl then
-                ma.frame.movableLbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-            end
-            previewBtn.lbl:SetText("Stop Preview")
-            previewBtn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-        else
-            ma:HidePreview()
-            previewBtn.lbl:SetText("Preview")
-            previewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end
-        AnimateBorderFocus(previewBtn, previewActive)
-    end)
-    card2:AddRow(previewWrap, 28)
-    table.insert(maChildRows, previewWrap)
-
-    -- Sync sliders when frame is dragged
-    local ma = SP.MovementAlert
-    if ma then
-        ma._syncSliders = function(nx, ny)
-            if slX and slX.SetValue then slX.SetValue(nx) end
-            if slY and slY.SetValue then slY.SetValue(ny) end
-        end
-        -- Reset button label when the 5 s auto-cancel fires
-        ma._maPreviewEndCallback = function()
-            previewActive = false
-            previewBtn.lbl:SetText("Preview")
-            previewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-            AnimateBorderFocus(previewBtn, false)
-        end
-    end
 
     y = y + card2:GetTotalHeight() + T.paddingSmall
 
@@ -6241,26 +6034,12 @@ GUI:RegisterContent("bloodlustalert", function(parent)
         for _, r in ipairs(timerChildRows) do r:SetEnabled(en) end
     end
 
-    -- Forward-declare preview state so the enable toggle can reference it
-    local timerPreviewActive = false
-    local timerPreviewBtn    -- assigned below
-
     -- Enable toggle (pill)
     local timerEnableRow = GUI:CreateToggle(parent, "Enable Timer",
         db.timerEnabled ~= false,
         function(v)
             db.timerEnabled = v
             UpdateTimerChildState(v)
-            if not v then
-                -- Kill active preview when timer is disabled
-                if timerPreviewActive and timerPreviewBtn then
-                    timerPreviewActive = false
-                    timerPreviewBtn.lbl:SetText("Preview")
-                    timerPreviewBtn.lbl:SetTextColor(
-                        T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-                end
-                if SP.BloodlustAlert then SP.BloodlustAlert:HideTimerPreview() end
-            end
         end)
     card4:AddRow(timerEnableRow, 28)
     table.insert(childRows, timerEnableRow)
@@ -6360,45 +6139,6 @@ GUI:RegisterContent("bloodlustalert", function(parent)
     end
     card4:AddRow(timerAnchorRow, anchorRowH)
     table.insert(timerChildRows, timerAnchorRow)
-    card4:AddSeparator()
-
-    -- Preview button — separate row below the anchor grid
-    local timerPreviewWrap = CreateFrame("Frame", nil, parent)
-    timerPreviewWrap:SetHeight(28)
-    function timerPreviewWrap:SetEnabled(en)
-        self:SetAlpha(en and 1 or 0.4)
-        if timerPreviewBtn then timerPreviewBtn:EnableMouse(en) end
-    end
-
-    timerPreviewBtn = GUI:CreateButton(timerPreviewWrap, "Preview", nil, 140, 28)
-    timerPreviewBtn:SetPoint("LEFT", timerPreviewWrap, "LEFT", 0, 0)
-    timerPreviewBtn:SetScript("OnLeave", function()
-        AnimateBorderFocus(timerPreviewBtn, timerPreviewActive)
-        timerPreviewBtn.lbl:SetTextColor(
-            timerPreviewActive and T.accent[1] or T.textPrimary[1],
-            timerPreviewActive and T.accent[2] or T.textPrimary[2],
-            timerPreviewActive and T.accent[3] or T.textPrimary[3], 1)
-    end)
-    timerPreviewBtn:SetScript("OnClick", function()
-        local bla = SP.BloodlustAlert
-        if not bla then return end
-        timerPreviewActive = not timerPreviewActive
-        if timerPreviewActive then
-            bla:ShowTimerPreview()
-            local tf = _G["SPBLTimerFrame"]
-            if tf and tf.movableLbl then
-                tf.movableLbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-            end
-            timerPreviewBtn.lbl:SetText("Stop Preview")
-            timerPreviewBtn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-        else
-            bla:HideTimerPreview()
-            timerPreviewBtn.lbl:SetText("Preview")
-            timerPreviewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end
-    end)
-    card4:AddRow(timerPreviewWrap, 28)
-    table.insert(timerChildRows, timerPreviewWrap)
     card4:AddSeparator()
 
     -- X / Y offset — side by side
@@ -7188,32 +6928,10 @@ GUI:RegisterContent("deathalert", function(parent)
     local card6 = GUI:CreateCard(parent, "Position", y)
     table.insert(daChildCards, card6)
     card6:AddLabel(
-        "Click Preview to test the current look. Click Drag to Move to drag the frame anywhere on screen, then Lock Position when done. Fine-tune with the sliders below.",
+        "Click Preview to test the current look. Fine-tune the position with the sliders below.",
         T.textMuted)
     card6:AddSeparator()
 
-    -- Shared button style helper (border is handled separately via AnimateBorderFocus)
-    local function StyleActionBtn(btn, isActive)
-        if isActive then
-            btn:SetBackdropColor(T.accent[1], T.accent[2], T.accent[3], 0.25)
-            btn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-        else
-            btn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-            btn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end
-    end
-
-    -- ── Preview button (one-shot: fires the fade-in/out animation once, no toggle) ──
-    local previewWrap = CreateFrame("Frame", nil, parent)
-    previewWrap:SetHeight(28)
-    function previewWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-    local previewBtn = GUI:CreateButton(previewWrap, "Preview Death Alert", nil, 140, 28)
-    previewBtn:SetPoint("LEFT", previewWrap, "LEFT", 0, 0)
-    previewBtn:SetScript("OnClick", function()
-        if SP.DeathAlert then
-            SP.DeathAlert.Preview()   -- fires the fade-in/out animation once; self-completing
-        end
-    end)
     -- ── Anchor + Strata ──────────────────────────────────────
     local daAnchorRow, daAnchorRowH = GUI:CreateAnchorRow(parent, db, ApplySettings,
         { default = "HIGH", onChange = function() ApplySettings() end })
@@ -7231,55 +6949,6 @@ GUI:RegisterContent("deathalert", function(parent)
     daXYHRow:Add(yRow, 0.5)
     card6:AddRow(daXYHRow, 44)
     table.insert(daChildRows, daXYHRow)
-
-    -- Sync sliders when position is updated via drag
-    if SP.DeathAlert then
-        SP.DeathAlert._syncSliders = function(nx, ny)
-            if xRow and xRow.SetValue then xRow.SetValue(nx) end
-            if yRow and yRow.SetValue then yRow.SetValue(ny) end
-        end
-    end
-
-    card6:AddSeparator()
-
-    -- ── Preview + Drag to Move (below the anchor square) ─────
-    card6:AddRow(previewWrap, 28)
-    table.insert(daChildRows, previewWrap)
-
-    card6:AddSeparator()
-
-    local isDragging = false
-    local dragWrap   = CreateFrame("Frame", nil, parent)
-    dragWrap:SetHeight(28)
-    function dragWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-
-    local dragBtn = GUI:CreateButton(dragWrap, "Drag to Move", nil, 140, 28)
-    dragBtn:SetPoint("LEFT", dragWrap, "LEFT", 0, 0)
-
-    local function UpdateDragBtn()
-        if isDragging then
-            dragBtn.lbl:SetText("Lock Position")
-            StyleActionBtn(dragBtn, true)
-        else
-            dragBtn.lbl:SetText("Drag to Move")
-            StyleActionBtn(dragBtn, false)
-        end
-        AnimateBorderFocus(dragBtn, isDragging)
-    end
-
-    dragBtn:SetScript("OnLeave", function() UpdateDragBtn() end)
-    dragBtn:SetScript("OnClick", function()
-        if isDragging then
-            isDragging = false
-            if SP.DeathAlert then SP.DeathAlert.EndDragMode() end
-        else
-            isDragging = true
-            if SP.DeathAlert then SP.DeathAlert.StartDragMode() end
-        end
-        UpdateDragBtn()
-    end)
-    card6:AddRow(dragWrap, 28)
-    table.insert(daChildRows, dragWrap)
 
     y = y + card6:GetTotalHeight() + T.paddingSmall
 
@@ -7769,101 +7438,11 @@ GUI:RegisterContent("gatewayalert", function(parent)
     gaXYHRow:Add(gaYRow, 0.5)
     card3:AddRow(gaXYHRow, 44)
     table.insert(gaChildRows, gaXYHRow)
-    card3:AddSeparator()
-
-    -- Preview + Drag buttons
-    local function StyleGABtn(btn, isActive)
-        if isActive then
-            btn:SetBackdropColor(T.accent[1], T.accent[2], T.accent[3], 0.25)
-            btn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-        else
-            btn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-            btn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end
-    end
-
-    local gaPreviewActive = false
-    local gaPrevWrap = CreateFrame("Frame", nil, parent)
-    gaPrevWrap:SetHeight(28)
-    function gaPrevWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-
-    local gaPrevBtn = GUI:CreateButton(gaPrevWrap, "Preview", nil, 140, 28)
-    gaPrevBtn:SetPoint("LEFT", gaPrevWrap, "LEFT", 0, 0)
-
-    local function UpdateGAPrevBtn()
-        StyleGABtn(gaPrevBtn, gaPreviewActive)
-        gaPrevBtn.lbl:SetText(gaPreviewActive and "Stop Preview" or "Preview")
-        AnimateBorderFocus(gaPrevBtn, gaPreviewActive)
-    end
-
-    gaPrevBtn:SetScript("OnLeave", function() UpdateGAPrevBtn() end)
-    gaPrevBtn:SetScript("OnClick", function()
-        gaPreviewActive = not gaPreviewActive
-        if gaPreviewActive then
-            if SP.GatewayAlert then SP.GatewayAlert:ShowPreview() end
-        else
-            if SP.GatewayAlert then SP.GatewayAlert:HidePreview() end
-        end
-        UpdateGAPrevBtn()
-    end)
-    card3:AddRow(gaPrevWrap, 28)
-    table.insert(gaChildRows, gaPrevWrap)
-    card3:AddSeparator()
-
-    local gaDragActive = false
-    local gaDragWrap = CreateFrame("Frame", nil, parent)
-    gaDragWrap:SetHeight(28)
-    function gaDragWrap:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
-
-    local gaDragBtn = GUI:CreateButton(gaDragWrap, "Drag to Move", nil, 140, 28)
-    gaDragBtn:SetPoint("LEFT", gaDragWrap, "LEFT", 0, 0)
-
-    if SP.GatewayAlert then
-        SP.GatewayAlert._syncSliders = function(nx, ny)
-            if gaXRow.SetValue then gaXRow:SetValue(nx) end
-            if gaYRow.SetValue then gaYRow:SetValue(ny) end
-            db.x = nx; db.y = ny
-        end
-    end
-
-    local function UpdateGADragBtn()
-        StyleGABtn(gaDragBtn, gaDragActive)
-        gaDragBtn.lbl:SetText(gaDragActive and "Stop Moving" or "Drag to Move")
-        AnimateBorderFocus(gaDragBtn, gaDragActive)
-    end
-
-    gaDragBtn:SetScript("OnLeave", function() UpdateGADragBtn() end)
-    gaDragBtn:SetScript("OnClick", function()
-        gaDragActive = not gaDragActive
-        if gaDragActive then
-            if SP.GatewayAlert then SP.GatewayAlert:StartDragMode() end
-        else
-            if SP.GatewayAlert then SP.GatewayAlert:EndDragMode() end
-        end
-        UpdateGADragBtn()
-    end)
-    card3:AddRow(gaDragWrap, 28)
-    table.insert(gaChildRows, gaDragWrap)
 
     y = y + card3:GetTotalHeight() + T.paddingSmall
 
     -- Apply initial grey state
     UpdateGAState(db.enabled)
-
-    -- Cleanup preview/drag when navigating away (GatewayAlert.frame is parented to
-    -- UIParent, so hiding the page container does NOT hide it automatically).
-    parent:HookScript("OnHide", function()
-        if gaPreviewActive then
-            gaPreviewActive = false
-            if SP.GatewayAlert then SP.GatewayAlert:HidePreview() end
-            UpdateGAPrevBtn()
-        end
-        if gaDragActive then
-            gaDragActive = false
-            if SP.GatewayAlert then SP.GatewayAlert:EndDragMode() end
-            UpdateGADragBtn()
-        end
-    end)
 
     parent:SetHeight(y)
 end)
@@ -8822,36 +8401,6 @@ GUI:RegisterContent("combatcross", function(parent)
     ccXYHRow:Add(yRow, 0.5)
     card4:AddRow(ccXYHRow, 44)
     table.insert(childRows, ccXYHRow)
-    card4:AddSeparator()
-
-    -- Preview button
-    local previewActive = false
-    local previewWrap = CreateFrame("Frame", nil, parent)
-    previewWrap:SetHeight(28)
-    local previewBtn = GUI:CreateButton(previewWrap, "Preview", nil, 140, 28)
-    previewBtn:SetPoint("LEFT", previewWrap, "LEFT", 0, 0)
-    previewBtn:SetScript("OnLeave", function()
-        AnimateBorderFocus(previewBtn, previewActive)
-        previewBtn.lbl:SetTextColor(
-            previewActive and T.accent[1] or T.textPrimary[1],
-            previewActive and T.accent[2] or T.textPrimary[2],
-            previewActive and T.accent[3] or T.textPrimary[3], 1)
-    end)
-    previewBtn:SetScript("OnClick", function()
-        local cc = GetCC()
-        if not cc then return end
-        previewActive = not previewActive
-        if previewActive then
-            cc:ShowPreview()
-            previewBtn.lbl:SetText("Stop Preview")
-            previewBtn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-        else
-            cc:HidePreview()
-            previewBtn.lbl:SetText("Preview")
-            previewBtn.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        end
-    end)
-    card4:AddRow(previewWrap, 28)
 
     y = y + card4:GetTotalHeight() + T.paddingSmall
 
@@ -8945,6 +8494,20 @@ GUI:RegisterContent("reapmeter", function(parent)
             lbl2, r2, g2, b2, ColorCB(key2))
         AddHideToggle(row, key1, "BOTTOMRIGHT", "BOTTOM",       -8)
         AddHideToggle(row, key2, "BOTTOMRIGHT", "BOTTOMRIGHT",   0)
+        return row
+    end
+
+    -- Helper: stacked swatch with opacity slider in the color picker (alpha saved to db).
+    -- Includes a Hide/Show toggle button, matching the style of MakeSwatch.
+    local function MakeSwatchWithAlpha(label, key)
+        local c  = db.colors[key] or DC[key] or { 1, 1, 1, 1 }
+        local r0, g0, b0 = c[1], c[2], c[3]
+        local a0 = c[4] ~= nil and c[4] or 1
+        local row = GUI:CreateStackedColorSwatch(parent, label, r0, g0, b0, function(nr, ng, nb, na)
+            db.colors[key] = { nr, ng, nb, na ~= nil and na or 1 }
+            if mod and mod.ApplyColors then mod.ApplyColors() end
+        end, a0)
+        AddHideToggle(row, key, "BOTTOMRIGHT", "BOTTOMRIGHT", 0)
         return row
     end
 
@@ -9144,6 +8707,18 @@ GUI:RegisterContent("reapmeter", function(parent)
             L.fontKey = v; Call("ApplySize"); Call("ApplyFurySize")
         end), 44)
     card4:AddSeparator()
+    -- Bar texture (applies to all status bars in both soul and fury frames)
+    do
+        local texList = { "Solid" }
+        for _, n in ipairs(SP.GetStatusBarList()) do table.insert(texList, n) end
+        local curTex = L.barTexture or "Solid"
+        card4:AddRow(GUI:CreateDropdown(parent, "Bar Texture",
+            texList, curTex, function(v)
+                L.barTexture = (v == "Solid") and nil or v
+                Call("ApplyBarTexture")
+            end), 44)
+    end
+    card4:AddSeparator()
     card4:AddRow(MakeDualRow("Background", "bg", "Outer edge", "edge"), 52)
     card4:AddSeparator()
     local resetColWrap = CreateFrame("Frame", nil, parent)
@@ -9178,9 +8753,16 @@ GUI:RegisterContent("reapmeter", function(parent)
     card6:AddSeparator()
     card6:AddRow(MakeDualRow("Fury fill",           "furyFill",  "Scythes Embrace flat", "furyFlat"),  52)
     card6:AddSeparator()
-    card6:AddRow(MakeDualRow("Soul projection",     "furySoul",  "100-fury tick",        "furyTick"),  52)
+    do
+        local consumeRow   = MakeSwatchWithAlpha("Consume predict (cast overlay)", "furyConsume")
+        local furyLabelRow = MakeSwatch("Fury value text", "furyLabel")
+        local dualRow = GUI:CreateHRow(parent, 52, 8)
+        dualRow:Add(consumeRow,   0.5)
+        dualRow:Add(furyLabelRow, 0.5)
+        card6:AddRow(dualRow, 52)
+    end
     card6:AddSeparator()
-    card6:AddRow(MakeSwatch("Fury value text", "furyLabel"), 52)
+    card6:AddRow(MakeDualRow("Soul projection",     "furySoul",  "100-fury tick",        "furyTick"),  52)
     y = y + card6:GetTotalHeight() + T.paddingSmall
 
     -- ── Card 7: Fading ──────────────────────────────────────────
@@ -9232,3 +8814,414 @@ GUI:RegisterContent("reapmeter", function(parent)
     parent:SetHeight(y)
 end)
 
+-- ============================================================
+-- Page: Potion Alert
+-- ============================================================
+GUI:RegisterContent("potionalert", function(parent)
+    local T  = SP.Theme
+    local db = SP.GetDB().potionAlert
+    local y  = 0
+
+    local mod = SP.PotionAlert
+
+    local function ApplySettings()
+        if mod then mod:Refresh() end
+    end
+
+    local childRows  = {}
+    local childCards = {}
+    local enableRow
+    local card1
+
+    local function UpdateChildState(en)
+        card1:GrayContent(en, enableRow)
+        for _, r in ipairs(childRows)  do r:SetEnabled(en) end
+        for _, c in ipairs(childCards) do c:SetAlpha(en and 1 or 0.4) end
+    end
+
+    -- ── Card 1: Enable ────────────────────────────────────────
+    card1 = GUI:CreateCard(parent, "Potion Alert", y)
+    card1:AddLabel(
+        "Displays a text alert on screen when your combat potion comes off cooldown. Works in M+/Mythic dungeons and raids.",
+        T.textMuted)
+    card1:AddSeparator()
+
+    enableRow = GUI:CreateToggle(parent, "Enable Potion Alert", db.enabled,
+        function(v)
+            db.enabled = v
+            UpdateChildState(v)
+            ApplySettings()
+        end, "Potion Alert")
+    card1:AddRow(enableRow, 28)
+    card1:AddSeparator()
+
+    -- Context toggles side by side
+    local ctxHRow = GUI:CreateHRow(parent, 28)
+    local dunRow = GUI:CreateToggle(parent, "Enable in M+", db.enabledInDungeons,
+        function(v) db.enabledInDungeons = v end, "M+")
+    local raidRow = GUI:CreateToggle(parent, "Enable in Raids", db.enabledInRaids,
+        function(v) db.enabledInRaids = v end, "Raids")
+    ctxHRow:Add(dunRow,  0.5)
+    ctxHRow:Add(raidRow, 0.5)
+    card1:AddRow(ctxHRow, 28)
+    table.insert(childRows, ctxHRow)
+
+    y = y + card1:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 2: Display ───────────────────────────────────────
+    local card2 = GUI:CreateCard(parent, "Display", y)
+    table.insert(childCards, card2)
+    card2:AddLabel("Customise the text, font, size, and colour of the alert.", T.textMuted)
+    card2:AddSeparator()
+
+    -- Display text editbox
+    local wtLblFrame = CreateFrame("Frame", nil, parent)
+    wtLblFrame:SetHeight(44)
+    local wtLabel = wtLblFrame:CreateFontString(nil, "OVERLAY")
+    wtLabel:SetPoint("TOPLEFT", wtLblFrame, "TOPLEFT", 0, -2)
+    ApplyFont(wtLabel, 11)
+    wtLabel:SetText("Alert Text")
+    wtLabel:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+    local wtBox = CreateFrame("EditBox", nil, wtLblFrame, "BackdropTemplate")
+    wtBox:SetSize(200, 22)
+    wtBox:SetPoint("TOPLEFT", wtLblFrame, "TOPLEFT", 0, -18)
+    wtBox:SetAutoFocus(false)
+    wtBox:SetMaxLetters(64)
+    wtBox:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+    wtBox:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    wtBox:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+    wtBox:SetTextInsets(6, 6, 0, 0)
+    ApplyFont(wtBox, 11)
+    wtBox:SetText(db.displayText or "Potion Ready")
+    wtBox:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+    wtBox:SetScript("OnEditFocusGained", function() AnimateBorderFocus(wtBox, true)  end)
+    wtBox:SetScript("OnEditFocusLost",   function() AnimateBorderFocus(wtBox, false) end)
+    wtBox:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+        db.displayText = self:GetText()
+        ApplySettings()
+    end)
+    wtBox:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+        self:SetText(db.displayText or "Potion Ready")
+    end)
+    function wtLblFrame:SetEnabled(en)
+        self:SetAlpha(en and 1 or 0.4)
+        wtBox:SetEnabled(en)
+    end
+    card2:AddRow(wtLblFrame, 44)
+    table.insert(childRows, wtLblFrame)
+    card2:AddSeparator()
+
+    -- Font Face
+    local fontFaceRow = GUI:CreateFontDropdown(parent, "Font Face",
+        db.fontFace or "Expressway",
+        function(v) db.fontFace = v; ApplySettings() end)
+    card2:AddRow(fontFaceRow, 44)
+    table.insert(childRows, fontFaceRow)
+    card2:AddSeparator()
+
+    -- Font Size + Outline side by side
+    local fontHRow = GUI:CreateHRow(parent, 44)
+    local fontSzRow = GUI:CreateSlider(parent, "Font Size", 8, 60, 1,
+        db.fontSize or 20,
+        function(v) db.fontSize = v; ApplySettings() end)
+    local outlineRow = GUI:CreateDropdown(parent, "Outline",
+        { "NONE", "OUTLINE", "THICKOUTLINE" },
+        db.fontOutline or "OUTLINE",
+        function(v) db.fontOutline = v; ApplySettings() end)
+    fontHRow:Add(fontSzRow,  0.55)
+    fontHRow:Add(outlineRow, 0.45)
+    card2:AddRow(fontHRow, 44)
+    table.insert(childRows, fontHRow)
+    card2:AddSeparator()
+
+    -- Text Color with source
+    local colorSrcRow, colorSwRow = GUI:CreateColorWithSource(
+        parent, "Text Color", db, "colorSource", "color", { 0.4, 1, 0.4 },
+        function() ApplySettings() end)
+    card2:AddRow(colorSrcRow, 44)
+    table.insert(childRows, colorSrcRow)
+    card2:AddSeparator()
+    card2:AddRow(colorSwRow, 52)
+    table.insert(childRows, colorSwRow)
+    card2:AddSeparator()
+
+    -- Display Duration slider (0 = stay forever)
+    local durSliderRow = GUI:CreateSlider(parent, "Display Duration (s, 0 = permanent)", 0, 30, 1,
+        db.displayDuration or 5,
+        function(v) db.displayDuration = v end)
+    card2:AddRow(durSliderRow, 44)
+    table.insert(childRows, durSliderRow)
+
+    y = y + card2:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 3: Position ──────────────────────────────────────
+    local card3 = GUI:CreateCard(parent, "Position", y)
+    table.insert(childCards, card3)
+    card3:AddLabel(
+        "Click Preview to test the current look. Fine-tune the position with the sliders.",
+        T.textMuted)
+    card3:AddSeparator()
+
+    local anchorRow, anchorRowH = GUI:CreateAnchorRow(parent, db, ApplySettings,
+        { default = "HIGH", onChange = function() ApplySettings() end })
+    card3:AddRow(anchorRow, anchorRowH)
+    table.insert(childRows, anchorRow)
+    card3:AddSeparator()
+
+    -- X / Y offsets side by side
+    local xyHRow = GUI:CreateHRow(parent, 44)
+    local paXRow = GUI:CreateSlider(parent, "X Offset", -2000, 2000, 1,
+        db.x or 0,
+        function(v) db.x = v; ApplySettings() end)
+    local paYRow = GUI:CreateSlider(parent, "Y Offset", -2000, 2000, 1,
+        db.y or 200,
+        function(v) db.y = v; ApplySettings() end)
+    xyHRow:Add(paXRow, 0.5)
+    xyHRow:Add(paYRow, 0.5)
+    card3:AddRow(xyHRow, 44)
+    table.insert(childRows, xyHRow)
+
+    y = y + card3:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 4: TTS ───────────────────────────────────────────
+    local card4 = GUI:CreateCard(parent, "Text-to-Speech", y)
+    table.insert(childCards, card4)
+    card4:AddLabel(
+        "When enabled, the game's text-to-speech engine reads a message aloud when the potion comes off cooldown.",
+        T.textMuted)
+    card4:AddSeparator()
+
+    -- TTS enable toggle
+    local ttsTextFrame, ttsVolRow, ttsVoiceRow  -- forward-declared for toggle closure
+    local ttsToggleRow = GUI:CreateToggle(parent, "Play TTS", db.playTTS or false,
+        function(v)
+            db.playTTS = v
+            if ttsTextFrame then ttsTextFrame:SetEnabled(v) end
+            if ttsVolRow    then ttsVolRow:SetEnabled(v)    end
+            if ttsVoiceRow  then ttsVoiceRow:SetEnabled(v)  end
+        end, "TTS")
+    card4:AddRow(ttsToggleRow, 28)
+    table.insert(childRows, ttsToggleRow)
+    card4:AddSeparator()
+
+    -- TTS message editbox + Test button on the same row
+    ttsTextFrame = CreateFrame("Frame", nil, parent)
+    ttsTextFrame:SetHeight(44)
+    local ttsLabel = ttsTextFrame:CreateFontString(nil, "OVERLAY")
+    ttsLabel:SetPoint("TOPLEFT", ttsTextFrame, "TOPLEFT", 0, -2)
+    ApplyFont(ttsLabel, 11)
+    ttsLabel:SetText("TTS Message")
+    ttsLabel:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+    local ttsBox = CreateFrame("EditBox", nil, ttsTextFrame, "BackdropTemplate")
+    ttsBox:SetSize(180, 22)
+    ttsBox:SetPoint("TOPLEFT", ttsTextFrame, "TOPLEFT", 0, -18)
+    ttsBox:SetAutoFocus(false)
+    ttsBox:SetMaxLetters(128)
+    ttsBox:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+    ttsBox:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    ttsBox:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+    ttsBox:SetTextInsets(6, 6, 0, 0)
+    ApplyFont(ttsBox, 11)
+    ttsBox:SetText(db.ttsText or "Potion Ready")
+    ttsBox:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+    ttsBox:SetScript("OnEditFocusGained", function() AnimateBorderFocus(ttsBox, true)  end)
+    ttsBox:SetScript("OnEditFocusLost",   function() AnimateBorderFocus(ttsBox, false) end)
+    ttsBox:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+        db.ttsText = self:GetText()
+    end)
+    ttsBox:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+        self:SetText(db.ttsText or "Potion Ready")
+    end)
+
+    -- Test button — sits to the right of the editbox
+    local ttsTestBtn = GUI:CreateButton(ttsTextFrame, "Test", nil, 46, 22)
+    ttsTestBtn:SetPoint("TOPLEFT", ttsBox, "TOPRIGHT", 6, 0)
+    ttsTestBtn.lbl:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+    ttsTestBtn:SetScript("OnEnter", function() AnimateBorderFocus(ttsTestBtn, true)  end)
+    ttsTestBtn:SetScript("OnLeave", function() AnimateBorderFocus(ttsTestBtn, false) end)
+    ttsTestBtn:SetScript("OnClick", function()
+        local text = ttsBox:GetText()
+        if text and text ~= "" then
+            C_VoiceChat.SpeakText(db.ttsVoiceId or 0, text, 1, db.ttsVolume or 75, true)
+        end
+    end)
+
+    function ttsTextFrame:SetEnabled(en)
+        self:SetAlpha(en and 1 or 0.4)
+        ttsBox:SetEnabled(en)
+        ttsTestBtn:EnableMouse(en)
+    end
+    card4:AddRow(ttsTextFrame, 44)
+    table.insert(childRows, ttsTextFrame)
+    card4:AddSeparator()
+
+    -- TTS Volume slider
+    ttsVolRow = GUI:CreateSlider(parent, "TTS Volume", 0, 100, 1,
+        db.ttsVolume or 75,
+        function(v) db.ttsVolume = v end)
+    card4:AddRow(ttsVolRow, 44)
+    table.insert(childRows, ttsVolRow)
+    card4:AddSeparator()
+
+    -- Voice dropdown — wrapper frame so we can rebuild the button on every page-show.
+    -- GUI:CreateDropdown builds the popup eagerly, so if GetTTSVoices() returns empty
+    -- at first visit the list stays empty forever. Instead we use the inner
+    -- CreateDropdown (lazy popup) and rebuild via _onPageShow each time the page is shown.
+    do
+        ttsVoiceRow = CreateFrame("Frame", nil, parent)
+        ttsVoiceRow:SetHeight(44)
+        function ttsVoiceRow:SetEnabled(en) self:SetAlpha(en and 1 or 0.4) end
+
+        local voiceLbl = ttsVoiceRow:CreateFontString(nil, "OVERLAY")
+        voiceLbl:SetPoint("TOPLEFT", ttsVoiceRow, "TOPLEFT", 0, -2)
+        ApplyFont(voiceLbl, 11)
+        voiceLbl:SetText("Voice")
+        voiceLbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+
+        local voiceDropBtn = nil
+
+        -- Event frame: rebuild the dropdown when Blizzard signals TTS voices are ready.
+        -- (Same approach as TimelineReminders/ReminderConfig.lua.)
+        local voiceEventFrame = CreateFrame("Frame")
+        voiceEventFrame:RegisterEvent("VOICE_CHAT_TTS_VOICES_UPDATE")
+
+        local function BuildVoiceDD()
+            -- Hide previous button (can't delete frames in WoW)
+            if voiceDropBtn then voiceDropBtn:Hide() end
+
+            local voiceNames  = {}
+            local voiceIds    = {}
+            local currentName = "Default"
+
+            if C_VoiceChat and C_VoiceChat.GetTtsVoices then
+                local ok, voices = pcall(C_VoiceChat.GetTtsVoices)
+                if ok and voices and #voices > 0 then
+                    for _, v in ipairs(voices) do
+                        local name = (v.name and v.name ~= "") and v.name
+                                     or ("Voice " .. tostring(v.voiceID))
+                        table.insert(voiceNames, name)
+                        voiceIds[name] = v.voiceID
+                        if v.voiceID == (db.ttsVoiceId or 0) then
+                            currentName = name
+                        end
+                    end
+                end
+            end
+
+            if #voiceNames == 0 then
+                voiceNames         = { "Default" }
+                voiceIds["Default"] = 0
+            end
+
+            -- Use the inner CreateDropdown (lazy popup) with 220 px width
+            voiceDropBtn = CreateDropdown(ttsVoiceRow, StrOptions(voiceNames), currentName,
+                function(v) db.ttsVoiceId = voiceIds[v] or 0 end, 220)
+            voiceDropBtn:SetPoint("BOTTOMLEFT", ttsVoiceRow, "BOTTOMLEFT", 0, 0)
+        end
+
+        voiceEventFrame:SetScript("OnEvent", function(_, event)
+            if event == "VOICE_CHAT_TTS_VOICES_UPDATE" then
+                BuildVoiceDD()
+            end
+        end)
+
+        BuildVoiceDD()
+        card4:AddRow(ttsVoiceRow, 44)
+        table.insert(childRows, ttsVoiceRow)
+
+        -- Rebuild the voice list every time this page becomes visible so that
+        -- voices available after first load (or after a /reload) are picked up.
+        local prevShow = parent._onPageShow
+        parent._onPageShow = function()
+            if prevShow then prevShow() end
+            BuildVoiceDD()
+        end
+    end
+
+    -- Grey out TTS controls if TTS is off
+    local ttsOn = db.playTTS or false
+    ttsTextFrame:SetEnabled(ttsOn)
+    ttsVolRow:SetEnabled(ttsOn)
+    ttsVoiceRow:SetEnabled(ttsOn)
+
+    y = y + card4:GetTotalHeight() + T.paddingSmall
+
+    -- Initial state
+    UpdateChildState(db.enabled)
+
+    parent:SetHeight(y)
+end)
+
+-- ============================================================
+-- PetStatus
+-- ============================================================
+GUI:RegisterContent("petstatus", function(parent)
+    local T  = SP.Theme
+    local db = SP.GetDB().petStatus
+    local y  = 0
+    local mod = SP.PetStatus
+
+    local childRows  = {}
+    local childCards = {}
+    local enableRow
+    local card1
+
+    local function ApplySettings()
+        if mod then mod:ApplySettings() end
+        GUI.UpdateSidebarCheckmarks()
+    end
+
+    local function UpdateChildState(en)
+        card1:GrayContent(en, enableRow)
+        for _, r in ipairs(childRows)  do r:SetEnabled(en) end
+        for _, c in ipairs(childCards) do c:SetAlpha(en and 1 or 0.4) end
+    end
+
+    -- ── Card 1: Enable ────────────────────────────────────────
+    card1 = GUI:CreateCard(parent, "Pet Status Texts", y)
+    card1:AddLabel(
+        "Displays a text reminder when your pet is missing, dead, or set to passive stance. Works for Hunter, Warlock, Unholy DK, and Arcane Mage.",
+        T.textMuted)
+    card1:AddSeparator()
+
+    enableRow = GUI:CreateToggle(parent, "Enable Pet Status Texts", db.enabled,
+        function(v)
+            db.enabled = v
+            UpdateChildState(v)
+            if mod then
+                if v then
+                    mod:SetEnabledState(true)
+                    mod:Refresh()
+                else
+                    mod:OnDisable()
+                end
+            end
+            ApplySettings()
+        end, "Pet Status")
+    card1:AddRow(enableRow, 28)
+
+    y = y + card1:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 2: State Settings ────────────────────────────────
+    local card2 = GUI:CreateCard(parent, "State Settings", y)
+    table.insert(childCards, card2)
+    card2:AddLabel("Customise the alert text and colour for each pet state.", T.textMuted)
+    card2:AddSeparator()
+
+    -- Helper: builds a text-editbox + color-swatch HRow for one state
+    local function MakeStateRow(labelText, dbTextKey, colorLabel, dbColorKey)
+        local hrow = GUI:CreateHRow(parent, 52)
+
+        -- Left: label + editbox
+        local leftFrame = CreateFrame("Frame", nil, parent)
+        leftFrame:SetHeight(52)
+
+        local lbl = leftFrame:CreateFontString(nil, "OVERLAY")
+        lbl:SetPoint("TOPLEFT", leftFrame, "TOPLEFT", 0, -2)
+        ApplyFont(lbl, 11)
+        lbl:SetText(labelText)
+        lbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3
