@@ -37,7 +37,6 @@ local PET_CLASSES = {
     HUNTER      = { summonSpellId = 883,   specId = nil },
     WARLOCK     = { summonSpellId = 688,   specId = nil },
     DEATHKNIGHT = { summonSpellId = 46584, specId = 252 }, -- Unholy only
-    MAGE        = { summonSpellId = 31687, specId = 64  }, -- Arcane only
 }
 
 -- ============================================================

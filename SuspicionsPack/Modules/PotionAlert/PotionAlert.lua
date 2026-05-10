@@ -26,6 +26,8 @@ local POTION_IDS = {
     -- Midnight
     241292, 241293,           -- Draught of Rampant Abandon
     241308, 241309,           -- Light's Potential
+    241288,                   -- Potion of Recklessness
+    245902,                   -- Fleeting Potion of Recklessness
 }
 
 local DEFAULT_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"

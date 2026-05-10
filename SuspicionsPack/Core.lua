@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.7.3"
+SP.VERSION = "1.8.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1197,6 +1197,10 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["1.8.0"] = {
+        { type = "new", text = "PotionAlert: new module — shows a configurable text alert when your combat potion comes off cooldown (Tempered Potion, Draught of Rampant Abandon, Light's Potential, Potion of Recklessness). Active in M+ and raids only." },
+        { type = "new", text = "PetStatus: new module — displays PET MISSING / PET DEAD / PET PASSIVE text alert for Hunter, Warlock, and Unholy DK." },
+    },
     ["1.7.3"] = {
         { type = "fix",    text = "MovementAlert: guard isOnGCD comparisons with issecretvalue to fix taint error crashing Blizzard_CooldownViewer" },
         { type = "fix",    text = "GUI: add AnimateBorderFocus focus animation to all remaining EditBox widgets (Durability, Auto Invite, Death Alert, Craft Shopper)" },
@@ -1239,7 +1243,7 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
+SP.ChangelogOrder = { "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
@@ -1425,4 +1429,105 @@ function SP.ShowChangelogPopup()
     sepBot:SetColorTexture(ac[1], ac[2], ac[3], 0.20)
 
     -- ── close button — mirrors GUI:CreateButton style ─────────
-    local closeBtn = CreateFrame("Button", nil, footer, "Ba
+    local closeBtn = CreateFrame("Button", nil, footer, "BackdropTemplate")
+    closeBtn:SetSize(120, 26)
+    closeBtn:SetPoint("CENTER", footer, "CENTER", 0, 0)
+    closeBtn:SetBackdrop({ bgFile   = "Interface\\Buttons\\WHITE8X8",
+                           edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    closeBtn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    closeBtn:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+
+    local closeLbl = closeBtn:CreateFontString(nil, "OVERLAY")
+    closeLbl:SetAllPoints()
+    closeLbl:SetFont(SP_CL_FONT, 12, "")
+    closeLbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+    closeLbl:SetJustifyH("CENTER")
+    closeLbl:SetText("Got it!")
+
+    closeBtn:SetScript("OnEnter", function(btn) CL_AnimateBorderFocus(btn, true)  end)
+    closeBtn:SetScript("OnLeave", function(btn) CL_AnimateBorderFocus(btn, false) end)
+    closeBtn:SetScript("OnClick", function() f:Hide() end)
+
+    -- ESC closes the popup
+    tinsert(UISpecialFrames, "SP_ChangelogPopup")
+
+    SP._changelogFrame = f
+    f:Show()
+end
+
+-- ============================================================
+-- Preview Manager
+-- Automatically shows all enabled positioned-frame modules in
+-- preview mode while the SP GUI is open, and hides them on close.
+-- Mirrors NorskenUI's PreviewManager pattern (Core/Globals.lua).
+-- ============================================================
+local PreviewManager = {}
+SP.PreviewManager = PreviewManager
+
+-- { mod = key on SP global, dbKey = key in GetDB(), show/hide = method names }
+local PREVIEW_MODULES = {
+    { mod = "Durability",     dbKey = "durability",     show = "ShowPreview",      hide = "HidePreview"      },
+    { mod = "CombatTimer",    dbKey = "combatTimer",    show = "ShowPreview",      hide = "HidePreview"      },
+    { mod = "MovementAlert",  dbKey = "movementAlert",  show = "ShowPreview",      hide = "HidePreview"      },
+    { mod = "GatewayAlert",   dbKey = "gatewayAlert",   show = "ShowPreview",      hide = "HidePreview"      },
+    { mod = "CombatCross",    dbKey = "combatCross",    show = "ShowPreview",      hide = "HidePreview"      },
+    { mod = "PotionAlert",    dbKey = "potionAlert",    show = "ShowPreview",      hide = "HidePreview"      },
+    { mod = "PetStatus",     dbKey = "petStatus",      show = "ShowPreview",      hide = "HidePreview"      },
+    -- BloodlustAlert exposes the timer frame via its own preview methods
+    { mod = "BloodlustAlert", dbKey = "bloodlustAlert", dbSubKey = "timerEnabled", show = "ShowTimerPreview", hide = "HideTimerPreview" },
+}
+
+PreviewManager.active = false
+
+function PreviewManager:Start()
+    if self.active then return end
+    self.active = true
+    local db = SP.GetDB()
+    if not db then return end
+    for _, entry in ipairs(PREVIEW_MODULES) do
+        local mod = SP[entry.mod]
+        if mod then
+            local mdb = db[entry.dbKey]
+            if mdb then
+                -- dbSubKey entries use ~=false so that nil (not yet set) counts as enabled,
+                -- while an explicit false (user disabled) suppresses the preview.
+                local enabled = entry.dbSubKey
+                    and (mdb.enabled and mdb[entry.dbSubKey] ~= false)
+                    or  mdb.enabled
+                if enabled and mod[entry.show] then
+                    mod[entry.show](mod)
+                end
+            end
+        end
+    end
+end
+
+function PreviewManager:Stop()
+    if not self.active then return end
+    self.active = false
+    for _, entry in ipairs(PREVIEW_MODULES) do
+        local mod = SP[entry.mod]
+        if mod and mod[entry.hide] then
+            mod[entry.hide](mod)
+        end
+    end
+end
+
+-- ============================================================
+-- SP.CheckChangelog()
+-- Called on PLAYER_LOGIN. Shows the popup once per version.
+-- ============================================================
+function SP.CheckChangelog()
+    local db = SP.GetDB()
+    if not db or not db.settings then return end
+    if db.settings.lastSeenVersion == SP.VERSION then return end
+    -- Only show if there's actually changelog data for this version
+    if not SP.Changelog[SP.VERSION] then return end
+
+    db.settings.lastSeenVersion = SP.VERSION
+
+    -- Small delay so the UI is fully loaded before we show the popup
+    C_Timer.After(3, function()
+        SP.ShowChangelogPopup()
+    end)
+end
