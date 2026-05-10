@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.8.1"
+SP.VERSION = "1.8.2"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1197,6 +1197,9 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["1.8.2"] = {
+        { type = "fix", text = "Hotfix: corrected corrupted files from v1.8.1 release (GUI.lua truncated, MovementAlert/Durability/ReapPredict ended with null bytes). TROLLEG" },
+    },
     ["1.8.1"] = {
         { type = "fix", text = "Hotfix: corrected truncated Core.lua from v1.8.0 release." },
     },
@@ -1246,7 +1249,7 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
+SP.ChangelogOrder = { "1.8.2", "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
@@ -1525,12 +1528,4 @@ function SP.CheckChangelog()
     if not db or not db.settings then return end
     if db.settings.lastSeenVersion == SP.VERSION then return end
     -- Only show if there's actually changelog data for this version
-    if not SP.Changelog[SP.VERSION] then return end
-
-    db.settings.lastSeenVersion = SP.VERSION
-
-    -- Small delay so the UI is fully loaded before we show the popup
-    C_Timer.After(3, function()
-        SP.ShowChangelogPopup()
-    end)
-end
+    if not SP.Changelog[SP.VERSIO

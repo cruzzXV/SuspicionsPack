@@ -9224,4 +9224,119 @@ GUI:RegisterContent("petstatus", function(parent)
         lbl:SetPoint("TOPLEFT", leftFrame, "TOPLEFT", 0, -2)
         ApplyFont(lbl, 11)
         lbl:SetText(labelText)
-        lbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3
+        lbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+
+        local eb = CreateFrame("EditBox", nil, leftFrame, "BackdropTemplate")
+        eb:SetHeight(22)
+        eb:SetPoint("TOPLEFT",  leftFrame, "TOPLEFT",  0, -20)
+        eb:SetPoint("TOPRIGHT", leftFrame, "TOPRIGHT", 0, -20)
+        eb:SetAutoFocus(false)
+        eb:SetMaxLetters(48)
+        eb:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
+        eb:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+        eb:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
+        eb:SetTextInsets(6, 6, 0, 0)
+        ApplyFont(eb, 11)
+        eb:SetText(db[dbTextKey] or "")
+        eb:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+        eb:SetScript("OnEditFocusGained", function() AnimateBorderFocus(eb, true)  end)
+        eb:SetScript("OnEditFocusLost",   function() AnimateBorderFocus(eb, false) end)
+        eb:SetScript("OnEnterPressed", function(self)
+            self:ClearFocus()
+            db[dbTextKey] = self:GetText()
+            if mod and mod.UpdateDisplay then mod:UpdateDisplay() end
+        end)
+        eb:SetScript("OnEscapePressed", function(self)
+            self:ClearFocus()
+            self:SetText(db[dbTextKey] or "")
+        end)
+        function leftFrame:SetEnabled(en)
+            self:SetAlpha(en and 1 or 0.4)
+            eb:SetEnabled(en)
+        end
+
+        -- Right: stacked color swatch
+        local col   = db[dbColorKey] or { 1, 1, 1, 1 }
+        local swRow = GUI:CreateStackedColorSwatch(parent, colorLabel,
+            col[1], col[2], col[3],
+            function(r, g, b)
+                db[dbColorKey] = { r, g, b, db[dbColorKey] and db[dbColorKey][4] or 1 }
+                if mod and mod.UpdateDisplay then mod:UpdateDisplay() end
+            end)
+
+        hrow:Add(leftFrame, 0.55)
+        hrow:Add(swRow,     0.45)
+
+        table.insert(childRows, hrow)
+        return hrow
+    end
+
+    local missingRow = MakeStateRow("Pet Missing Text", "missingText", "Missing Color", "missingColor")
+    card2:AddRow(missingRow, 52)
+    card2:AddSeparator()
+
+    local deadRow    = MakeStateRow("Pet Dead Text",    "deadText",    "Dead Color",    "deadColor")
+    card2:AddRow(deadRow, 52)
+    card2:AddSeparator()
+
+    local passiveRow = MakeStateRow("Pet Passive Text", "passiveText", "Passive Color", "passiveColor")
+    card2:AddRow(passiveRow, 52)
+
+    y = y + card2:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 3: Font Settings ─────────────────────────────────
+    local card3 = GUI:CreateCard(parent, "Font Settings", y)
+    table.insert(childCards, card3)
+
+    local fontFaceRow = GUI:CreateFontDropdown(parent, "Font",
+        db.fontFace or "Expressway",
+        function(v) db.fontFace = v; ApplySettings() end)
+    card3:AddRow(fontFaceRow, 44)
+    table.insert(childRows, fontFaceRow)
+    card3:AddSeparator()
+
+    local fontHRow = GUI:CreateHRow(parent, 44)
+    local fontSzRow = GUI:CreateSlider(parent, "Font Size", 8, 60, 1,
+        db.fontSize or 25,
+        function(v) db.fontSize = v; ApplySettings() end)
+    local outlineRow = GUI:CreateDropdown(parent, "Outline",
+        { "NONE", "OUTLINE", "THICKOUTLINE", "SOFTOUTLINE" },
+        db.fontOutline or "SOFTOUTLINE",
+        function(v) db.fontOutline = v; ApplySettings() end)
+    fontHRow:Add(fontSzRow,  0.55)
+    fontHRow:Add(outlineRow, 0.45)
+    card3:AddRow(fontHRow, 44)
+    table.insert(childRows, fontHRow)
+
+    y = y + card3:GetTotalHeight() + T.paddingSmall
+
+    -- ── Card 4: Position Settings ─────────────────────────────
+    local card4 = GUI:CreateCard(parent, "Position Settings", y)
+    table.insert(childCards, card4)
+
+    local anchorRow, anchorRowH = GUI:CreateAnchorRow(parent, db, ApplySettings,
+        { default = "HIGH", onChange = function() ApplySettings() end })
+    card4:AddRow(anchorRow, anchorRowH)
+    table.insert(childRows, anchorRow)
+    card4:AddSeparator()
+
+    local xyHRow = GUI:CreateHRow(parent, 44)
+    local psXRow = GUI:CreateSlider(parent, "X Offset", -2000, 2000, 1,
+        db.x or 0,
+        function(v) db.x = v; ApplySettings() end)
+    local psYRow = GUI:CreateSlider(parent, "Y Offset", -2000, 2000, 1,
+        db.y or 105,
+        function(v) db.y = v; ApplySettings() end)
+    xyHRow:Add(psXRow, 0.5)
+    xyHRow:Add(psYRow, 0.5)
+    card4:AddRow(xyHRow, 44)
+    table.insert(childRows, xyHRow)
+
+    y = y + card4:GetTotalHeight() + T.paddingSmall
+
+    -- Initial enabled state
+    UpdateChildState(db.enabled)
+
+    parent:SetHeight(y)
+end)
+
