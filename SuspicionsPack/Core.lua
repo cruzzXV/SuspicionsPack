@@ -1198,7 +1198,7 @@ end
 -- ============================================================
 SP.Changelog = {
     ["1.8.2"] = {
-        { type = "fix", text = "Hotfix: corrected corrupted files from v1.8.1 release (GUI.lua truncated, MovementAlert/Durability/ReapPredict ended with null bytes). TROLLEG" },
+        { type = "fix", text = "Hotfix: corrected corrupted files from v1.8.1 release (GUI.lua truncated, MovementAlert\/Durability\/ReapPredict ended with null bytes). TROLLEG" },
     },
     ["1.8.1"] = {
         { type = "fix", text = "Hotfix: corrected truncated Core.lua from v1.8.0 release." },
@@ -1528,4 +1528,12 @@ function SP.CheckChangelog()
     if not db or not db.settings then return end
     if db.settings.lastSeenVersion == SP.VERSION then return end
     -- Only show if there's actually changelog data for this version
-    if not SP.Changelog[SP.VERSIO
+    if not SP.Changelog[SP.VERSION] then return end
+
+    db.settings.lastSeenVersion = SP.VERSION
+
+    -- Small delay so the UI is fully loaded before we show the popup
+    C_Timer.After(3, function()
+        SP.ShowChangelogPopup()
+    end)
+end
