@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.8.0"
+SP.VERSION = "1.8.1"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1197,6 +1197,9 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["1.8.1"] = {
+        { type = "fix", text = "Hotfix: corrected truncated Core.lua from v1.8.0 release." },
+    },
     ["1.8.0"] = {
         { type = "new", text = "PotionAlert: new module — shows a configurable text alert when your combat potion comes off cooldown (Tempered Potion, Draught of Rampant Abandon, Light's Potential, Potion of Recklessness). Active in M+ and raids only." },
         { type = "new", text = "PetStatus: new module — displays PET MISSING / PET DEAD / PET PASSIVE text alert for Hunter, Warlock, and Unholy DK." },
@@ -1243,7 +1246,7 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
+SP.ChangelogOrder = { "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
