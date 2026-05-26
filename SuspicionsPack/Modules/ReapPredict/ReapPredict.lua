@@ -1,12 +1,7 @@
 -- SuspicionsPack — ReapPredict Module
--- Devourer DH dual-phase meter. Forked from ReapPredict by Tom Herbert.
--- Tracks when Reap will trigger the next phase ability (Void Metamorphosis
--- or Collapsing Star). Activates automatically for Devourer DH only.
---
--- Ported changes vs. original:
---   - ReapMeterDB → SP.GetDB().reapMeter (AceDB, shared profile)
---   - Standalone boot frame → SP:NewModule lifecycle
---   - All other logic is verbatim.
+-- Devourer DH dual-phase meter. Tracks when Reap will trigger the next
+-- phase ability (Void Metamorphosis or Collapsing Star).
+-- Activates automatically for Devourer DH only.
 local SP = SuspicionsPack
 
 local ReapPredict = SP:NewModule("ReapPredict", "AceEvent-3.0")
@@ -20,7 +15,7 @@ local function GetDB()
 end
 
 -- ============================================================
--- Verbatim constants / locals from ReapPredict.lua
+-- Constants
 -- ============================================================
 local issecretvalue = _G.issecretvalue or function() return false end
 
@@ -503,7 +498,7 @@ local function ApplyPhaseMode(inVM)
 end
 
 -- Draw 1-px separator lines at every Reap-stack boundary across the full bar.
--- Mirrors the Ayije CDM soul-bar cell style. Called on phase change and resize.
+-- Called on phase change and resize.
 RebuildCellSeparators = function()
     if not frame or not frame.overlay then return end
     local db  = GetDB()
@@ -1354,7 +1349,7 @@ SyncToCDMNow = function()
 end
 
 -- ============================================================
--- Fading system  (mirrors Ayije CDM Fading.lua)
+-- Fading system
 -- Triggers: no target / out of combat / mounted.
 -- 0.3 s linear alpha animation on both frame and furyFrame.
 -- ============================================================
@@ -1731,7 +1726,7 @@ local function CheckCDMSetup()
 end
 
 -- ============================================================
--- Blizzard Settings panel (verbatim)
+-- Blizzard Settings panel
 -- ============================================================
 local DumpState
 local DumpCDMViewer
@@ -1999,7 +1994,7 @@ function DumpState()
     print(("  fury: %s / %d   ScythesEmbrace=%s   Reap fury=%d+%d*souls"):format(
         ok and secretSafeStr(fury) or "error", VOID_RAY_COST,
         tostring(scythesEmbraceKnown), flat, REAP_SOUL_FURY))
-    local cdID = FindCDMCooldownIDForSpells(MOC_SPELLIDS)
+    local cdID = FindCDMCooldownIDForSpells({ 1238495, 1238488 })
     print(("  MoC cdID=%s; cdmBackup=%s"):format(
         tostring(cdID),
         db and (db.cdmBackup and "saved" or "missing") or "no DB"))

@@ -1,8 +1,5 @@
 -- SuspicionsPack - CombatCross.lua
--- Displays a "+" crosshair text on screen during combat.
--- Forked from NorskenUI's CombatCross.lua.
--- Range coloring: turns the cross red when the target is out of range,
--- using a per-spec reference spell to detect range.
+-- Affiche un "+" à l'écran en combat. Passe en rouge hors de portée.
 
 local SP = SuspicionsPack
 
@@ -35,7 +32,7 @@ local function GetDB()
 end
 
 -- ============================================================
--- Spec → range ability tables (ported from NorskenUI verbatim)
+-- Spec → range ability tables
 -- ============================================================
 
 -- Melee specs: specID → a short-range spell for IsSpellInRange
@@ -204,7 +201,6 @@ function CC:UpdateOnUpdateState()
     end
 end
 
--- Throttled at RANGE_UPDATE_THROTTLE seconds (0.1 s)
 function CC:OnUpdate(elapsed)
     rangeUpdateElapsed = rangeUpdateElapsed + elapsed
     if rangeUpdateElapsed < RANGE_UPDATE_THROTTLE then return end
@@ -277,7 +273,7 @@ function CC:ApplySettings()
 end
 
 -- ============================================================
--- Show / Hide (dual-state: preview OR real combat)
+-- Show / Hide
 -- ============================================================
 function CC:ShowCross(isPreview)
     if not self.frame then
@@ -389,13 +385,12 @@ function CC:Deactivate()
     self.previewActive  = false
 end
 
--- Called from GUI toggle (mirrors other modules' .Refresh pattern)
-function CC.Refresh()
+function CC:Refresh()
     local db = GetDB()
     if db.enabled then
-        CC:Activate()
+        self:Activate()
     else
-        CC:Deactivate()
+        self:Deactivate()
     end
 end
 

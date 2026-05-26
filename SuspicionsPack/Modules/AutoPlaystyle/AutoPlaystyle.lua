@@ -1,15 +1,7 @@
 -- SuspicionsPack — AutoPlaystyle Module
--- Forked from Lantern's AutoPlaystyle.
 -- Automatically pre-selects your preferred playstyle (Learning / Relaxed /
 -- Competitive / Carry Offered) whenever you open the Group Finder listing
 -- creation dialog for a Mythic+ group.
---
--- Implementation note:
---   Blizzard_GroupFinder is demand-loaded (only when the player opens the Group
---   Finder UI for the first time). Hooks are installed either immediately if
---   the addon is already loaded, or lazily via ADDON_LOADED otherwise.
---   hooksecurefunc hooks cannot be removed — the module.enabled check inside
---   ApplyPlaystyle handles the on/off state without touching the hooks.
 local SP = SuspicionsPack
 
 local AutoPlaystyle = SP:NewModule("AutoPlaystyle", "AceEvent-3.0")
@@ -114,11 +106,9 @@ function AutoPlaystyle:OnDisable()
     -- Hooks are permanent; ApplyPlaystyle's db.enabled check handles the off state
 end
 
--- Called by the GUI on any setting change
-function AutoPlaystyle.Refresh()
-    local db  = GetDB()
-    local mod = SP.AutoPlaystyle
+function AutoPlaystyle:Refresh()
+    local db = GetDB()
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
+        if not self:IsEnabled() then self:Enable() end
     end
 end

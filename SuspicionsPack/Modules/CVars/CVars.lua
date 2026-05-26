@@ -1,6 +1,5 @@
 -- SuspicionsPack - CVars.lua
 -- Game CVar tweaks: Sharpen Game, class-colored friendly nameplates, etc.
--- Adapted from NorskenUI's MiscVars.lua.
 
 local SP = SuspicionsPack
 

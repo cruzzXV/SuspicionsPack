@@ -1,7 +1,6 @@
 -- SuspicionsPack - Durability.lua
 -- Displays a "REPAIR NOW" warning text on-screen when gear durability
 -- drops below a configurable threshold. Never shown during combat.
--- Forked & simplified from NorskenUI's QoL/DurabilityUtil.lua.
 
 local SP = SuspicionsPack
 
@@ -166,7 +165,7 @@ function DUR:ShowPreview()
     if not self.frame then self:CreateWarningFrame() end
     self.isPreview = true
 
-    self.frame:EnableMouse(false)   -- preview is display-only, not draggable
+    self.frame:EnableMouse(false)
     self:ApplySettings()
     self.frame:Show()
 end
@@ -214,12 +213,12 @@ function DUR:Deactivate()
     self.isPreview  = false
 end
 
-function DUR.Refresh()
+function DUR:Refresh()
     local db = GetDB()
     if db and db.enabled then
-        DUR:Activate()
+        self:Activate()
     else
-        DUR:Deactivate()
+        self:Deactivate()
     end
 end
 

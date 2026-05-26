@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.8.3"
+SP.VERSION = "1.8.4"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -132,7 +132,7 @@ SP.C = {
 }
 
 -- ============================================================
--- Theme presets — same as NorskenUI (AddonTheme.lua)
+-- Theme presets
 -- ============================================================
 SP.ThemePresets = {
     ["Suspicion"] = {
@@ -591,7 +591,6 @@ local DEFAULTS = {
         },
         tankMD = {
             enabled         = false,
-            prioritizeFocus = false,
             selectionMethod = "tankRoleOnly",
         },
         focusTargetMarker = {
@@ -599,15 +598,8 @@ local DEFAULTS = {
             announce = true,
             marker   = 5,   -- Moon
         },
-        meterReset = {
-            enabled = false,
-        },
         reapMeter = {
             enabled = false,
-        },
-        combatLog = {
-            enabled   = false,
-            instances = {},
         },
         deathAlert = {
             enabled         = false,
@@ -720,24 +712,6 @@ local DEFAULTS = {
         silvermoonMapIcon = {
             enabled             = false,
             showOnlyProfessions = true,
-        },
-        petStatus = {
-            enabled      = false,
-            missingText  = "PET MISSING",
-            missingColor = { 1, 0.843, 0, 1 },      -- #FFD100 yellow
-            deadText     = "PET DEAD",
-            deadColor    = { 1, 0.2, 0.2, 1 },       -- #FF3333 red
-            passiveText  = "PET PASSIVE",
-            passiveColor = { 0.302, 0.702, 1, 1 },   -- #4DB3FF blue
-            fontFace     = "Expressway",
-            fontSize     = 25,
-            fontOutline  = "SOFTOUTLINE",
-            frameStrata  = "HIGH",
-            x            = 0,
-            y            = 105,
-            anchorFrom   = "CENTER",
-            anchorTo     = "CENTER",
-            anchorFrame  = "UIParent",
         },
         potionAlert = {
             enabled           = false,
@@ -1118,7 +1092,7 @@ end
 -- ============================================================
 -- SP.ShowNotification(text)
 -- Displays a short fade-in/fade-out text at the center of the
--- screen — mirrors NorskenUI's CreateMessagePopup.
+-- screen as a short fade-in/fade-out notification.
 -- text: pre-colored string, e.g. "|cff4DCC66Module: On|r"
 -- ============================================================
 local SP_NOTIFY_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
@@ -1160,7 +1134,7 @@ end
 -- SP.CreateReloadPrompt(reason)
 -- Shows a themed two-button dialog asking the player to reload.
 -- Usage: SP.CreateReloadPrompt("Disabling X requires a reload.")
--- Mirrors NorskenUI's NRSKNUI:CreateReloadPrompt pattern.
+
 -- ============================================================
 local SP_RELOAD_DIALOG = "SP_RELOAD_PROMPT"
 local _reloadDialogCreated = false
@@ -1197,6 +1171,10 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["1.8.4"] = {
+        { type = "change", text = "Code cleanup across all modules." },
+        { type = "fix",    text = "PotionAlert: fixed module not triggering correctly." },
+    },
     ["1.8.3"] = {
         { type = "fix", text = "Hotfix: corrected corrupted files from v1.8.1 release (GUI.lua truncated, MovementAlert\/Durability\/ReapPredict ended with null bytes). TROLLEG" },
     },
@@ -1249,7 +1227,7 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.8.3", "1.8.2", "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
+SP.ChangelogOrder = { "1.8.4", "1.8.3", "1.8.2", "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
@@ -1465,7 +1443,6 @@ end
 -- Preview Manager
 -- Automatically shows all enabled positioned-frame modules in
 -- preview mode while the SP GUI is open, and hides them on close.
--- Mirrors NorskenUI's PreviewManager pattern (Core/Globals.lua).
 -- ============================================================
 local PreviewManager = {}
 SP.PreviewManager = PreviewManager
@@ -1478,7 +1455,6 @@ local PREVIEW_MODULES = {
     { mod = "GatewayAlert",   dbKey = "gatewayAlert",   show = "ShowPreview",      hide = "HidePreview"      },
     { mod = "CombatCross",    dbKey = "combatCross",    show = "ShowPreview",      hide = "HidePreview"      },
     { mod = "PotionAlert",    dbKey = "potionAlert",    show = "ShowPreview",      hide = "HidePreview"      },
-    { mod = "PetStatus",     dbKey = "petStatus",      show = "ShowPreview",      hide = "HidePreview"      },
     -- BloodlustAlert exposes the timer frame via its own preview methods
     { mod = "BloodlustAlert", dbKey = "bloodlustAlert", dbSubKey = "timerEnabled", show = "ShowTimerPreview", hide = "HideTimerPreview" },
 }
@@ -1528,12 +1504,4 @@ function SP.CheckChangelog()
     if not db or not db.settings then return end
     if db.settings.lastSeenVersion == SP.VERSION then return end
     -- Only show if there's actually changelog data for this version
-    if not SP.Changelog[SP.VERSION] then return end
-
-    db.settings.lastSeenVersion = SP.VERSION
-
-    -- Small delay so the UI is fully loaded before we show the popup
-    C_Timer.After(3, function()
-        SP.ShowChangelogPopup()
-    end)
-end
+    if not SP.Changelog[SP.VERSION] then return e

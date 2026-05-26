@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r
 ## Notes: Collection of QoL features
 ## Author: Cruzz
-## Version: 1.8.3
+## Version: 1.8.4
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## SavedVariables: SuspicionsPackDB
 ## IconTexture: Interface\AddOns\SuspicionsPack\Media\Icons\icon.png
@@ -34,12 +34,9 @@ Modules\Automation\Automation.lua
 Modules\CombatTimer\CombatTimer.lua
 Modules\BloodlustAlert\BloodlustAlert.lua
 Modules\PotionAlert\PotionAlert.lua
-Modules\PetStatus\PetStatus.lua
 Modules\AutoInvite\AutoInvite.lua
 Modules\TankMD\TankMD.lua
 Modules\FocusTargetMarker\FocusTargetMarker.lua
-Modules\MeterReset\MeterReset.lua
-Modules\CombatLog\CombatLog.lua
 Modules\DeathAlert\DeathAlert.lua
 Modules\CraftShopper\CraftShopper.lua
 Modules\WhisperAlert\WhisperAlert.lua

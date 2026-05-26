@@ -2,9 +2,6 @@
 -- Tracks crafting recipe quantities and builds a shopping list of missing
 -- reagents. When the Auction House is open the list pops up beside it
 -- with per-item Search-AH and Quick-Buy buttons.
---
--- Ported and fully rewritten from Enhanced QoL's CraftShopper by R41z0r.
--- No AceGUI dependency; no localisation dependency; UI rebuilt natively.
 local SP = SuspicionsPack
 
 local CS = SP:NewModule("CraftShopper", "AceEvent-3.0")
@@ -217,9 +214,8 @@ local function DoScan()
     if scanRunning then return end
     scanRunning = true
     pendingScan = nil
-    -- Only scan while resting (capitals/inns) — same restriction as the original.
-    -- Crafting always happens in capitals where rested XP is active, so this
-    -- avoids pointless rescans in dungeons or the open world.
+    -- Only scan while resting (capitals/inns) — crafting always happens in
+    -- capitals, so this avoids pointless rescans in dungeons or the open world.
     if not IsResting() then
         scanRunning = false
         return
@@ -725,7 +721,7 @@ local function MakeShopFrame()
     accentLine:SetTexture(BLANK)
     accentLine:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 0.85)
 
-    -- SP Logo — overflows the top-left corner (same style as GUI)
+    -- SP Logo — overflows the top-left corner
     local logo = CreateFrame("Frame", nil, f)
     logo:SetSize(44, 44)
     logo:SetPoint("TOPLEFT", f, "TOPLEFT", -11, 11)
@@ -1127,16 +1123,12 @@ function CS:AUCTION_HOUSE_CLOSED()
     UnregisterAllAux()
 end
 
--- ============================================================
--- Called by GUI enable toggle
--- ============================================================
-function CS.Refresh()
-    local db  = GetDB()
-    local mod = SP.CraftShopper
+function CS:Refresh()
+    local db = GetDB()
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
+        if not self:IsEnabled() then self:Enable() end
     else
-        if mod:IsEnabled() then mod:Disable() end
+        if self:IsEnabled() then self:Disable() end
     end
 end
 

@@ -1,5 +1,4 @@
 -- SuspicionsPack — SilvermoonMapIcon Module
--- Source data (coords, atlas icons, profession logic) from Sakuria.
 -- World map only — no minimap pins.
 local SP = SuspicionsPack
 
@@ -25,7 +24,7 @@ local function IsEnabled()
 end
 
 -- ============================================================
--- Profession detection (verbatim from Sakuria / HandyNotes)
+-- Profession detection
 -- ============================================================
 local professionToSkillLine = {
     ["Fishing"]        = 356,
@@ -57,7 +56,7 @@ local function UpdatePlayerProfessions()
 end
 
 -- ============================================================
--- Source POI data — verbatim from Sakuria, never mutated
+-- Source POI data — never mutated
 -- ============================================================
 local SOURCE_DB = {
     [2393] = {
@@ -148,7 +147,7 @@ local function BuildAdjustedPoints(sourceList)
 end
 
 -- ============================================================
--- World Map — MapCanvasPinMixin pins (from Sakuria)
+-- World Map — MapCanvasPinMixin pins
 -- WORLD_SCALE applied on top of each pin's own scale value.
 -- ============================================================
 local function CreateWorldPin(map, src)
@@ -278,18 +277,16 @@ end
 -- ============================================================
 -- Public API — called by GUI toggles
 -- ============================================================
-function SMI.Refresh()
-    local db  = GetDB()
-    local mod = SP.SilvermoonMapIcon
+function SMI:Refresh()
+    local db = GetDB()
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
+        if not self:IsEnabled() then self:Enable() end
     else
-        if mod:IsEnabled() then mod:Disable() end
+        if self:IsEnabled() then self:Disable() end
     end
-    if mod._provider then mod._provider:RefreshAllData() end
+    if self._provider then self._provider:RefreshAllData() end
 end
 
-function SMI.RefreshPins()
-    local mod = SP.SilvermoonMapIcon
-    if mod._provider then mod._provider:RefreshAllData() end
+function SMI:RefreshPins()
+    if self._provider then self._provider:RefreshAllData() end
 end

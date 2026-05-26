@@ -1,10 +1,5 @@
 -- SuspicionsPack - WhisperAlert.lua
 -- Plays a custom sound when a whisper or Battle.net whisper is received.
--- Forked from NorskenUI's QoL/Misc.lua (WhisperSounds) with improvements:
---   • Separate sounds for in-game whispers vs Battle.net whispers
---   • Configurable audio channel (Master / SFX / Music / Ambience / Dialog)
---   • "Mute in combat" option so arena noise doesn't double up with whisper pings
---   • Short debounce to prevent double-trigger when chat addons fire multiple events
 
 local SP = SuspicionsPack
 
@@ -73,7 +68,7 @@ function WA:OnBNetWhisper()
 end
 
 -- ============================================================
--- Activate / Deactivate — called by GUI toggle and lifecycle
+-- Activate / Deactivate
 -- ============================================================
 function WA:Activate()
     local db = GetDB()
@@ -86,13 +81,12 @@ function WA:Deactivate()
     self:UnregisterAllEvents()
 end
 
--- Called from GUI toggle (mirrors other modules' .Refresh pattern)
-function WA.Refresh()
+function WA:Refresh()
     local db = GetDB()
     if db and db.enabled then
-        WA:Activate()
+        self:Activate()
     else
-        WA:Deactivate()
+        self:Deactivate()
     end
 end
 

@@ -1,16 +1,5 @@
 -- SuspicionsPack — PotionAlert Module
--- Displays a text alert when your combat potion comes off cooldown.
---
--- Detection:
---   Iterates a list of known combat potion item IDs.
---   C_Container.GetItemCooldown(id): arg3 (enabled) = item in bags.
---   onCD flag: set true when potion goes on CD, cleared when it comes off.
---   Alert shown only when onCD transitions false→show (potion just finished CD).
---   ENCOUNTER_START resets the flag to avoid false positives at pull.
---
--- Context gates:
---   enabledInDungeons — active in any Mythic/M+ instance (C_ChallengeMode key active)
---   enabledInRaids    — active in raid instances while in combat
+-- Shows a text alert when your combat potion comes off cooldown.
 
 local SP = SuspicionsPack
 
@@ -56,6 +45,7 @@ local onCD          = false   -- true while potion is on CD
 local frame         = nil
 local isPreview     = false
 local displayTimer  = nil     -- C_Timer handle for auto-hide
+local cdTimer       = nil     -- fallback timer for CD expiry
 
 -- ============================================================
 -- Helpers
@@ -64,10 +54,9 @@ local function GetDB()
     return SP.GetDB().potionAlert
 end
 
-local function InMythicDungeon()
-    if not C_ChallengeMode then return false end
-    local ok, mapID = pcall(C_ChallengeMode.GetActiveChallengeMapID)
-    return ok and mapID ~= nil and mapID ~= 0
+local function InDungeon()
+    local _, instanceType = GetInstanceInfo()
+    return instanceType == "party"
 end
 
 local function InRaid()
@@ -79,6 +68,13 @@ local function CancelDisplayTimer()
     if displayTimer then
         displayTimer:Cancel()
         displayTimer = nil
+    end
+end
+
+local function CancelCDTimer()
+    if cdTimer then
+        cdTimer:Cancel()
+        cdTimer = nil
     end
 end
 
@@ -140,7 +136,6 @@ function PotionAlert:ApplySettings()
     frame:SetPoint(anchorFrom, anchorFrame, anchorTo, db.x or 0, db.y or 200)
     frame:SetFrameStrata(db.frameStrata or "HIGH")
 
-    -- Resize to text content
     C_Timer.After(0, function()
         if not frame then return end
         local w = math.max(frame.lbl:GetStringWidth()  + 20, 80)
@@ -150,7 +145,7 @@ function PotionAlert:ApplySettings()
 end
 
 -- ============================================================
--- Preview / Drag mode (GUI-driven)
+-- Preview
 -- ============================================================
 function PotionAlert:ShowPreview()
     BuildFrame()
@@ -167,8 +162,6 @@ function PotionAlert:HidePreview()
     if not frame then return end
     frame:EnableMouse(false)
     frame:Hide()
-    -- Re-check immediately so a genuine "potion ready" state (displayDuration = 0)
-    -- is restored — otherwise hiding the preview would wipe a real alert.
     local db = GetDB()
     if db and db.enabled then
         C_Timer.After(0, function() PotionAlert:OnCooldownEvent() end)
@@ -183,7 +176,7 @@ local function CheckCooldown()
     if not (db and db.enabled) then return end
     if isPreview then return end
 
-    local inM = InMythicDungeon()
+    local inM = InDungeon()
     local inR = InRaid() and UnitAffectingCombat("player")
     if not ((db.enabledInDungeons and inM) or (db.enabledInRaids and inR)) then
         if frame then frame:Hide() end
@@ -199,11 +192,6 @@ local function CheckCooldown()
     local start = C_Container.GetItemCooldown(potion)
     if start == 0 then
         if onCD then
-            -- Potion just came off CD — notify
-            if db.playSound and db.soundKey then
-                local path = SP.GetSoundPath and SP.GetSoundPath(db.soundKey)
-                if path then PlaySoundFile(path, "Master") end
-            end
             if db.playTTS and db.ttsText and db.ttsText ~= "" then
                 C_VoiceChat.SpeakText(db.ttsVoiceId or 0, db.ttsText, 1, db.ttsVolume or 75, true)
             end
@@ -214,7 +202,6 @@ local function CheckCooldown()
         PotionAlert:ApplySettings()
         if frame then
             frame:Show()
-            -- Auto-hide after displayDuration seconds (0 = stay forever)
             local dur = db.displayDuration or 0
             if dur > 0 then
                 displayTimer = C_Timer.NewTimer(dur, function()
@@ -228,7 +215,19 @@ local function CheckCooldown()
     else
         onCD = true
         CancelDisplayTimer()
+        CancelCDTimer()
         if frame then frame:Hide() end
+        -- BAG_UPDATE_COOLDOWN ne fire pas toujours à l'expiration, timer de secours.
+        local _, duration = C_Container.GetItemCooldown(potion)
+        if duration and duration > 0 then
+            local remaining = (start + duration) - GetTime()
+            if remaining > 0 then
+                cdTimer = C_Timer.NewTimer(remaining + 0.5, function()
+                    cdTimer = nil
+                    CheckCooldown()
+                end)
+            end
+        end
     end
 end
 
@@ -245,12 +244,14 @@ end
 function PotionAlert:OnDisable()
     self:UnregisterAllEvents()
     CancelDisplayTimer()
+    CancelCDTimer()
     onCD      = false
     isPreview = false
     if frame then frame:Hide() end
 end
 
 function PotionAlert:_RegisterEvents()
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnCooldownEvent")
     self:RegisterEvent("BAG_UPDATE_COOLDOWN",   "OnCooldownEvent")
     self:RegisterEvent("SPELL_UPDATE_COOLDOWN", "OnCooldownEvent")
     self:RegisterEvent("PLAYER_REGEN_ENABLED",  "OnCooldownEvent")
@@ -263,14 +264,15 @@ function PotionAlert:OnCooldownEvent()
 end
 
 function PotionAlert:OnEncounterStart()
-    -- Reset flag at pull so we don't show the alert immediately
+    -- reset au pull pour éviter un faux positif au début du combat
     CancelDisplayTimer()
+    CancelCDTimer()
     onCD = false
     if frame and not isPreview then frame:Hide() end
 end
 
 -- ============================================================
--- Refresh — called by GUI enable toggle
+-- Refresh
 -- ============================================================
 function PotionAlert:Refresh()
     local db = GetDB()

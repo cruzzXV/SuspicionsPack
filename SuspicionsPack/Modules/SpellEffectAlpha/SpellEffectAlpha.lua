@@ -1,5 +1,4 @@
 -- SuspicionsPack — SpellEffectAlpha Module
--- Forked from ExwindTools "ExClass.SpellEffectAlpha".
 -- Sets spellActivationOverlayOpacity CVar per specialization.
 -- Per-spec overrides: 0 = hidden, 100 = full opacity.
 local SP = SuspicionsPack
@@ -39,7 +38,7 @@ SEA.SpecNames = {
     [71] = "Arms Warrior",    [72] = "Fury Warrior",    [73] = "Protection Warrior",
 }
 
--- Spec icon texture file IDs (same source as ExwindTools, hardcoded for reliability)
+-- Spec icon texture file IDs
 SEA.SpecIcons = {
     -- Death Knight
     [250] = 135770,  [251] = 135773,  [252] = 135775,
@@ -85,7 +84,7 @@ local function ApplyAlpha()
         return
     end
 
-    -- ExwindTools pattern: safe spec ID resolution
+    -- Safe spec ID resolution
     local specIndex = GetSpecialization and GetSpecialization() or 0
     local specID = (specIndex and specIndex > 0 and GetSpecializationInfo)
         and GetSpecializationInfo(specIndex) or 0
@@ -123,13 +122,12 @@ end
 -- ============================================================
 -- Public API
 -- ============================================================
-function SEA.Refresh()
+function SEA:Refresh()
     local db = GetDB()
-    local mod = SP.SpellEffectAlpha
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
+        if not self:IsEnabled() then self:Enable() end
     else
-        if mod:IsEnabled() then mod:Disable() end
+        if self:IsEnabled() then self:Disable() end
     end
     ApplyAlpha()
 end

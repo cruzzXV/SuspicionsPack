@@ -1,7 +1,5 @@
 -- SuspicionsPack - CombatTimer.lua
--- Displays a running combat timer on-screen.
--- Forked from NorskenUI's CombatTimer.lua.
--- Positioning: simple X/Y offset from screen CENTER (no anchor system needed).
+-- Affiche un timer de combat à l'écran.
 
 local SP = SuspicionsPack
 
@@ -22,7 +20,6 @@ local UIParent       = UIParent
 local SP_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 local BLANK   = "Interface\\Buttons\\WHITE8X8"
 
--- Available font faces for the timer text
 local FONT_FACES = {
     ["Expressway"]    = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf",
     ["Friz Quadrata"] = "Fonts\\FRIZQT__.TTF",
@@ -103,10 +100,6 @@ function CT:CreateTimerFrame()
     text:SetText("00:00")
     text:SetJustifyH("CENTER")
 
-    -- Mouse disabled by default
-    f:EnableMouse(false)
-    f:SetMouseClickEnabled(false)
-
     self.frame = f
     self.text  = text
 end
@@ -118,10 +111,8 @@ function CT:ApplySettings()
     local db = GetDB()
     if not self.text then return end
 
-    -- Cache the refresh rate so OnUpdate never needs a DB lookup per frame
     self._cachedRate = GetRefreshRate(db.format or "MM:SS")
 
-    -- Font face + size + outline
     local fontPath = GetFontPath(db.fontFace or "Expressway")
     self.text:SetFont(fontPath, db.fontSize or 18, db.outline or "SOFTOUTLINE")
 
@@ -140,7 +131,6 @@ function CT:ApplySettings()
         self.frame:SetFrameStrata(db.frameStrata or "TOOLTIP")
     end
 
-    -- Color depending on state (respects colorSource setting)
     local cr, cg, cb
     if self.running then
         cr, cg, cb = SP.GetColorFromSource(db.colorInCombatSource or "custom",
@@ -227,7 +217,6 @@ end
 function CT:OnUpdate(elapsed)
     if not self.running and not self.isPreview then return end
     self.elapsed = (self.elapsed or 0) + elapsed
-    -- Use cached rate (set in ApplySettings) to avoid a DB lookup every frame
     local rate = self._cachedRate or 0.25
     if self.elapsed < rate then return end
     self.elapsed = self.elapsed - rate
@@ -277,8 +266,6 @@ function CT:OnExitCombat()
     self:ApplySettings()
     self:UpdateText()
 
-    -- If showLastDuration is on, keep the frame visible (like Norsken).
-    -- Otherwise hide it — it reappears next time combat starts.
     if self.frame and not db.showLastDuration then
         self.frame:Hide()
     end
@@ -326,8 +313,6 @@ function CT:Activate()
         self:OnUpdate(elapsed)
     end)
 
-    -- If showLastDuration is on, show immediately (always visible like Norsken).
-    -- Otherwise the frame only appears when combat starts.
     if db.showLastDuration then self.frame:Show() end
 end
 
@@ -342,13 +327,12 @@ function CT:Deactivate()
     self:UnregisterAllEvents()
 end
 
--- Called from GUI toggle (mirrors other modules' .Refresh pattern)
-function CT.Refresh()
+function CT:Refresh()
     local db = GetDB()
     if db.enabled then
-        CT:Activate()
+        self:Activate()
     else
-        CT:Deactivate()
+        self:Deactivate()
     end
 end
 

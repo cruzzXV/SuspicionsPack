@@ -1,9 +1,6 @@
 -- SuspicionsPack - MovementAlert.lua
--- Displays a text + cooldown when your movement ability is on CD.
--- Also tracks "Time Spiral" (shows free-movement countdown).
--- Forked from ItruliaQoL's MovementAlert module.
--- Enhanced with charge tracking, buff-active detection, alias system,
--- issecretvalue handling, GetOverrideSpell, and spellOverrides.
+-- Affiche un texte + cooldown quand la capacité de déplacement est en CD.
+-- Suit aussi le Time Spiral (affiche le countdown de mouvement libre).
 
 local SP = SuspicionsPack
 
@@ -56,7 +53,6 @@ end
 
 -- ============================================================
 -- Movement abilities per class/spec
--- Exposed so the GUI can iterate it to build spell toggles.
 -- ============================================================
 MA.MovementAbilities = nil  -- assigned after table definition
 
@@ -110,7 +106,6 @@ MA.MovementAbilities = MOVEMENT_ABILITIES
 
 -- ============================================================
 -- Buff-triggered display
--- Show when the BUFF is active, not when the spell is on CD.
 -- ============================================================
 local BUFF_ACTIVE_SPELLS = {
     [111400] = "Burning Rush Active!",   -- Warlock: Burning Rush
@@ -143,7 +138,7 @@ local TIME_SPIRAL_ABILITIES = {
 }
 
 -- ============================================================
--- Glow-ignore: spells that fire a glow before the actual cast
+-- Glow-ignore
 -- ============================================================
 local GLOW_IGNORE_SPECS = {
     DEMONHUNTER = {
@@ -161,16 +156,14 @@ local GLOW_IGNORE_SPECS = {
 }
 
 -- ============================================================
--- Spells whose GCD reports isOnGCD=false (anti-cheat quirk).
--- We suppress the movement CD display for a short window after
--- UNIT_SPELLCAST_SENT to avoid false positives during the GCD.
+-- Spells whose GCD reports isOnGCD=false
 -- ============================================================
 local SPELLS_WITH_OWN_GCD = {
     [1234796] = 0.8,   -- DH Shift (Devourer) — isOnGCD returns false during its GCD
 }
 
 -- ============================================================
--- Cast filter (DH talent gating for Time Spiral glow suppression)
+-- Cast filter
 -- ============================================================
 local castFilters = {}
 local castFilterExpiry = 0
@@ -191,10 +184,6 @@ end
 
 -- ============================================================
 -- Spell list builder
--- Returns a list of entry tables for the player's spec.
--- Each entry: { spellId, baseSpellId, spellName, customText, checkType }
--- checkType == "buffActive" for BUFF_ACTIVE_SPELLS entries.
--- Detection uses GetSpellCooldown directly (Itrulia approach — no charge tracking).
 -- ============================================================
 local function BuildMovementSpellList()
     local _, class = UnitClass("player")
@@ -227,8 +216,7 @@ local function BuildMovementSpellList()
                     if C_Spell.GetOverrideSpell then
                         local ok, oid = pcall(C_Spell.GetOverrideSpell, spellId)
                         if ok and oid and oid > 0 and oid ~= spellId then
-                            local overrideInfo = C_Spell.GetSpellInfo(oid)
-                            if overrideInfo then
+                            if C_Spell.GetSpellInfo(oid) then
                                 displayId = oid
                             end
                         end
@@ -238,7 +226,6 @@ local function BuildMovementSpellList()
                         seen[spellId]   = true
                         seen[displayId] = true
                         local info = C_Spell.GetSpellInfo(displayId)
-                        -- If displayId somehow still has no info, use original
                         if not info and displayId ~= spellId then
                             displayId = spellId
                             info = C_Spell.GetSpellInfo(displayId)
@@ -247,7 +234,6 @@ local function BuildMovementSpellList()
                             local baseId = (displayId ~= spellId) and spellId or nil
 
                             if BUFF_ACTIVE_SPELLS[displayId] then
-                                -- Buff-active entry: show when buff is present, not on CD
                                 table.insert(result, {
                                     spellId    = displayId,
                                     spellName  = info.name,
@@ -271,7 +257,6 @@ local function BuildMovementSpellList()
         end
     end
 
-    -- spellOverrides: user-defined custom spells (not in the built-in table)
     for spellId, override in pairs(overrides) do
         if not seen[spellId] and not disabled[spellId] and override.enabled ~= false then
             if IsPlayerSpell(spellId) then
@@ -326,14 +311,10 @@ f.timeSinceLastUpdate= 0
 
 local TIME_SPIRAL_DURATION = 10   -- seconds (also used by OnUpdate)
 
--- Forward declaration: icon helper closures reference fsText which is
--- created after this block (same file-scope level, but later in the file).
 local fsText
 
 -- ============================================================
--- Time Spiral icon frame (NorskenUI-inspired)
--- Shows the movement spell icon + cooldown spiral + glow
--- when Time Spiral procs. Created lazily on first use.
+-- Time Spiral icon frame
 -- ============================================================
 local f_tsIcon    = nil  -- icon frame, lazy-created
 local f_tsIconTex = nil  -- spell icon texture
@@ -349,12 +330,10 @@ local function CreateTSIconFrame()
     f_tsIcon:EnableMouse(false)
     f_tsIcon:Hide()
 
-    -- Spell icon texture (crop inner 84 % to cut the default icon border)
     f_tsIconTex = f_tsIcon:CreateTexture(nil, "BACKGROUND")
     f_tsIconTex:SetAllPoints()
     f_tsIconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    -- Cooldown spiral (same template as NorskenUI)
     f_tsIconCd = CreateFrame("Cooldown", nil, f_tsIcon, "CooldownFrameTemplate")
     f_tsIconCd:SetAllPoints()
     f_tsIconCd:SetDrawEdge(false)
@@ -363,7 +342,6 @@ local function CreateTSIconFrame()
     f_tsIconCd:SetHideCountdownNumbers(true)
     f_tsIconCd:SetDrawBling(false)
 
-    -- Initial position
     f_tsIcon:SetFrameStrata(db.timeSpiralIconFrameStrata or "MEDIUM")
     f_tsIcon:ClearAllPoints()
     local anchorFrame = _G[db.timeSpiralIconAnchorFrame or "UIParent"] or UIParent
@@ -385,7 +363,6 @@ local function ApplyTSIconPosition()
         db.timeSpiralIconX or 0, db.timeSpiralIconY or 250)
 end
 
--- TS text positioning — separates TS countdown from normal CD text position
 local f_tsTextPositioned = false
 
 local function ApplyTSTextPosition()
@@ -399,11 +376,10 @@ end
 local function ResetTSTextPosition()
     if not f_tsTextPositioned then return end
     fsText:ClearAllPoints()
-    fsText:SetPoint("CENTER")   -- back to center of frame f
+    fsText:SetPoint("CENTER")
     f_tsTextPositioned = false
 end
 
--- Show the icon for a given spellId. No-op if timeSpiralShowIcon is off.
 local function ShowTSIcon(spellId)
     local db = GetDB()
     if not db.timeSpiralShowIcon or not db.showTimeSpiral then return end
@@ -458,19 +434,11 @@ local function ApplyStyles()
 end
 
 -- ============================================================
--- CheckMovementCooldown — core detection (Itrulia approach)
+-- CheckMovementCooldown
 -- ============================================================
--- Detection strategy:
---   Gate: cdInfo.timeUntilEndOfStartRecovery is truthy (secret-value safe — no compare).
---   Show: isOnGCD == false  (real CD — guard with issecretvalue before comparing;
---         isOnGCD CAN be a secret value in TWW, direct comparison causes taint)
---         AND isOnGCD ~= nil  (rejects the nil quirk seen on DH/Evoker during double-jump)
---   WARLOCK exception: isOnGCD == nil is allowed (Demonic Circle returns nil while on GCD).
---   Spells in SPELLS_WITH_OWN_GCD (e.g. DH Shift) are gated by f.ignoreMovementCd
---   set in UNIT_SPELLCAST_SENT — see there for details.
 local function CheckMovementCooldown()
     if MA.isPreview then return end
-    if f.timeSpiralOn then return end  -- Time Spiral owns fsText during its countdown
+    if f.timeSpiralOn then return end
     if f.ignoreMovementCd then fsText:Hide(); return end
     local db   = GetDB()
     local prec = db.precision or 0
@@ -490,7 +458,6 @@ local function CheckMovementCooldown()
         else
             local spellId = entry.baseSpellId or entry.spellId
             local cdInfo  = C_Spell.GetSpellCooldown(spellId)
-            -- Read isOnGCD once; guard before comparing (secret value comparison causes taint).
             local isOnGCD    = cdInfo and cdInfo.isOnGCD
             local isOnGCDSafe = not (issecretvalue and issecretvalue(isOnGCD))
             if cdInfo
@@ -514,7 +481,6 @@ end
 -- OnUpdate
 -- ============================================================
 local function OnUpdate(self, elapsed)
-    -- Don't touch the display while the preview is active — ShowPreview owns it.
     if MA.isPreview then return end
 
     self.timeSinceLastUpdate = self.timeSinceLastUpdate + elapsed
@@ -522,7 +488,6 @@ local function OnUpdate(self, elapsed)
     if self.timeSinceLastUpdate < (db.updateInterval or 0.1) then return end
     self.timeSinceLastUpdate = 0
 
-    -- Time Spiral has highest priority — handled directly here (not in CheckMovementCooldown)
     if self.timeSpiralOn then
         local remaining = 10 - (GetTime() - self.timeSpiralOn)
         if remaining <= 0 then
@@ -554,7 +519,6 @@ end
 local function OnEvent(self, event, ...)
     local db = GetDB()
 
-    -- ── Spec / talent changes → rebuild spell list ──────────────────────────
     if event == "PLAYER_ENTERING_WORLD"
         or event == "PLAYER_SPECIALIZATION_CHANGED"
         or event == "PLAYER_TALENT_UPDATE"
@@ -569,7 +533,6 @@ local function OnEvent(self, event, ...)
         return
     end
 
-    -- ── Immediate CD reactions ────────────────────────────────────────────────
     if event == "SPELL_UPDATE_COOLDOWN"
         or event == "UNIT_AURA"
     then
@@ -577,12 +540,8 @@ local function OnEvent(self, event, ...)
         return
     end
 
-    -- ── UNIT_SPELLCAST_SENT — always active (not gated by showTimeSpiral) ────
-    -- Handles both glow suppression (TS feature) and ignoreMovementCd (detection).
     if event == "UNIT_SPELLCAST_SENT" then
         local castSpellId = select(4, ...)
-        -- ignoreMovementCd: for spells whose GCD reports isOnGCD=false (e.g. DH Shift).
-        -- Suppress movement CD display for the GCD window to avoid false positives.
         if SPELLS_WITH_OWN_GCD[castSpellId] then
             self.ignoreMovementCd = true
             C_Timer.After(SPELLS_WITH_OWN_GCD[castSpellId], function()
@@ -590,7 +549,6 @@ local function OnEvent(self, event, ...)
                 CheckMovementCooldown()
             end)
         end
-        -- Time Spiral glow-related (only matters when TS feature is on)
         if db.showTimeSpiral then
             if self.spellsToIgnoreGlow and self.spellsToIgnoreGlow[castSpellId] then
                 self.ignoreGlow = true
@@ -605,7 +563,6 @@ local function OnEvent(self, event, ...)
         return
     end
 
-    -- ── Time Spiral glow events ──────────────────────────────────────────────
     if db.showTimeSpiral then
         local spellId = ...
 
@@ -651,17 +608,8 @@ end
 function MA:HidePreview()
     self.isPreview = false
     if fsText then fsText:Hide() end
-    -- Normal event-driven display will re-show if conditions are met
 end
 
--- ── Time Spiral display preview ──────────────────────────────────────────
--- Independent of the main text preview — doesn't set isPreview, so it
--- never conflicts with the drag-to-move mode.
--- Sets timeSpiralOn so OnUpdate renders a live countdown (if the module
--- is enabled and OnUpdate is ticking).  Also renders immediately so it
--- works even when the module is disabled.
--- Auto-cancels after 5 s and fires _tsPreviewEndCallback (set by the GUI)
--- so the preview button can reset its label automatically.
 function MA:ShowTimeSpiralPreview()
     if self.isPreview then return end  -- don't conflict with drag preview
     local db = GetDB()
@@ -676,9 +624,7 @@ function MA:ShowTimeSpiralPreview()
     ApplyTSTextPosition()
     fsText:SetText(hex .. label .. "\n" .. string.format("%." .. prec .. "f", 10.0) .. "|r")
     fsText:Show()
-    -- Show icon (uses fallback TS icon texture since no real spellId in preview)
     ShowTSIcon(nil)
-    -- Auto-cancel timer
     if self._tsPrevTimer then self._tsPrevTimer:Cancel() end
     self._tsPrevTimer = C_Timer.NewTimer(5, function()
         self._tsPrevTimer = nil
@@ -712,7 +658,6 @@ function MA:Refresh()
     local db = GetDB()
     ApplyStyles()
     ApplyTSIconPosition()
-    -- If TS is not currently active, make sure fsText is anchored back to frame f
     if not f.timeSpiralOn then
         ResetTSTextPosition()
     end
@@ -723,16 +668,13 @@ function MA:Refresh()
     if db.enabled then
         f:SetScript("OnEvent", OnEvent)
         f:SetScript("OnUpdate", OnUpdate)
-        -- Spec / talent changes
         f:RegisterEvent("PLAYER_ENTERING_WORLD")
         f:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
         f:RegisterEvent("PLAYER_TALENT_UPDATE")
         f:RegisterEvent("TRAIT_CONFIG_UPDATED")
-        -- Time Spiral glow detection
         f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
         f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE")
         f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
-        -- Immediate CD reaction
         f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
         f:RegisterUnitEvent("UNIT_AURA", "player")
     else

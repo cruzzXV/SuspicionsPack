@@ -37,8 +37,7 @@ end
 
 -- ============================================================
 -- Hide Screenshot Notification
--- Mirrors EnhanceQoL's approach: unregister/re-register the
--- screenshot events on the ActionStatus frame.
+-- Unregisters/re-registers screenshot events on the ActionStatus frame.
 -- Fully reversible — no hook required.
 -- ============================================================
 local function ApplyScreenshotSetting(enable)
@@ -57,8 +56,7 @@ local function ApplyScreenshotSetting(enable)
 end
 
 -- ============================================================
--- Sound channel count — mirrors the WeakAura "Set Audio Channels"
--- Sets Sound_NumChannels CVar on login if different from desired.
+-- Sound channel count — sets Sound_NumChannels CVar on login if different from desired.
 -- ============================================================
 local function ApplySoundChannels(db)
     if not (db and db.setSoundChannels) then return end
@@ -99,23 +97,20 @@ function Performance:OnDisable()
     ApplyScreenshotSetting(false)
 end
 
-function Performance.Refresh()
-    local db  = GetDB()
-    local mod = SP.Performance
-    if not mod then return end
+function Performance:Refresh()
+    local db = GetDB()
 
-    -- Master enable gate
     if not (db and db.enabled) then
-        if mod:IsEnabled() then mod:Disable() end
+        if self:IsEnabled() then self:Disable() end
         ApplyScreenshotSetting(false)
         return
     end
 
     local needsModule = db.autoClearCombatLog or db.hideScreenshotMsg or db.setSoundChannels
     if needsModule then
-        if not mod:IsEnabled() then mod:Enable() end
+        if not self:IsEnabled() then self:Enable() end
     else
-        if mod:IsEnabled() then mod:Disable() end
+        if self:IsEnabled() then self:Disable() end
         return
     end
 

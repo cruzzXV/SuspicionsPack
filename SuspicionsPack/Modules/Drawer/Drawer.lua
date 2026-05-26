@@ -665,7 +665,7 @@ end
 
 local function ScanMinimapChildren(parent)
     if not parent then return end
-    -- Use EQoL-style detection: IsObjectType("Button") + named frame only.
+    -- Detection based on IsObjectType("Button") + named frame only.
     -- No size filter — ElvUI reskins buttons to non-standard sizes.
     -- pcall on GetName guards against non-Frame objects in TWW's child lists.
     for _, child in ipairs({ parent:GetChildren() }) do

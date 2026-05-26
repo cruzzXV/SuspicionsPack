@@ -1,5 +1,4 @@
 -- SuspicionsPack — FocusTargetMarker
--- Forked from ItruliaQoL by Itrulia.
 local SP = SuspicionsPack
 
 local FTM = SP:NewModule("FocusTargetMarker", "AceEvent-3.0")

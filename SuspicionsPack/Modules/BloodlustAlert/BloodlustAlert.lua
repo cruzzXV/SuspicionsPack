@@ -1,19 +1,6 @@
 -- SuspicionsPack — BloodlustAlert Module
--- Detects Bloodlust / Heroism / Time Warp via UNIT_AURA debuff tracking.
---
--- Detection approach (TWW 12.0.5+):
---   UnitSpellHaste() now returns a secret number value — arithmetic on it
---   crashes. Instead we watch for the Sated/Exhaustion/Temporal Displacement
---   debuffs that Blizzard applies to the player when BL fires.
---
---   On UNIT_AURA (player):
---     • Fast path: updateInfo.addedAuras contains one of the exhaustion debuff IDs
---     • Slow path (isFullUpdate): scan with C_UnitAuras.GetPlayerAuraBySpellID,
---       confirm freshness (applied < EXHAUST_FRESH_WINDOW seconds ago)
---
---   All spellId reads from addedAuras are guarded with issecretvalue().
---
--- Inspired by Ayije_CDM's CustomBuffs.lua bloodlust detection.
+-- Détecte le Bloodlust via les debuffs Epuisement/Satié sur UNIT_AURA.
+-- Les spellId de addedAuras sont protégés par issecretvalue().
 
 local SP = SuspicionsPack
 
@@ -39,10 +26,8 @@ for _, s in ipairs(BLAlert.Sounds) do SOUND_FILES[s.key] = s.file end
 
 local DEFAULT_SOUND        = "hotnigga"
 local BL_DURATION          = 40    -- seconds (matches Bloodlust / Heroism / Time Warp)
-local EXHAUST_FRESH_WINDOW = 5     -- aura must have been applied within last N seconds
 
--- Sated/Exhaustion debuff IDs applied to the player when any BL-type effect fires.
--- We detect BL by watching for these debuffs appearing, not by reading haste.
+-- Debuffs appliqués au joueur quand un effet BL se déclenche.
 local EXHAUSTION_IDS = {
     57723,   -- Sated                   (Bloodlust)
     57724,   -- Exhaustion              (Heroism)
@@ -75,8 +60,7 @@ local blStartTime   = nil
 -- issecretvalue guard — API exists in 12.x; fall back to always-false on older builds
 local _issecretvalue = issecretvalue or function() return false end
 
--- Raw frame for UNIT_AURA — AceEvent-3.0 doesn't support RegisterUnitEvent,
--- so we mirror Ayije_CDM's approach: dedicated frame registered only for "player".
+-- Frame dédié pour UNIT_AURA — AceEvent-3.0 ne supporte pas RegisterUnitEvent.
 local unitAuraFrame = CreateFrame("Frame")
 unitAuraFrame:SetScript("OnEvent", function(_, event, unit, updateInfo)
     BLAlert:OnUnitAura(event, unit, updateInfo)
@@ -190,7 +174,6 @@ end
 
 -- ============================================================
 -- Detection: UNIT_AURA on player
--- Returns true if a fresh exhaustion debuff was just applied.
 -- ============================================================
 
 function BLAlert:OnUnitAura(event, unit, updateInfo)
@@ -198,8 +181,7 @@ function BLAlert:OnUnitAura(event, unit, updateInfo)
     if not (db and db.enabled) then return end
     if active or not armed then return end
 
-    -- Fast path (non-full updates only): bail early if none of the exhaustion
-    -- debuffs appear in addedAuras — avoids the more expensive API scan below.
+    -- Fast path : ignore si aucun debuff d'épuisement dans addedAuras.
     if updateInfo and not updateInfo.isFullUpdate then
         local added = updateInfo.addedAuras
         if not added then return end
@@ -214,8 +196,7 @@ function BLAlert:OnUnitAura(event, unit, updateInfo)
         if not found then return end
     end
 
-    -- Confirmation (mirrors Ayije_CDM exactly): always verify via
-    -- GetPlayerAuraBySpellID + freshness < 40 s (covers mid-BL zone changes too).
+    -- Slow path : confirmation via GetPlayerAuraBySpellID + vérification de fraîcheur.
     for _, spellId in ipairs(EXHAUSTION_IDS) do
         local aura = C_UnitAuras.GetPlayerAuraBySpellID(spellId)
         if aura and aura.expirationTime then
@@ -294,9 +275,7 @@ end
 function BLAlert:HideTimerPreview()
     self.isTimerPreview = false
     if timerFrame then timerFrame:Hide() end
-    -- Only restore if a real BL is in progress: blStartTime is only set by StartBL
-    -- when timerEnabled is on AND BL fired.  active=true alone is not sufficient
-    -- because active stays true during StopBL's 8-second re-arm window.
+    -- blStartTime est nil pendant la fenêtre de re-arm, donc pas de faux positif.
     if active and blStartTime and timerFrame then
         timerFrame:Show()
     end
@@ -378,8 +357,7 @@ function BLAlert:OnDisable()
     self:UnregisterAllEvents()
     unitAuraFrame:UnregisterEvent("UNIT_AURA")
     if active then self:StopBL() end
-    active = false
-    armed  = true
+    armed = true
     if rearmTimer  then rearmTimer:Cancel();  rearmTimer  = nil end
     if fadeTimer   then fadeTimer:Cancel();   fadeTimer   = nil end
     if timerTicker then timerTicker:Cancel(); timerTicker = nil end

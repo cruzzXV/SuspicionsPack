@@ -1,9 +1,4 @@
 -- Suspicion's Pack — GUI
--- Architecture inspired by NorskenUI:
---   • SP.Theme live table (same presets as NorskenUI, mutated by SP.RefreshTheme)
---   • Animated slide toggle  (knob + color animation)
---   • Card-based content layout with titled headers
---   • Collapsible sidebar with animated arrow indicators
 --   • Scrollable / resizable window
 --   • Button exclusion system: ignore (stays on minimap) or hide (invisible)
 -- GUI.lua loads after Core.lua, so _G.SuspicionsPack is the AceAddon object.
@@ -391,7 +386,6 @@ GUI.SidebarConfig = {
             { id = "deathalert",       text = "Death Alert"        },
             { id = "gatewayalert",     text = "Gateway Alert"      },
             { id = "movementalert",    text = "Movement Alert"     },
-            { id = "petstatus",        text = "Pet Status"         },
             { id = "potionalert",      text = "Potion Alert"       },
             { id = "reapmeter",        text = "ReapPredict (DH)"  },
             { id = "spelleffectalpha", text = "Spell Effect Alpha" },
@@ -429,9 +423,7 @@ GUI.SidebarConfig = {
         type = "section", id = "automation", text = "AUTOMATION",
         defaultExpanded = true,
         items = {
-            { id = "combatlog",  text = "Auto Combat Log" },
             { id = "automation", text = "Automation"      },
-            { id = "meterreset", text = "Meter Reset"     },
         },
     },
     {
@@ -1195,7 +1187,7 @@ local function GetAnchorPickerOverlay()
 
     -- ── The overlay does NOT block mouse events (EnableMouse false).
     -- Instead OnUpdate polls IsMouseButtonDown() so GetMouseFocus() always
-    -- reflects the real frame under the cursor (same technique as NorskenUI).
+    -- reflects the real frame under the cursor.
     local picker = CreateFrame("Frame", "SP_AnchorPickerOverlay", UIParent)
     picker:SetFrameStrata("TOOLTIP")
     picker:SetAllPoints(UIParent)
@@ -1637,7 +1629,6 @@ end
 
 -- ============================================================
 -- Widget: ColorSwatch  (opens Blizzard ColorPickerFrame on click)
--- Same pattern as NorskenUI's GUI-NUIColorPicker.lua
 -- callback(r, g, b) called live and on confirm
 -- ============================================================
 local function ColorToHex(r, g, b)
@@ -2015,7 +2006,7 @@ function GUI:CreateDualColorRow(parent,
 end
 
 -- ============================================================
--- Widget: Horizontal Row (NorskenUI-style proportional multi-widget layout)
+-- Widget: Horizontal Row (proportional multi-widget layout)
 -- Usage:
 --   local hr = GUI:CreateHRow(parent, 44)
 --   hr:Add(widgetA, 0.6)   -- widgetA takes 60 % of row width
@@ -2147,7 +2138,7 @@ function GUI:CreateCard(parent, title, yOffset)
     end
 
     function card:AddSeparator()
-        -- NorskenUI-style: 1 px gradient line that fades in from the left and out to the right.
+        -- 1 px gradient line that fades in from the left and out to the right.
         -- Two textures split at the horizontal midpoint of content.
         local sp = T.paddingSmall
         local y  = self.currentY + sp
@@ -2266,8 +2257,6 @@ local function ItemEnabledState(id)
     elseif id == "bloodlustalert" then return db.bloodlustAlert and db.bloodlustAlert.enabled or false
     elseif id == "tankmd"            then return db.tankMD            and db.tankMD.enabled            or false
     elseif id == "focustargetmarker" then return db.focusTargetMarker and db.focusTargetMarker.enabled or false
-    elseif id == "meterreset"        then return db.meterReset and db.meterReset.enabled   or false
-    elseif id == "combatlog"         then return db.combatLog  and db.combatLog.enabled    or false
     elseif id == "invitationgroupe"    then return db.autoInvite          and db.autoInvite.enabled          or false
     elseif id == "deathalert"          then return db.deathAlert          and db.deathAlert.enabled          or false
     elseif id == "groupjoinedreminder" then return db.groupJoinedReminder and db.groupJoinedReminder.enabled or false
@@ -2286,7 +2275,6 @@ local function ItemEnabledState(id)
     elseif id == "spelleffectalpha"  then return db.spellEffectAlpha  and db.spellEffectAlpha.enabled  or false
     elseif id == "combatcross"       then return db.combatCross       and db.combatCross.enabled       or false
     elseif id == "movementalert"     then return db.movementAlert     and db.movementAlert.enabled     or false
-    elseif id == "petstatus"         then return db.petStatus         and db.petStatus.enabled         or false
     elseif id == "potionalert"       then return db.potionAlert       and db.potionAlert.enabled       or false
     elseif id == "editmode"          then return true
     end
@@ -2645,7 +2633,7 @@ function GUI:BuildMainFrame()
     verStr:SetText("v" .. SP.VERSION)
     verStr:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 0.7)
 
-    -- Close button — NorskenUI cross texture
+    -- Close button
     local closeBtn = CreateFrame("Button", nil, header)
     closeBtn:SetSize(22, 22)
     closeBtn:SetPoint("RIGHT", header, "RIGHT", -T.paddingSmall, 0)
@@ -3149,7 +3137,7 @@ GUI:RegisterContent("home", function(parent)
     local y = 0
 
     -- ── Hero banner ───────────────────────────────────────
-    -- Mimics NorskenUI's top banner: title, greeting, version/author
+    -- Hero banner: title, greeting, version/author
     local charName = UnitName("player") or "Adventurer"
     local _, classToken = UnitClass("player")
     local classColor = RAID_CLASS_COLORS and classToken and RAID_CLASS_COLORS[classToken]
@@ -3863,7 +3851,7 @@ end)
 -- ============================================================
 -- Cursor texture picker widget
 -- Six square buttons showing the actual ring texture; selected one
--- gets an accent-coloured border.  Mirrors NorskenUI's selector.
+-- gets an accent-coloured border.
 -- ============================================================
 local function MakeCursorTexturePicker(parent, textures, order, getColorFunc, onSelect)
     local BTN_SZ   = 70
@@ -5166,7 +5154,7 @@ GUI:RegisterContent("combattimer", function(parent)
     local card3 = GUI:CreateCard(parent, "Font", y)
     card3:AddLabel("Choose the typeface, outline, and size for the timer text.", T.textMuted)
     card3:AddSeparator()
-    -- Font Face + Outline share the same row (NorskenUI-style)
+    -- Font Face + Outline share the same row
     local fontFaceHRow = GUI:CreateHRow(parent, 44)
     local ddFontFace = GUI:CreateFontDropdown(parent, "Font Face",
         db.fontFace or "Expressway",
@@ -6352,13 +6340,6 @@ GUI:RegisterContent("tankmd", function(parent)
     card2:AddSeparator()
     table.insert(childCards, card2)
 
-    local focusRow = GUI:CreateToggle(parent, "Prioritize Focus Target",
-        db.prioritizeFocus,
-        function(v) db.prioritizeFocus = v; ApplySettings() end)
-    card2:AddRow(focusRow, 28)
-    table.insert(childRows, focusRow)
-    card2:AddSeparator()
-
     local METHODS = { "tankRoleOnly", "tanksAndMainTanks", "prioritizeMainTanks", "mainTanksOnly" }
     local METHOD_LABELS = {
         tankRoleOnly        = "Tank Role Only",
@@ -6415,7 +6396,7 @@ GUI:RegisterContent("focustargetmarker", function(parent)
         if SP.FocusTargetMarker then SP.FocusTargetMarker:Refresh() end
     end
 
-    -- Raid marker icon texture coords (same atlas as ItruliaQoL's RaidMarkerString)
+    -- Raid marker icon texture coords
     local MARKER_COORDS = {
         [1] = {0.00, 0.25, 0.00, 0.25},  -- Star
         [2] = {0.25, 0.50, 0.00, 0.25},  -- Circle
@@ -6508,65 +6489,7 @@ GUI:RegisterContent("focustargetmarker", function(parent)
     parent:SetHeight(y)
 end)
 
--- ============================================================
--- Page: Meter Reset
--- ============================================================
--- Auto Combat Log page
--- ============================================================
-GUI:RegisterContent("combatlog", function(parent)
-    local T  = SP.Theme
-    local db = SP.GetDB().combatLog
 
-    local function ApplySettings()
-        if SP.CombatLog then SP.CombatLog.Refresh() end
-    end
-
-    local y = 0
-
-    local card1 = GUI:CreateCard(parent, "Auto Combat Log", y)
-    card1:AddLabel(
-        "Automatically starts the combat log when entering a raid or Mythic+ instance. Your choice is saved per instance — you will only be asked once per dungeon/difficulty.",
-        T.textMuted)
-    card1:AddSeparator()
-
-    local enableRow = GUI:CreateToggle(parent, "Enable Auto Combat Log", db.enabled,
-        function(v)
-            db.enabled = v
-            ApplySettings()
-        end, "Auto Combat Log")
-    card1:AddRow(enableRow, 28)
-    y = y + card1:GetTotalHeight() + T.paddingSmall
-
-    parent:SetHeight(y)
-end)
-
--- ============================================================
-GUI:RegisterContent("meterreset", function(parent)
-    local T  = SP.Theme
-    local db = SP.GetDB().meterReset
-
-    local function ApplySettings()
-        if SP.MeterReset then SP.MeterReset.Refresh() end
-    end
-
-    local y = 0
-
-    local card1 = GUI:CreateCard(parent, "Meter Reset", y)
-    card1:AddLabel(
-        "When you enter a dungeon or raid instance, a popup will ask if you want to reset your damage meter.",
-        T.textMuted)
-    card1:AddSeparator()
-
-    local enableRow = GUI:CreateToggle(parent, "Enable Meter Reset Prompt", db.enabled,
-        function(v)
-            db.enabled = v
-            ApplySettings()
-        end, "Meter Reset")
-    card1:AddRow(enableRow, 28)
-    y = y + card1:GetTotalHeight() + T.paddingSmall
-
-    parent:SetHeight(y)
-end)
 
 
 -- ============================================================
@@ -8249,7 +8172,7 @@ GUI:RegisterContent("spelleffectalpha", function(parent)
             local row = GUI:CreateSlider(parent, labelText, 0, 100, 1, current,
                 function(v)
                     db.specs[specID] = v
-                    -- Mirror ExwindTools: only apply the CVar immediately if this
+                    -- Only apply the CVar immediately if this
                     -- slider's spec is the one currently active. Other specs are
                     -- saved silently and applied on PLAYER_SPECIALIZATION_CHANGED.
                     local si = GetSpecialization and GetSpecialization() or 0
@@ -8842,7 +8765,7 @@ GUI:RegisterContent("potionalert", function(parent)
     -- ── Card 1: Enable ────────────────────────────────────────
     card1 = GUI:CreateCard(parent, "Potion Alert", y)
     card1:AddLabel(
-        "Displays a text alert on screen when your combat potion comes off cooldown. Works in M+/Mythic dungeons and raids.",
+        "Displays a text alert on screen when your combat potion comes off cooldown. Works in any dungeon and in raids.",
         T.textMuted)
     card1:AddSeparator()
 
@@ -8857,8 +8780,8 @@ GUI:RegisterContent("potionalert", function(parent)
 
     -- Context toggles side by side
     local ctxHRow = GUI:CreateHRow(parent, 28)
-    local dunRow = GUI:CreateToggle(parent, "Enable in M+", db.enabledInDungeons,
-        function(v) db.enabledInDungeons = v end, "M+")
+    local dunRow = GUI:CreateToggle(parent, "Enable in Dungeons", db.enabledInDungeons,
+        function(v) db.enabledInDungeons = v end, "Dungeons")
     local raidRow = GUI:CreateToggle(parent, "Enable in Raids", db.enabledInRaids,
         function(v) db.enabledInRaids = v end, "Raids")
     ctxHRow:Add(dunRow,  0.5)
@@ -9155,188 +9078,3 @@ GUI:RegisterContent("potionalert", function(parent)
 
     parent:SetHeight(y)
 end)
-
--- ============================================================
--- PetStatus
--- ============================================================
-GUI:RegisterContent("petstatus", function(parent)
-    local T  = SP.Theme
-    local db = SP.GetDB().petStatus
-    local y  = 0
-    local mod = SP.PetStatus
-
-    local childRows  = {}
-    local childCards = {}
-    local enableRow
-    local card1
-
-    local function ApplySettings()
-        if mod then mod:ApplySettings() end
-        GUI.UpdateSidebarCheckmarks()
-    end
-
-    local function UpdateChildState(en)
-        card1:GrayContent(en, enableRow)
-        for _, r in ipairs(childRows)  do r:SetEnabled(en) end
-        for _, c in ipairs(childCards) do c:SetAlpha(en and 1 or 0.4) end
-    end
-
-    -- ── Card 1: Enable ────────────────────────────────────────
-    card1 = GUI:CreateCard(parent, "Pet Status Texts", y)
-    card1:AddLabel(
-        "Displays a text reminder when your pet is missing, dead, or set to passive stance. Works for Hunter, Warlock, Unholy DK, and Arcane Mage.",
-        T.textMuted)
-    card1:AddSeparator()
-
-    enableRow = GUI:CreateToggle(parent, "Enable Pet Status Texts", db.enabled,
-        function(v)
-            db.enabled = v
-            UpdateChildState(v)
-            if mod then
-                if v then
-                    mod:SetEnabledState(true)
-                    mod:Refresh()
-                else
-                    mod:OnDisable()
-                end
-            end
-            ApplySettings()
-        end, "Pet Status")
-    card1:AddRow(enableRow, 28)
-
-    y = y + card1:GetTotalHeight() + T.paddingSmall
-
-    -- ── Card 2: State Settings ────────────────────────────────
-    local card2 = GUI:CreateCard(parent, "State Settings", y)
-    table.insert(childCards, card2)
-    card2:AddLabel("Customise the alert text and colour for each pet state.", T.textMuted)
-    card2:AddSeparator()
-
-    -- Helper: builds a text-editbox + color-swatch HRow for one state
-    local function MakeStateRow(labelText, dbTextKey, colorLabel, dbColorKey)
-        local hrow = GUI:CreateHRow(parent, 52)
-
-        -- Left: label + editbox
-        local leftFrame = CreateFrame("Frame", nil, parent)
-        leftFrame:SetHeight(52)
-
-        local lbl = leftFrame:CreateFontString(nil, "OVERLAY")
-        lbl:SetPoint("TOPLEFT", leftFrame, "TOPLEFT", 0, -2)
-        ApplyFont(lbl, 11)
-        lbl:SetText(labelText)
-        lbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
-
-        local eb = CreateFrame("EditBox", nil, leftFrame, "BackdropTemplate")
-        eb:SetHeight(22)
-        eb:SetPoint("TOPLEFT",  leftFrame, "TOPLEFT",  0, -20)
-        eb:SetPoint("TOPRIGHT", leftFrame, "TOPRIGHT", 0, -20)
-        eb:SetAutoFocus(false)
-        eb:SetMaxLetters(48)
-        eb:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
-        eb:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-        eb:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
-        eb:SetTextInsets(6, 6, 0, 0)
-        ApplyFont(eb, 11)
-        eb:SetText(db[dbTextKey] or "")
-        eb:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-        eb:SetScript("OnEditFocusGained", function() AnimateBorderFocus(eb, true)  end)
-        eb:SetScript("OnEditFocusLost",   function() AnimateBorderFocus(eb, false) end)
-        eb:SetScript("OnEnterPressed", function(self)
-            self:ClearFocus()
-            db[dbTextKey] = self:GetText()
-            if mod and mod.UpdateDisplay then mod:UpdateDisplay() end
-        end)
-        eb:SetScript("OnEscapePressed", function(self)
-            self:ClearFocus()
-            self:SetText(db[dbTextKey] or "")
-        end)
-        function leftFrame:SetEnabled(en)
-            self:SetAlpha(en and 1 or 0.4)
-            eb:SetEnabled(en)
-        end
-
-        -- Right: stacked color swatch
-        local col   = db[dbColorKey] or { 1, 1, 1, 1 }
-        local swRow = GUI:CreateStackedColorSwatch(parent, colorLabel,
-            col[1], col[2], col[3],
-            function(r, g, b)
-                db[dbColorKey] = { r, g, b, db[dbColorKey] and db[dbColorKey][4] or 1 }
-                if mod and mod.UpdateDisplay then mod:UpdateDisplay() end
-            end)
-
-        hrow:Add(leftFrame, 0.55)
-        hrow:Add(swRow,     0.45)
-
-        table.insert(childRows, hrow)
-        return hrow
-    end
-
-    local missingRow = MakeStateRow("Pet Missing Text", "missingText", "Missing Color", "missingColor")
-    card2:AddRow(missingRow, 52)
-    card2:AddSeparator()
-
-    local deadRow    = MakeStateRow("Pet Dead Text",    "deadText",    "Dead Color",    "deadColor")
-    card2:AddRow(deadRow, 52)
-    card2:AddSeparator()
-
-    local passiveRow = MakeStateRow("Pet Passive Text", "passiveText", "Passive Color", "passiveColor")
-    card2:AddRow(passiveRow, 52)
-
-    y = y + card2:GetTotalHeight() + T.paddingSmall
-
-    -- ── Card 3: Font Settings ─────────────────────────────────
-    local card3 = GUI:CreateCard(parent, "Font Settings", y)
-    table.insert(childCards, card3)
-
-    local fontFaceRow = GUI:CreateFontDropdown(parent, "Font",
-        db.fontFace or "Expressway",
-        function(v) db.fontFace = v; ApplySettings() end)
-    card3:AddRow(fontFaceRow, 44)
-    table.insert(childRows, fontFaceRow)
-    card3:AddSeparator()
-
-    local fontHRow = GUI:CreateHRow(parent, 44)
-    local fontSzRow = GUI:CreateSlider(parent, "Font Size", 8, 60, 1,
-        db.fontSize or 25,
-        function(v) db.fontSize = v; ApplySettings() end)
-    local outlineRow = GUI:CreateDropdown(parent, "Outline",
-        { "NONE", "OUTLINE", "THICKOUTLINE", "SOFTOUTLINE" },
-        db.fontOutline or "SOFTOUTLINE",
-        function(v) db.fontOutline = v; ApplySettings() end)
-    fontHRow:Add(fontSzRow,  0.55)
-    fontHRow:Add(outlineRow, 0.45)
-    card3:AddRow(fontHRow, 44)
-    table.insert(childRows, fontHRow)
-
-    y = y + card3:GetTotalHeight() + T.paddingSmall
-
-    -- ── Card 4: Position Settings ─────────────────────────────
-    local card4 = GUI:CreateCard(parent, "Position Settings", y)
-    table.insert(childCards, card4)
-
-    local anchorRow, anchorRowH = GUI:CreateAnchorRow(parent, db, ApplySettings,
-        { default = "HIGH", onChange = function() ApplySettings() end })
-    card4:AddRow(anchorRow, anchorRowH)
-    table.insert(childRows, anchorRow)
-    card4:AddSeparator()
-
-    local xyHRow = GUI:CreateHRow(parent, 44)
-    local psXRow = GUI:CreateSlider(parent, "X Offset", -2000, 2000, 1,
-        db.x or 0,
-        function(v) db.x = v; ApplySettings() end)
-    local psYRow = GUI:CreateSlider(parent, "Y Offset", -2000, 2000, 1,
-        db.y or 105,
-        function(v) db.y = v; ApplySettings() end)
-    xyHRow:Add(psXRow, 0.5)
-    xyHRow:Add(psYRow, 0.5)
-    card4:AddRow(xyHRow, 44)
-    table.insert(childRows, xyHRow)
-
-    y = y + card4:GetTotalHeight() + T.paddingSmall
-
-    -- Initial enabled state
-    UpdateChildState(db.enabled)
-
-    parent:SetHeight(y)
-end)
-

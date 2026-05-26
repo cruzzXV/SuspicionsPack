@@ -2,7 +2,6 @@
 -- Automatically applies "Current Expansion Only" filter when:
 --   • The Auction House opens           (AH SearchBar.FilterButton)
 --   • The Crafting Orders browser opens (ProfessionsCustomerOrdersFrame FilterDropdown)
--- Crafting Orders logic ported from NorskenUI/AuctionHouseFilter.lua.
 local SP = SuspicionsPack
 
 local FEO = SP:NewModule("FilterExpansionOnly", "AceEvent-3.0")
@@ -71,13 +70,11 @@ function FEO:OnDisable()
     self:UnregisterAllEvents()
 end
 
--- Called by GUI toggle
-function FEO.Refresh()
-    local db  = GetDB()
-    local mod = SP.FilterExpansionOnly
+function FEO:Refresh()
+    local db = GetDB()
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
+        if not self:IsEnabled() then self:Enable() end
     else
-        if mod:IsEnabled() then mod:Disable() end
+        if self:IsEnabled() then self:Disable() end
     end
 end

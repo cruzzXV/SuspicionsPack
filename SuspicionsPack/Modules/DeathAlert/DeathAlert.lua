@@ -1,13 +1,5 @@
 -- SuspicionsPack — DeathAlert Module
--- Full fork of ItruliaQOL's DeathAlert.
--- Displays a large on-screen text when a party/raid member (or yourself) dies.
--- Features: display text, font name (LSM), font size, message duration, sound, TTS,
---           whitelist/blacklist, per-role overrides in raids (show text / play sound
---           per Tank/Healer/DPS).
---
--- Adaptations vs. ItruliaQOL:
---   • LibSharedMedia-3.0 used for font selection; falls back to Expressway if unavailable
---   • ElvUI/LEM frame movers not available → position via X/Y sliders
+-- Affiche un texte à l'écran quand un membre du groupe meurt.
 local SP = SuspicionsPack
 
 local DeathAlert = SP:NewModule("DeathAlert", "AceEvent-3.0")
@@ -94,7 +86,6 @@ local function EnsureFrame()
     fs:SetText("")
     fs:SetAlpha(0)
 
-    -- Animation sequence: fade IN (0→1, 0.3s) → hold messageDuration → fade OUT (1→0, 1s)
     local animGroup = fs:CreateAnimationGroup()
     animGroup:SetScript("OnFinished", function() fs:SetText("") ; fs:SetAlpha(0) end)
 
@@ -138,7 +129,7 @@ local function RefreshFramePosition()
 end
 
 -- ============================================================
--- Audio helper (shared 2-second cooldown to avoid spam)
+-- Audio helper
 -- ============================================================
 local function TryPlayAudio(db, sound, ttsText, playSound, playTTS)
     local now = GetTime()
@@ -154,7 +145,7 @@ local function TryPlayAudio(db, sound, ttsText, playSound, playTTS)
 end
 
 -- ============================================================
--- Core logic: apply role overrides, then show
+-- Core logic
 -- ============================================================
 local function ProcessDeath(unitId, name, classToken)
     local db = GetDB()
@@ -162,7 +153,6 @@ local function ProcessDeath(unitId, name, classToken)
 
     EnsureByRole(db)
 
-    -- Start with global settings
     local showText  = true
     local playSound = db.playSound
     local sound     = db.sound
@@ -190,7 +180,7 @@ local function ProcessDeath(unitId, name, classToken)
         local msgText    = "|cffffffff" .. (db.displayText or "died") .. "|r"
 
         displayFrame.fs:SetText(nameText .. " " .. msgText)
-        displayFrame.fs:SetAlpha(0)   -- start invisible; fadeIn animation brings it to 1
+        displayFrame.fs:SetAlpha(0)
         displayFrame.animGroup:Stop()
         displayFrame.animGroup:Play()
     end
@@ -201,8 +191,6 @@ end
 
 -- ============================================================
 -- Safe UnitTokenFromGUID wrapper
--- UnitTokenFromGUID() can return nil for valid group members in 12.x
--- (Blizzard regression). Fall back to manual GUID scan as per ItruliaQoL v0.4.1.
 -- ============================================================
 local function SafeUnitTokenFromGUID(guid)
     if not guid or hasanysecretvalues(guid) then return nil end
@@ -287,9 +275,9 @@ function DeathAlert:OnDisable()
 end
 
 -- ============================================================
--- Preview — called by the GUI "Preview" button
+-- Preview
 -- ============================================================
-function DeathAlert.Preview()
+function DeathAlert:Preview()
     local db = GetDB()
     if not db then return end
     EnsureFrame()
@@ -303,34 +291,32 @@ function DeathAlert.Preview()
     local msgText    = "|cffffffff" .. (db.displayText or "died") .. "|r"
 
     displayFrame.fs:SetText(nameText .. " " .. msgText)
-    displayFrame.fs:SetAlpha(0)   -- start invisible; fadeIn animation brings it to 1
+    displayFrame.fs:SetAlpha(0)
     displayFrame.animGroup:Stop()
     displayFrame.animGroup:Play()
 end
 
 -- ============================================================
--- StopPreview — stops the animation and clears the text immediately
+-- StopPreview
 -- ============================================================
-function DeathAlert.StopPreview()
+function DeathAlert:StopPreview()
     if not displayFrame then return end
     displayFrame.animGroup:Stop()
     displayFrame.fs:SetText("")
     displayFrame.fs:SetAlpha(0)
 end
 
--- Called by the GUI on any setting change
-function DeathAlert.Refresh()
-    local db  = GetDB()
-    local mod = SP.DeathAlert
+function DeathAlert:Refresh()
+    local db = GetDB()
     if db then EnsureByRole(db) end
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
+        if not self:IsEnabled() then self:Enable() end
         EnsureFrame()
         RefreshFramePosition()
         RefreshFrameStyle()
-        mod:RegisterEvent("UNIT_DIED", "OnUnitDied")
+        self:RegisterEvent("UNIT_DIED", "OnUnitDied")
     else
-        mod:UnregisterEvent("UNIT_DIED")
+        self:UnregisterEvent("UNIT_DIED")
         if displayFrame then
             displayFrame.animGroup:Stop()
             displayFrame.fs:SetText("")

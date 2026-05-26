@@ -1,6 +1,5 @@
 -- SuspicionsPackNudgeTool - NudgeTool.lua
 -- Standalone plugin for SuspicionsPack.
--- Forked from NephUI Cooldown Manager's Utils/Nudge.lua.
 -- Integrates with Blizzard's native Edit Mode to allow pixel-nudging of
 -- any Edit Mode system frame (PlayerFrame, Minimap, cast bars, etc.).
 --

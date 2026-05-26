@@ -80,16 +80,14 @@ function EOT.Preview()
     f:AddExternalWarningMessage("Quest completed: Defeat the Lich King")
 end
 
-function EOT.Refresh()
-    local db  = GetDB()
-    local mod = SP.EnhancedObjectiveText
-    if not mod then return end
+function EOT:Refresh()
+    local db = GetDB()
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
-        mod:Activate()
+        if not self:IsEnabled() then self:Enable() end
+        self:Activate()
     else
-        if mod:IsEnabled() then mod:Disable() end
-        mod:Deactivate()
+        if self:IsEnabled() then self:Disable() end
+        self:Deactivate()
     end
 end
 

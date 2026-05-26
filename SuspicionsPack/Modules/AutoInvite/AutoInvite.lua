@@ -135,15 +135,11 @@ function AutoInvite:OnWhisper(_, message, sender, _, _, _, _, _, _, _, _, _, sen
     end
 end
 
--- ============================================================
--- Called by GUI enable toggle
--- ============================================================
-function AutoInvite.Refresh()
-    local db  = GetDB()
-    local mod = SP.AutoInvite
+function AutoInvite:Refresh()
+    local db = GetDB()
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
+        if not self:IsEnabled() then self:Enable() end
     else
-        if mod:IsEnabled() then mod:Disable() end
+        if self:IsEnabled() then self:Disable() end
     end
 end

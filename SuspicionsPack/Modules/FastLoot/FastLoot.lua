@@ -2,7 +2,6 @@
 -- Loots all items instantly on LOOT_READY by calling LootSlot() directly,
 -- bypassing the delay of the native autoLootDefault CVar.
 -- Also sets the CVar as a fallback for any slots missed by the direct call.
--- Pattern adapted from NephUI and AzortharionUI fast-loot implementations.
 
 local SP = SuspicionsPack
 
@@ -47,9 +46,9 @@ local function LootAll()
 end
 
 -- ============================================================
--- Public API (used by GUI toggle)
+-- Public API
 -- ============================================================
-function FastLoot.Refresh()
+function FastLoot:Refresh()
     local db = GetDB()
     ApplyCVar(db and db.enabled)
 end

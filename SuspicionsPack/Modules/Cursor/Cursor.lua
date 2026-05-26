@@ -1,10 +1,8 @@
 -- SuspicionsPack - Cursor.lua
--- Cursor circle that follows the mouse, with optional GCD sweep overlay.
--- Adapted from NorskenUI's CombatCursor.lua.
+-- Cercle curseur qui suit la souris.
 
 local SP = SuspicionsPack
 
--- Register as an AceAddon module with AceEvent-3.0 mixin
 local Cursor = SP:NewModule("Cursor", "AceEvent-3.0")
 SP.Cursor = Cursor
 
@@ -13,7 +11,6 @@ SP.Cursor = Cursor
 -- ============================================================
 local MEDIA = "Interface\\AddOns\\SuspicionsPack\\Media\\CursorCircles\\"
 
--- Available circle textures (same files as NorskenUI)
 Cursor.Textures = {
     ["Thin"]   = MEDIA .. "nauraThin.png",
     ["Medium"] = MEDIA .. "nauraMedium.png",
@@ -38,7 +35,7 @@ local mainFrame  = nil
 local clickFrame = nil   -- second circle, visible only while mouse button held ≥ 150 ms
 
 -- ============================================================
--- Color helpers — respect colorSource settings
+-- Color helpers
 -- ============================================================
 local function GetCursorColor()
     local db  = GetDB()
@@ -90,7 +87,6 @@ local function CreateCursorFrame()
 
     local texPath = Cursor.Textures[db.texture or "Thick"] or Cursor.Textures["Thick"]
 
-    -- ── Main circle ──────────────────────────────────────────
     local f = CreateFrame("Frame", "SP_CursorCircle", UIParent)
     f:SetSize(sz, sz)
     f:SetFrameStrata("MEDIUM")
@@ -105,17 +101,15 @@ local function CreateCursorFrame()
     local r, g, b = GetCursorColor()
     f.texture:SetVertexColor(r, g, b, 0.9)
 
-    -- Center dot — always white solid circle marking the exact click point
     local dotTex = f:CreateTexture(nil, "OVERLAY")
     dotTex:SetTexture(MEDIA .. "Click.tga")
     dotTex:SetPoint("CENTER", f, "CENTER", 0, 0)
     local dotSz = db.dotSize or 6
     dotTex:SetSize(dotSz, dotSz)
-    dotTex:SetVertexColor(1, 1, 1, 1)   -- always white, never tinted by color settings
+    dotTex:SetVertexColor(1, 1, 1, 1)
     if db.showDot then dotTex:Show() else dotTex:Hide() end
     f.dot = dotTex
 
-    -- ── Click circle (second ring, visible only while mouse held ≥ 150 ms) ──
     local clickSz   = db.clickSize   or 70
     local clickTex  = Cursor.Textures[db.clickTexture or "Thin"] or Cursor.Textures["Thin"]
     local cr, cg, cb = GetClickColor()
@@ -135,9 +129,6 @@ local function CreateCursorFrame()
 
     clickFrame = cf
 
-    -- ── Shared OnUpdate — follows cursor, handles click-circle visibility ──
-    -- mouseHoldTime accumulates while any button is held; resets on release.
-    -- The click circle fades in only after 150 ms to avoid flicker on quick clicks.
     local _lastCX, _lastCY = -1, -1
     local mouseHoldTime    = 0
     local updateElapsed    = 0
@@ -151,7 +142,6 @@ local function CreateCursorFrame()
 
         local x, y = GetCursorPosition()
 
-        -- Update positions for both circles (skip layout if cursor hasn't moved)
         if x ~= _lastCX or y ~= _lastCY then
             _lastCX, _lastCY = x, y
             local scale = frame:GetEffectiveScale()
@@ -171,8 +161,6 @@ local function CreateCursorFrame()
             local clickMode = cdb.clickMode or "overlay"
 
             if clickMode == "replace" then
-                -- Replace mode: swap main circle size/texture/color while mouse held,
-                -- then restore cursor circle when released so the two sliders stay independent.
                 if isDown then
                     if not frame._clickReplacing then
                         frame._clickReplacing = true
@@ -181,7 +169,6 @@ local function CreateCursorFrame()
                             or Cursor.Textures["Thin"]
                         frame.texture:SetTexture(clickTex)
                         frame.texture:SetVertexColor(nr, ng, nb, 0.9)
-                        -- Resize to click circle size (independent of cursor circle size)
                         local clickSz = cdb.clickSize or 70
                         frame:SetSize(clickSz, clickSz)
                     end
@@ -193,14 +180,12 @@ local function CreateCursorFrame()
                             or Cursor.Textures["Thick"]
                         frame.texture:SetTexture(origTex)
                         frame.texture:SetVertexColor(r2, g2, b2, 0.9)
-                        -- Restore cursor circle size
                         local sz = cdb.size or 50
                         frame:SetSize(sz, sz)
                     end
                 end
                 if clickFrame then clickFrame:Hide() end
             else
-                -- Overlay mode: show second ring when mouse held ≥ 0.15 s (original)
                 if frame._clickReplacing then
                     frame._clickReplacing = false
                     local r2, g2, b2 = GetCursorColor()
@@ -245,14 +230,13 @@ local function CreateCursorFrame()
 end
 
 -- ============================================================
--- Public API (used by the GUI settings page)
+-- Public API
 -- ============================================================
 function Cursor.Enable()
     local db = GetDB()
     if not db.enabled then return end
     if not mainFrame then CreateCursorFrame() end
     mainFrame:Show()
-    -- click circle starts hidden; OnUpdate shows it when mouse held
 end
 
 function Cursor.Disable()
@@ -263,8 +247,6 @@ end
 function Cursor.Refresh()
     local db = GetDB()
 
-    -- Lazy-create frames so settings (size, texture, color) take effect even
-    -- when the cursor circle is currently disabled.
     if not mainFrame then CreateCursorFrame() end
 
     if mainFrame then
@@ -292,8 +274,7 @@ function Cursor.Refresh()
         local clickTex = Cursor.Textures[db.clickTexture or "Thin"] or Cursor.Textures["Thin"]
         clickFrame:SetSize(clickSz, clickSz)
         clickFrame.texture:SetTexture(clickTex)
-        -- keep alpha at 0 — OnUpdate reveals it when mouse held
-        local cr, cg, cb = GetClickColor()
+            local cr, cg, cb = GetClickColor()
         clickFrame.texture:SetVertexColor(cr, cg, cb, 0)
         if not db.showClickCircle then clickFrame:Hide() end
     end
@@ -305,11 +286,6 @@ function Cursor.Refresh()
     end
 end
 
--- Temporarily flash the click circle at full opacity so the user can see its
--- size when adjusting the slider (it's normally invisible unless a mouse
--- button is held).
--- Works in both overlay mode (flashes clickFrame) and replace mode (temporarily
--- morphs mainFrame to the click circle appearance).
 local _previewClickTimer = nil
 function Cursor.PreviewClickCircle()
     local db = GetDB()
@@ -332,7 +308,6 @@ function Cursor.PreviewClickCircle()
         _previewClickTimer = C_Timer.NewTimer(1.2, function()
             _previewClickTimer = nil
             if mainFrame and not mainFrame._clickReplacing then
-                -- Restore cursor circle appearance
                 local r2, g2, b2 = GetCursorColor()
                 local origTex = Cursor.Textures[db.texture or "Thick"] or Cursor.Textures["Thick"]
                 mainFrame.texture:SetTexture(origTex)
@@ -368,8 +343,6 @@ end
 -- ============================================================
 
 function Cursor:OnEnable()
-    -- If PLAYER_LOGIN already fired (e.g. another addon caused a late enable),
-    -- initialise immediately instead of waiting for an event that will never come.
     if IsLoggedIn() then
         self:OnLogin()
     else

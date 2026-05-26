@@ -1,6 +1,5 @@
 -- Suspicion's Pack — Automation Module
 -- Auto-accepts various dialogs and popups
-local ADDON_NAME, NS = ...
 local SP = SuspicionsPack
 
 local function StripRealm(name)
@@ -26,7 +25,7 @@ local bagsBarHooked     = false   -- BagsBar / MainMenuBarBackpackButton
 
 -- ============================================================
 -- Hook: Auto Fill Delete
--- Uses hooksecurefunc (additive, safe) — NorskenUI pattern
+-- Uses hooksecurefunc (additive, safe)
 -- ============================================================
 local function SetupAutoFillDelete()
     if deleteHooked then return end
@@ -113,7 +112,7 @@ local function SetupHideTalkingHead()
 end
 
 -- ============================================================
--- Hook: Auto Accept Decor Vendor Prompt  (ported from WilduTools)
+-- Hook: Auto Accept Decor Vendor Prompt
 -- Hooks StaticPopup_Show once and auto-clicks confirm whenever the
 -- item being purchased is a decoration (C_Item.IsDecorItem).
 -- ============================================================
@@ -162,7 +161,7 @@ local function SetupAutoDecorVendor()
 end
 
 -- ============================================================
--- Druid: Auto Switch to Flight Form  (ported from WilduTools)
+-- Druid: Auto Switch to Flight Form
 -- Watches MOUNT_JOURNAL_USABILITY_CHANGED, PLAYER_REGEN_ENABLED,
 -- and PLAYER_ENTERING_WORLD.  When the player is in ground Travel
 -- Form (form 3) in a flyable area, CancelShapeshiftForm() is
@@ -212,7 +211,7 @@ function Automation:OnFlightFormEvent()
 end
 
 function Automation:OnFlightFormRegenEnabled()
-    -- Match WilduTools: small delay so combat state fully settles first
+    -- Small delay so combat state fully settles first
     C_Timer.After(0.2, EvaluateFlightForm)
 end
 
@@ -270,7 +269,7 @@ function Automation:OnRoleCheckShow()
 end
 
 -- ============================================================
--- Hide Bags Bar  (ported from NephUI Cooldown Manager QOL.lua)
+-- Hide Bags Bar
 -- Hides BagsBar / BagBar / MainMenuBarBackpackButton and the
 -- expand toggle. Hooks Show + SetParent to prevent Blizzard from
 -- re-showing the bar. Combat-lockdown safe (defers until regen).

@@ -60,16 +60,14 @@ function COTH:Deactivate()
     ShowHeader()
 end
 
-function COTH.Refresh()
-    local db  = GetDB()
-    local mod = SP.CleanObjectiveTrackerHeader
-    if not mod then return end
+function COTH:Refresh()
+    local db = GetDB()
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
-        mod:Activate()
+        if not self:IsEnabled() then self:Enable() end
+        self:Activate()
     else
-        if mod:IsEnabled() then mod:Disable() end
-        mod:Deactivate()
+        if self:IsEnabled() then self:Disable() end
+        self:Deactivate()
     end
 end
 

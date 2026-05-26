@@ -14,7 +14,6 @@ SP.TankMD = TankMD
 -- ============================================================
 local NUM_BUTTONS = 5
 
--- Spell used per class. Defaults to Misdirection (Hunter) for unknown classes.
 local SPELL_IDS = {
     HUNTER  = 34477,  -- Misdirection
     ROGUE   = 57934,  -- Tricks of the Trade
@@ -23,7 +22,6 @@ local SPELL_IDS = {
     PALADIN = 1044,   -- Hand of Freedom / Blessing of Freedom
 }
 
--- Role that each class should target
 local TARGET_ROLES = {
     HUNTER  = "TANK",
     ROGUE   = "TANK",
@@ -32,12 +30,11 @@ local TARGET_ROLES = {
     PALADIN = "TANK",
 }
 
--- Whether the class wants the player themselves as a last-resort fallback
 local ADD_PLAYER_FALLBACK = {
+    DRUID  = true,
     EVOKER = true,
 }
 
--- Whether the class falls back to its own pet
 local ADD_PET_FALLBACK = {
     HUNTER = true,
     EVOKER = true,
@@ -73,10 +70,6 @@ local function GetPlayerClass()
     return class
 end
 
--- Returns sorted list of player NAMES for the appropriate role,
--- optionally pre-pending the focus target.
--- Mirrors exactly how the original TankMD addon resolves targets:
--- group members → UnitName(), focus → UnitName("focus"), pet → "pet", self → "player".
 local function GetTargets()
     local db      = GetDB()
     local class   = GetPlayerClass()
@@ -84,7 +77,6 @@ local function GetTargets()
     local method  = db.selectionMethod or "tankRoleOnly"
     local units   = IsInRaid() and RAID_UNITS or PARTY_UNITS
 
-    -- Collect names that match the desired role
     local names = {}
     local seen  = {}
     for _, unit in ipairs(units) do
@@ -99,7 +91,6 @@ local function GetTargets()
             elseif method == "tanksAndMainTanks" then
                 include = (assignedRole == role) or isMainTank
             elseif method == "prioritizeMainTanks" then
-                -- main tanks go in a separate pass below
                 include = (assignedRole == role and not isMainTank)
             elseif method == "mainTanksOnly" then
                 include = isMainTank
@@ -112,7 +103,6 @@ local function GetTargets()
         end
     end
 
-    -- For prioritizeMainTanks: collect main tanks separately and prepend
     if method == "prioritizeMainTanks" then
         local mainTanks = {}
         for _, unit in ipairs(units) do
@@ -126,7 +116,6 @@ local function GetTargets()
         end
         table.sort(mainTanks)
         table.sort(names)
-        -- prepend main tanks
         for i = #mainTanks, 1, -1 do
             table.insert(names, 1, mainTanks[i])
         end
@@ -134,27 +123,6 @@ local function GetTargets()
         table.sort(names)
     end
 
-    -- Prepend focus (if enabled and focus is in group with correct role).
-    -- Use the player name, not the "focus" token — matches original TankMD.
-    if db.prioritizeFocus then
-        local focusGUID = UnitGUID("focus")
-        if focusGUID and IsGUIDInGroup(focusGUID) then
-            local focusName = UnitName("focus")
-            if focusName then
-                -- remove from sorted list if present, put at front
-                for i, n in ipairs(names) do
-                    if n == focusName then
-                        table.remove(names, i)
-                        break
-                    end
-                end
-                table.insert(names, 1, focusName)
-            end
-        end
-    end
-
-    -- Class-specific fallbacks. Use "pet" / "player" unit tokens,
-    -- exactly as the original TankMD does in TargetSelector.Pet() / .Player().
     if ADD_PET_FALLBACK[class] then
         local petName = UnitName("pet")
         if petName and not seen[petName] then
@@ -187,19 +155,18 @@ end
 local function CreateButtons()
     if #buttons > 0 then return end
     local class   = GetPlayerClass()
-    local spellID = SPELL_IDS[class] or SPELL_IDS["HUNTER"]
+    local spellID = SPELL_IDS[class]
+    if not spellID then return end  -- module not applicable for this class
 
     for i = 1, NUM_BUTTONS do
         local name = string.format("TankMDButton%d", i)
         local btn  = CreateFrame("Button", name, UIParent, "SecureActionButtonTemplate")
         btn:Hide()
-        btn:SetAttribute("type",               "spell")  -- matches original: always "spell" at creation
+        btn:SetAttribute("type",               "spell")
         btn:SetAttribute("spell",              spellID)
         btn:SetAttribute("checkselfcast",      false)
         btn:SetAttribute("checkfocuscast",     false)
         btn:SetAttribute("allowVehicleTarget", false)
-        -- Ensures the action fires on Down regardless of ActionButtonUseKeyDown CVar.
-        -- Required on mainline (TWW / Midnight) — copied exactly from original TankMD.
         if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
             btn:SetAttribute("pressAndHoldAction", "1")
             btn:SetAttribute("typerelease",        "spell")
@@ -221,7 +188,6 @@ local function ProcessUpdate()
 
     local db = GetDB()
     if not db or not db.enabled then
-        -- Disable all buttons
         for _, btn in ipairs(buttons) do
             SetButtonTarget(btn, nil)
         end
@@ -235,12 +201,8 @@ local function ProcessUpdate()
 end
 
 local function QueueUpdate()
-    if isUpdateQueued then return end  -- already pending, don't stack timers
+    if isUpdateQueued then return end
     isUpdateQueued = true
-    -- Defer to next frame to break any tainted execution chain coming from
-    -- third-party addon CallbackHandlers (e.g. AccWideUILayoutSelection).
-    -- UnitName() comparisons inside ProcessUpdate throw taint errors when
-    -- called directly from a foreign secure callback.
     C_Timer.After(0, ProcessUpdate)
 end
 
@@ -248,6 +210,9 @@ end
 -- Module lifecycle
 -- ============================================================
 function TankMD:OnEnable()
+    local db = GetDB()
+    if not (db and db.enabled) then return end
+
     CreateButtons()
 
     self:RegisterEvent("GROUP_ROSTER_UPDATE",    "OnRosterChange")
@@ -261,7 +226,6 @@ end
 function TankMD:OnDisable()
     self:UnregisterAllEvents()
     isUpdateQueued = false
-    -- Clear all button targets
     for _, btn in ipairs(buttons) do
         if not InCombatLockdown() then
             SetButtonTarget(btn, nil)
@@ -297,7 +261,6 @@ SlashCmdList["TANKMD"] = function()
     end
 end
 
--- Called by GUI enable toggle
 function TankMD:Refresh()
     local db = GetDB()
     if db and db.enabled then

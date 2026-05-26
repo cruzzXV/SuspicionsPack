@@ -1,7 +1,6 @@
 -- SuspicionsPack - CopyTooltip.lua
 -- Press Ctrl+C while hovering any tooltip to copy its SpellID / ItemID /
 -- AuraID / MacroID or unit name into a popup dialog ready to paste.
--- Adapted from NorskenUI's CopyAnything.lua.
 
 local SP = SuspicionsPack
 
@@ -64,7 +63,7 @@ local function EnsureDialog()
 end
 
 -- ============================================================
--- ID extraction — mirrors NorskenUI logic, SP-namespaced
+-- ID extraction
 -- ============================================================
 local function GetNPCIDFromGUID(guid)
     if not guid then return end
@@ -185,7 +184,7 @@ function CopyTooltip:OnKeyDown(key)
     local cfgKey = strupper(db.key or "C")
     if strupper(key) ~= cfgKey then return end
     if not CheckModifier(db.modifier or "ctrl") then return end
-    -- Block in combat and in Mythic+ (consistent with NorskenUI)
+    -- Block in combat and in Mythic+
     if InCombatLockdown() then return end
     if C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive() then return end
     if not GameTooltip:IsShown() then return end
@@ -247,12 +246,11 @@ function CopyTooltip:Deactivate()
     end
 end
 
--- Called from GUI toggle
-function CopyTooltip.Refresh()
+function CopyTooltip:Refresh()
     local db = GetDB()
     if db and db.enabled then
-        CopyTooltip:Activate()
+        self:Activate()
     else
-        CopyTooltip:Deactivate()
+        self:Deactivate()
     end
 end

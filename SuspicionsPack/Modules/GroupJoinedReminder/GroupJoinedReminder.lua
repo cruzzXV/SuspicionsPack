@@ -1,5 +1,4 @@
 -- SuspicionsPack — GroupJoinedReminder Module
--- Forked from ItruliaQOL's GroupJoinedReminder.
 -- Prints a chat message when you join a Mythic or Mythic+ group via the group finder.
 local SP = SuspicionsPack
 
@@ -84,18 +83,16 @@ function GroupJoinedReminder:OnDisable()
     self:UnregisterAllEvents()
 end
 
--- Called by the GUI enable toggle
-function GroupJoinedReminder.Refresh()
-    local db  = GetDB()
-    local mod = SP.GroupJoinedReminder
+function GroupJoinedReminder:Refresh()
+    local db = GetDB()
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
-        mod:RegisterEvent("GROUP_LEFT",                   "OnGroupLeft")
-        mod:RegisterEvent("LFG_LIST_JOINED_GROUP",        "OnLFGEvent")
-        mod:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", "OnLFGEvent")
+        if not self:IsEnabled() then self:Enable() end
+        self:RegisterEvent("GROUP_LEFT",                   "OnGroupLeft")
+        self:RegisterEvent("LFG_LIST_JOINED_GROUP",        "OnLFGEvent")
+        self:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", "OnLFGEvent")
     else
-        mod:UnregisterEvent("GROUP_LEFT")
-        mod:UnregisterEvent("LFG_LIST_JOINED_GROUP")
-        mod:UnregisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
+        self:UnregisterEvent("GROUP_LEFT")
+        self:UnregisterEvent("LFG_LIST_JOINED_GROUP")
+        self:UnregisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
     end
 end

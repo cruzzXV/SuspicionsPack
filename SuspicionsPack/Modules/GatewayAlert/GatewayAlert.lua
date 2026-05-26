@@ -1,7 +1,5 @@
 -- SuspicionsPack — GatewayAlert Module
--- Displays a flashing alert when the Warlock Demonic Gateway item is usable.
--- Checks: item 188152 is in bags AND C_Item.IsUsableItem returns true.
--- Forked & simplified from NorskenUI's QoL/GateUsable.lua.
+-- Affiche une alerte clignotante quand le Portail démoniaque est utilisable.
 
 local SP = SuspicionsPack
 
@@ -45,6 +43,7 @@ function GA:CreateAlertFrame()
     f:SetFrameStrata("HIGH")
     f:SetFrameLevel(200)
     f:EnableMouse(false)
+    f:SetMouseClickEnabled(false)
     f:Hide()
 
     local lbl = f:CreateFontString(nil, "OVERLAY")
@@ -68,9 +67,6 @@ function GA:CreateAlertFrame()
     ag:Play()
     f.pulseGroup = ag
 
-    f:EnableMouse(false)
-    f:SetMouseClickEnabled(false)
-
     self.frame = f
 end
 
@@ -87,7 +83,6 @@ function GA:ApplySettings()
     self.frame:SetPoint(anchorFrom, anchorFrame, anchorTo, db.x or 0, db.y or -100)
     self.frame:SetFrameStrata(db.frameStrata or "HIGH")
     if self.frame.label then
-        local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
         local fontPath = (db.fontFace and SP.GetFontPath and SP.GetFontPath(db.fontFace)) or SP_FONT
         local outlineFlag = (db.fontOutline ~= "NONE" and db.fontOutline) or "OUTLINE"
         self.frame.label:SetFont(fontPath, db.fontSize or 16, outlineFlag)
@@ -119,7 +114,6 @@ function GA:CheckUsable()
 end
 
 function GA:FullUpdate()
-    -- Small delay to avoid race conditions with BAG_UPDATE firing before item data is ready
     if fullUpdateTimer then fullUpdateTimer:Cancel() end
     fullUpdateTimer = C_Timer.NewTimer(0.5, function()
         fullUpdateTimer = nil
@@ -147,8 +141,6 @@ end
 
 function GA:HidePreview()
     self.isPreview = false
-    -- Reset cached state so UpdateState doesn't skip the hide due to
-    -- "isUsable == wasUsable" when nothing changed while preview was open.
     wasUsable = nil
     if not self.frame then return end
     self.frame:EnableMouse(false)
@@ -192,12 +184,12 @@ function GA:Deactivate()
     self.isPreview  = false
 end
 
-function GA.Refresh()
+function GA:Refresh()
     local db = GetDB()
     if db and db.enabled then
-        GA:Activate()
+        self:Activate()
     else
-        GA:Deactivate()
+        self:Deactivate()
     end
 end
 

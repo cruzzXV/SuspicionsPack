@@ -1,7 +1,6 @@
 -- SuspicionsPack — AutoBuy Module
 -- Vendor flow : silent, instant, on MERCHANT_SHOW.
--- AH flow     : scan bags → show list panel with per-item Buy buttons,
---               mirroring CraftShopper's UI exactly.
+-- AH flow     : scan bags → show list panel with per-item Buy buttons.
 local SP = SuspicionsPack
 
 local AutoBuy = SP:NewModule("AutoBuy", "AceEvent-3.0")
@@ -52,7 +51,7 @@ AutoBuy.PresetItems = {
 }
 
 -- ============================================================
--- Constants  (mirror CraftShopper)
+-- Constants
 -- ============================================================
 local BLANK    = "Interface\\Buttons\\WHITE8X8"
 local FONT     = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
@@ -161,7 +160,7 @@ local RefreshList
 local ShowIfNeeded
 
 -- ============================================================
--- Aux raw event frame  (identical pattern to CraftShopper)
+-- Aux raw event frame
 -- ============================================================
 local function GetAux()
     if AutoBuy._aux then return AutoBuy._aux end
@@ -236,7 +235,7 @@ local function UnregisterAllAux()
 end
 
 -- ============================================================
--- Per-item confirm popup  (mirrors CraftShopper's ShowBuyPopup)
+-- Per-item confirm popup
 -- ============================================================
 local function ShowBuyPopup(item, buyBtn)
     if pendingBuy then return end
@@ -365,7 +364,7 @@ local function ShowBuyPopup(item, buyBtn)
     closeBtn:SetScript("OnEnter",  function() closeTxt:SetText(closeFS_high) end)
     closeBtn:SetScript("OnLeave",  function() closeTxt:SetText(closeFS_dim) end)
 
-    -- 15-second countdown (same as CraftShopper)
+    -- 15-second countdown
     local remaining = 15
     timerFS:SetText(("Timeout: %ds"):format(remaining))
     local ticker = C_Timer.NewTicker(1, function()
@@ -476,7 +475,7 @@ local function ShowBuyPopup(item, buyBtn)
 end
 
 -- ============================================================
--- MakeTextBtn  (identical to CraftShopper)
+-- MakeTextBtn
 -- ============================================================
 local function MakeTextBtn(parent, label, r, g, b, tooltip)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
@@ -531,7 +530,7 @@ local function SetBtnEnabled(btn, enabled)
 end
 
 -- ============================================================
--- Row pool  (same approach as CraftShopper, Buy button only)
+-- Row pool  (Buy button only)
 -- ============================================================
 local rowPool = {}
 
@@ -621,7 +620,7 @@ local function GetRow(idx, content)
 end
 
 -- ============================================================
--- Main popup frame  (CraftShopper style, centered on AH)
+-- Main popup frame  (centered on AH)
 -- ============================================================
 local function MakeListFrame()
     if AutoBuy._listFrame then return AutoBuy._listFrame end
@@ -635,7 +634,7 @@ local function MakeListFrame()
     f:SetFrameLevel(100)
     f:SetClampedToScreen(true)
     f:Hide()
-    -- Body: slightly transparent (like CraftShopper's dark bg), header/footer are solid
+    -- Body: slightly transparent, header/footer are solid
     f:SetBackdrop({ bgFile = BLANK, edgeFile = BLANK, edgeSize = 1 })
     f:SetBackdropColor(T.bgDark[1], T.bgDark[2], T.bgDark[3], 0.80)
     f:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
@@ -663,7 +662,7 @@ local function MakeListFrame()
     accentLine:SetTexture(BLANK)
     accentLine:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 0.85)
 
-    -- SP Logo overflowing top-left (identical to CraftShopper)
+    -- SP Logo overflowing top-left
     local logo = CreateFrame("Frame", nil, f)
     logo:SetSize(44, 44)
     logo:SetPoint("TOPLEFT", f, "TOPLEFT", -11, 11)
@@ -944,13 +943,12 @@ end
 -- ============================================================
 -- Public API
 -- ============================================================
-function AutoBuy.Refresh()
-    local db  = GetDB()
-    local mod = SP.AutoBuy
+function AutoBuy:Refresh()
+    local db = GetDB()
     if db and db.enabled then
-        if not mod:IsEnabled() then mod:Enable() end
+        if not self:IsEnabled() then self:Enable() end
     else
-        if mod:IsEnabled() then mod:Disable() end
+        if self:IsEnabled() then self:Disable() end
     end
 end
 
