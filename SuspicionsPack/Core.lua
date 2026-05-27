@@ -1504,4 +1504,4 @@ function SP.CheckChangelog()
     if not db or not db.settings then return end
     if db.settings.lastSeenVersion == SP.VERSION then return end
     -- Only show if there's actually changelog data for this version
-    if not SP.Changelog[SP.VERSION] then return e
+    if not SP.Changelog[SP.VERSION] then return end
