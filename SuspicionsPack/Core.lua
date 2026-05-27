@@ -1505,3 +1505,11 @@ function SP.CheckChangelog()
     if db.settings.lastSeenVersion == SP.VERSION then return end
     -- Only show if there's actually changelog data for this version
     if not SP.Changelog[SP.VERSION] then return end
+
+    db.settings.lastSeenVersion = SP.VERSION
+
+    -- Small delay so the UI is fully loaded before we show the popup
+    C_Timer.After(3, function()
+        SP.ShowChangelogPopup()
+    end)
+end
