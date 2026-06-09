@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.8.6"
+SP.VERSION = "1.8.7"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1171,6 +1171,11 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["1.8.7"] = {
+        { type = "fix", text = "PotionAlert: migrated to C_Item.GetItemCooldown API." },
+        { type = "fix", text = "PotionAlert: added CHALLENGE_MODE_START and ENCOUNTER_END detection." },
+        { type = "fix", text = "PotionAlert: skip redundant BAG_UPDATE_COOLDOWN checks while potion is on cooldown." },
+    },
     ["1.8.4"] = {
         { type = "change", text = "Code cleanup across all modules." },
         { type = "fix",    text = "PotionAlert: fixed module not triggering correctly." },
@@ -1227,7 +1232,7 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.8.4", "1.8.3", "1.8.2", "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
+SP.ChangelogOrder = { "1.8.7", "1.8.4", "1.8.3", "1.8.2", "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()

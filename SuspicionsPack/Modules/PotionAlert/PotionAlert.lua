@@ -80,7 +80,7 @@ end
 
 local function FindTrackedPotion()
     for _, id in ipairs(POTION_IDS) do
-        local _, _, enabled = C_Container.GetItemCooldown(id)
+        local _, _, enabled = C_Item.GetItemCooldown(id)
         if enabled then return id end
     end
     return nil
@@ -189,7 +189,7 @@ local function CheckCooldown()
         return
     end
 
-    local start = C_Container.GetItemCooldown(potion)
+    local start, duration = C_Item.GetItemCooldown(potion)
     if start == 0 then
         if onCD then
             if db.playTTS and db.ttsText and db.ttsText ~= "" then
@@ -218,7 +218,6 @@ local function CheckCooldown()
         CancelCDTimer()
         if frame then frame:Hide() end
         -- BAG_UPDATE_COOLDOWN ne fire pas toujours à l'expiration, timer de secours.
-        local _, duration = C_Container.GetItemCooldown(potion)
         if duration and duration > 0 then
             local remaining = (start + duration) - GetTime()
             if remaining > 0 then
@@ -252,23 +251,35 @@ end
 
 function PotionAlert:_RegisterEvents()
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnCooldownEvent")
-    self:RegisterEvent("BAG_UPDATE_COOLDOWN",   "OnCooldownEvent")
-    self:RegisterEvent("SPELL_UPDATE_COOLDOWN", "OnCooldownEvent")
+    self:RegisterEvent("BAG_UPDATE_COOLDOWN",   "OnBagCooldown")
     self:RegisterEvent("PLAYER_REGEN_ENABLED",  "OnCooldownEvent")
     self:RegisterEvent("PLAYER_REGEN_DISABLED", "OnCooldownEvent")
+    self:RegisterEvent("CHALLENGE_MODE_START",  "OnCooldownEvent")
     self:RegisterEvent("ENCOUNTER_START",        "OnEncounterStart")
+    self:RegisterEvent("ENCOUNTER_END",          "OnEncounterEnd")
 end
 
 function PotionAlert:OnCooldownEvent()
     CheckCooldown()
 end
 
+-- Skip BAG_UPDATE_COOLDOWN if potion is already known to be on CD.
+-- The fallback cdTimer handles expiry; no need to scan on every bag event.
+function PotionAlert:OnBagCooldown()
+    if not onCD then CheckCooldown() end
+end
+
 function PotionAlert:OnEncounterStart()
-    -- reset au pull pour éviter un faux positif au début du combat
+    -- Reset at pull to avoid a false positive at combat start.
     CancelDisplayTimer()
     CancelCDTimer()
     onCD = false
     if frame and not isPreview then frame:Hide() end
+end
+
+function PotionAlert:OnEncounterEnd()
+    -- Re-check after boss kill or wipe — potion may now be ready.
+    CheckCooldown()
 end
 
 -- ============================================================
