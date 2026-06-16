@@ -397,7 +397,4 @@ function BLAlert:Refresh()
     else
         unitAuraFrame:UnregisterEvent("UNIT_AURA")
         self:UnregisterEvent("PLAYER_DEAD")
-        self:UnregisterEvent("PLAYER_ENTERING_WORLD")
-        if active then self:StopBL() end
-    end
-end
+  
