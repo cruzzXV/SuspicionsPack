@@ -19,6 +19,7 @@ BLAlert.Sounds = {
     { key = "ratirl",     label = "RatIRL",              file = BL_MEDIA .. "RatIRL.mp3"              },
     { key = "doigby",     label = "Doigby Guerrier",     file = BL_MEDIA .. "Doigby Guerrier.mp3"     },
     { key = "charlie",    label = "We Are Charlie Kirk", file = BL_MEDIA .. "We are charlie kirk.mp3" },
+    { key = "oiia",       label = "OIIA Psytrance",      file = BL_MEDIA .. "oiia-psytrance.mp3"      },
 }
 
 local SOUND_FILES = {}
