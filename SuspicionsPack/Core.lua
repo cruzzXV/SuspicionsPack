@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.8.9"
+SP.VERSION = "1.8.10"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1171,6 +1171,9 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["1.8.10"] = {
+        { type = "fix", text = "BloodlustAlert: fin du fichier tronquée par le PR de valdum, corrigée." },
+    },
     ["1.8.9"] = {
         { type = "fix", text = "BloodlustAlert: OIIA Psytrance manquait du zip v1.8.8, corrigé." },
     },
@@ -1238,7 +1241,7 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.8.9", "1.8.8", "1.8.7", "1.8.4", "1.8.3", "1.8.2", "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
+SP.ChangelogOrder = { "1.8.10", "1.8.9", "1.8.8", "1.8.7", "1.8.4", "1.8.3", "1.8.2", "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
