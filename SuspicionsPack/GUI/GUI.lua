@@ -8613,6 +8613,28 @@ GUI:RegisterContent("reapmeter", function(parent)
         L.furyHeight or  14, function(v) L.furyHeight = v; Call("ApplyFurySize") end), 0.5)
     card3:AddRow(furySizeRow, 44)
 
+    -- Match Ellesmere width (fury bar)
+    do
+        local matchWrap = CreateFrame("Frame", nil, parent)
+        matchWrap:SetHeight(28)
+        local matchBtn = GUI:CreateButton(matchWrap, "Match Ellesmere width", nil, 200, 26)
+        matchBtn:SetPoint("LEFT", matchWrap, "LEFT", 0, 0)
+        matchBtn:SetScript("OnClick", function()
+            if not (mod and mod.StartERBWidthPick) then return end
+            matchBtn:SetText("Click the bar…  (Esc / clic droit = annuler)")
+            matchBtn:SetEnabled(false)
+            mod.StartERBWidthPick(function(w)
+                matchBtn:SetEnabled(true)
+                if w then
+                    matchBtn:SetText(("Largeur matchée : %d px"):format(w))
+                else
+                    matchBtn:SetText("Match Ellesmere width")
+                end
+            end)
+        end)
+        card3:AddRow(matchWrap, 28)
+    end
+
     -- Font size (font face is set in Shared)
     card3:AddRow(GUI:CreateSlider(parent, "Font Size", 6, 32, 1,
         L.furyFont or 13, function(v) L.furyFont = v; Call("ApplyFurySize") end), 44)
