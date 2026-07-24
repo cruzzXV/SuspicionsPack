@@ -305,26 +305,28 @@ local function SmoothBars(dt)
         furyFrame and furyFrame.soulFuryPreview,
     }
     for _, bar in ipairs(toSmooth) do
-        if not (bar and bar:IsShown()) then goto continue end
-        local tgt = bar._smoothTarget
-        if tgt == nil then goto continue end
-        if issecretvalue(tgt) then
-            bar:SetValue(tgt)
-            goto continue
+        if bar and bar:IsShown() then
+            local tgt = bar._smoothTarget
+            if tgt ~= nil then
+                if issecretvalue(tgt) then
+                    bar:SetValue(tgt)
+                else
+                    local cur = bar._smoothCurrent
+                    if cur ~= nil then
+                        local diff = tgt - cur
+                        if math.abs(diff) > 0.5 then
+                            cur = cur + diff * math.min(1, dt * SMOOTH_SPEED)
+                            bar._smoothCurrent = cur
+                            bar:SetValue(cur)
+                        elseif cur ~= tgt then
+                            -- Snap to exact target (prevents settling short on small-max bars).
+                            bar._smoothCurrent = tgt
+                            bar:SetValue(tgt)
+                        end
+                    end
+                end
+            end
         end
-        local cur = bar._smoothCurrent
-        if cur == nil then goto continue end
-        local diff = tgt - cur
-        if math.abs(diff) > 0.5 then
-            cur = cur + diff * math.min(1, dt * SMOOTH_SPEED)
-            bar._smoothCurrent = cur
-            bar:SetValue(cur)
-        elseif cur ~= tgt then
-            -- Snap to exact target to prevent settling short (visible on small-max bars).
-            bar._smoothCurrent = tgt
-            bar:SetValue(tgt)
-        end
-        ::continue::
     end
 end
 
