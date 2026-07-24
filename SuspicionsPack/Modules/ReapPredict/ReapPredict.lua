@@ -266,71 +266,21 @@ local function ReadMoCActive()
     return ReadCDMAuraData(FindMoCCDMFrame) ~= nil
 end
 
--- Ellesmere-style per-frame Lerp smooth (SMOOTH_SPEED=8 ≈ snappy, ~2-3 frame tail).
--- _smoothTarget = desired value (set on data event).
--- _smoothCurrent = current interpolated value (driven every frame in SmoothBars).
--- Secret values bypass the lerp and are written directly to the StatusBar widget.
-local SMOOTH_SPEED = 8
+-- WoW native ExponentialEaseOut smooth — no per-frame lerp, no taint issues,
+-- visually identical to Ellesmere bar speed.
+local SB_SMOOTH = (Enum and Enum.StatusBarInterpolation
+                   and Enum.StatusBarInterpolation.ExponentialEaseOut) or 1
 
 local function ApplyToBar(bar, value)
     if issecretvalue(value) then
-        -- Secret: C widget handles it directly; reset current so no stale lerp.
-        bar._smoothTarget  = value
-        bar._smoothCurrent = nil
-        bar:SetValue(value)
+        bar._lastNum = nil
+        bar:SetValue(value, SB_SMOOTH)
         return
     end
     local v = (type(value) == "number") and value or 0
-    -- Guard: _smoothTarget may be a secret value from a prior call; comparing it
-    -- with == against a plain number triggers a taint error.  Skip the no-op
-    -- early-return if the stored target is secret.
-    if not issecretvalue(bar._smoothTarget) and bar._smoothTarget == v then return end
-    bar._smoothTarget = v
-    -- Lazy-init current on first call so the bar snaps immediately.
-    if bar._smoothCurrent == nil then
-        bar._smoothCurrent = v
-        bar:SetValue(v)
-    end
-end
-
--- Drives smooth animation toward each bar's _smoothTarget.
--- Called every frame from the poll OnUpdate BEFORE the 0.1s data tick.
-local function SmoothBars(dt)
-    local toSmooth = {
-        frame     and frame.growthBar,
-        frame     and frame.sfBar,
-        frame     and frame.mocPreview,
-        frame     and frame.mocRail,
-        furyFrame and furyFrame.furyFillBar,
-        furyFrame and furyFrame.consumeBar,
-        furyFrame and furyFrame.flatBar,
-        furyFrame and furyFrame.soulFuryBar,
-        furyFrame and furyFrame.soulFuryPreview,
-    }
-    for _, bar in ipairs(toSmooth) do
-        if bar and bar:IsShown() then
-            local tgt = bar._smoothTarget
-            if tgt ~= nil then
-                if issecretvalue(tgt) then
-                    bar:SetValue(tgt)
-                else
-                    local cur = bar._smoothCurrent
-                    if cur ~= nil then
-                        local diff = tgt - cur
-                        if math.abs(diff) > 0.5 then
-                            cur = cur + diff * math.min(1, dt * SMOOTH_SPEED)
-                            bar._smoothCurrent = cur
-                            bar:SetValue(cur)
-                        elseif cur ~= tgt then
-                            -- Snap to exact target (prevents settling short on small-max bars).
-                            bar._smoothCurrent = tgt
-                            bar:SetValue(tgt)
-                        end
-                    end
-                end
-            end
-        end
-    end
+    if bar._lastNum == v then return end
+    bar._lastNum = v
+    bar:SetValue(v, SB_SMOOTH)
 end
 
 local function SetBarLabel(label, value)
@@ -1296,11 +1246,10 @@ local function EnsurePollFrame()
     pollFrame = CreateFrame("Frame")
     local accum = 0
     pollFrame:SetScript("OnUpdate", function(_, elapsed)
-        SmoothBars(elapsed)          -- every frame: lerp bars toward their targets
         accum = accum + elapsed
         if accum < 0.1 then return end
         accum = 0
-        UpdateMeter()                -- 10 Hz: read actual game state
+        UpdateMeter()
     end)
 end
 
