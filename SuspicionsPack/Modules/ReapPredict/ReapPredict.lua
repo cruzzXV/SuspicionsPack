@@ -266,19 +266,66 @@ local function ReadMoCActive()
     return ReadCDMAuraData(FindMoCCDMFrame) ~= nil
 end
 
-local SB_SMOOTH = (Enum and Enum.StatusBarInterpolation
-                   and Enum.StatusBarInterpolation.ExponentialEaseOut) or 1
+-- Ellesmere-style per-frame Lerp smooth (SMOOTH_SPEED=8 ≈ snappy, ~2-3 frame tail).
+-- _smoothTarget = desired value (set on data event).
+-- _smoothCurrent = current interpolated value (driven every frame in SmoothBars).
+-- Secret values bypass the lerp and are written directly to the StatusBar widget.
+local SMOOTH_SPEED = 8
 
 local function ApplyToBar(bar, value)
     if issecretvalue(value) then
-        bar._lastNum = nil
-        bar:SetValue(value, SB_SMOOTH)
+        -- Secret: C widget handles it directly; reset current so no stale lerp.
+        bar._smoothTarget  = value
+        bar._smoothCurrent = nil
+        bar:SetValue(value)
         return
     end
     local v = (type(value) == "number") and value or 0
-    if bar._lastNum == v then return end
-    bar._lastNum = v
-    bar:SetValue(v, SB_SMOOTH)
+    if bar._smoothTarget == v then return end
+    bar._smoothTarget = v
+    -- Lazy-init current on first call so the bar snaps immediately.
+    if bar._smoothCurrent == nil then
+        bar._smoothCurrent = v
+        bar:SetValue(v)
+    end
+end
+
+-- Drives smooth animation toward each bar's _smoothTarget.
+-- Called every frame from the poll OnUpdate BEFORE the 0.1s data tick.
+local function SmoothBars(dt)
+    local toSmooth = {
+        frame     and frame.growthBar,
+        frame     and frame.sfBar,
+        frame     and frame.mocPreview,
+        frame     and frame.mocRail,
+        furyFrame and furyFrame.furyFillBar,
+        furyFrame and furyFrame.consumeBar,
+        furyFrame and furyFrame.flatBar,
+        furyFrame and furyFrame.soulFuryBar,
+        furyFrame and furyFrame.soulFuryPreview,
+    }
+    for _, bar in ipairs(toSmooth) do
+        if not (bar and bar:IsShown()) then goto continue end
+        local tgt = bar._smoothTarget
+        if tgt == nil then goto continue end
+        if issecretvalue(tgt) then
+            bar:SetValue(tgt)
+            goto continue
+        end
+        local cur = bar._smoothCurrent
+        if cur == nil then goto continue end
+        local diff = tgt - cur
+        if math.abs(diff) > 0.5 then
+            cur = cur + diff * math.min(1, dt * SMOOTH_SPEED)
+            bar._smoothCurrent = cur
+            bar:SetValue(cur)
+        elseif cur ~= tgt then
+            -- Snap to exact target to prevent settling short (visible on small-max bars).
+            bar._smoothCurrent = tgt
+            bar:SetValue(tgt)
+        end
+        ::continue::
+    end
 end
 
 local function SetBarLabel(label, value)
@@ -1244,10 +1291,11 @@ local function EnsurePollFrame()
     pollFrame = CreateFrame("Frame")
     local accum = 0
     pollFrame:SetScript("OnUpdate", function(_, elapsed)
+        SmoothBars(elapsed)          -- every frame: lerp bars toward their targets
         accum = accum + elapsed
         if accum < 0.1 then return end
         accum = 0
-        UpdateMeter()
+        UpdateMeter()                -- 10 Hz: read actual game state
     end)
 end
 
@@ -2071,4 +2119,81 @@ ReapPredict.ResetColors      = function()
         db.colors[k] = CopyColor(v)
     end
     ApplyColors()
+end
+
+-- ============================================================
+-- Ellesmere width picker
+-- Click-catcher: when active the user clicks any on-screen bar;
+-- GetMouseFoci returns all frames at that point including the one
+-- under the catcher, so we pick the widest non-catcher frame.
+-- ============================================================
+local erbPickFrame    = nil
+local erbPickCallback = nil
+
+local function ExitERBPick()
+    if erbPickFrame then
+        erbPickFrame:SetScript("OnMouseDown", nil)
+        erbPickFrame:SetScript("OnKeyDown",   nil)
+        erbPickFrame:Hide()
+        erbPickFrame = nil
+    end
+    erbPickCallback = nil
+end
+
+local function StartERBPick(callback)
+    ExitERBPick()
+    erbPickCallback = callback
+
+    erbPickFrame = CreateFrame("Frame", "SP_ERBWidthPicker", UIParent)
+    erbPickFrame:SetAllPoints(UIParent)
+    erbPickFrame:SetFrameStrata("TOOLTIP")
+    erbPickFrame:EnableMouse(true)
+    erbPickFrame:SetPropagateKeyboardInput(true)
+
+    erbPickFrame:SetScript("OnKeyDown", function(_, key)
+        if key == "ESCAPE" then
+            ExitERBPick()
+            if callback then callback(nil) end
+        end
+    end)
+
+    erbPickFrame:SetScript("OnMouseDown", function(self, btn)
+        if btn == "RightButton" then
+            ExitERBPick()
+            if callback then callback(nil) end
+            return
+        end
+        -- Collect all frames at cursor; skip our own catcher.
+        local foci = GetMouseFoci and { GetMouseFoci() } or {}
+        local bestW = 0
+        for _, f in ipairs(foci) do
+            if f and f ~= self and f.GetWidth then
+                local w = math.floor(f:GetWidth() + 0.5)
+                if w > bestW and w < 3000 then bestW = w end
+            end
+        end
+        ExitERBPick()
+        if callback then callback(bestW > 0 and bestW or nil) end
+    end)
+
+    erbPickFrame:Show()
+end
+
+-- Public: start the pick mode. onDone(width) called with the chosen pixel
+-- width, or nil if cancelled. Automatically applies to both bars + DB.
+function ReapPredict.StartERBWidthPick(onDone)
+    StartERBPick(function(w)
+        if w and w > 0 then
+            local db = GetDB()
+            local L  = db and db.layout
+            if L then
+                CONTAINER_W = w
+                L.width     = w
+                L.furyWidth = w
+                ApplySize()
+                ApplyFurySize()
+            end
+        end
+        if onDone then onDone(w) end
+    end)
 end

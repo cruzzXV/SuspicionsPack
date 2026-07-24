@@ -8506,6 +8506,28 @@ GUI:RegisterContent("reapmeter", function(parent)
     soulSizeRow:Add(GUI:CreateSlider(parent, "Height",   1,  100, 1,
         L.height or  22, function(v) L.height = v; Call("ApplySize") end), 0.5)
     card2:AddRow(soulSizeRow, 44)
+
+    -- Match Ellesmere width: click any on-screen bar to snap to its width
+    do
+        local matchWrap = CreateFrame("Frame", nil, parent)
+        matchWrap:SetHeight(28)
+        local matchBtn = GUI:CreateButton(matchWrap, "Match Ellesmere width", nil, 200, 26)
+        matchBtn:SetPoint("LEFT", matchWrap, "LEFT", 0, 0)
+        matchBtn:SetScript("OnClick", function()
+            if not (mod and mod.StartERBWidthPick) then return end
+            matchBtn:SetText("Click the bar…  (Esc / clic droit = annuler)")
+            matchBtn:SetEnabled(false)
+            mod.StartERBWidthPick(function(w)
+                matchBtn:SetEnabled(true)
+                if w then
+                    matchBtn:SetText(("Largeur matchée : %d px"):format(w))
+                else
+                    matchBtn:SetText("Match Ellesmere width")
+                end
+            end)
+        end)
+        card2:AddRow(matchWrap, 28)
+    end
     card2:AddSeparator()
 
     -- Font size (soul bar only — font face is set in Shared)
