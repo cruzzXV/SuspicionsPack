@@ -281,7 +281,10 @@ local function ApplyToBar(bar, value)
         return
     end
     local v = (type(value) == "number") and value or 0
-    if bar._smoothTarget == v then return end
+    -- Guard: _smoothTarget may be a secret value from a prior call; comparing it
+    -- with == against a plain number triggers a taint error.  Skip the no-op
+    -- early-return if the stored target is secret.
+    if not issecretvalue(bar._smoothTarget) and bar._smoothTarget == v then return end
     bar._smoothTarget = v
     -- Lazy-init current on first call so the bar snaps immediately.
     if bar._smoothCurrent == nil then
