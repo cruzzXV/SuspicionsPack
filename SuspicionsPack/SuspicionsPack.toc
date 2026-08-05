@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r
 ## Notes: Collection of QoL features
 ## Author: Cruzz
-## Version: 1.8.15
+## Version: 1.9.0
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## SavedVariables: SuspicionsPackDB
 ## IconTexture: Interface\AddOns\SuspicionsPack\Media\Icons\icon.png
@@ -47,6 +47,7 @@ Modules\AutoPlaystyle\AutoPlaystyle.lua
 Modules\Performance\Performance.lua
 Modules\EnhancedObjectiveText\EnhancedObjectiveText.lua
 Modules\CleanObjectiveTrackerHeader\CleanObjectiveTrackerHeader.lua
+Modules\MicroMenuSkin\MicroMenuSkin.lua
 Modules\GatewayAlert\GatewayAlert.lua
 Modules\CombatCross\CombatCross.lua
 Modules\Durability\Durability.lua

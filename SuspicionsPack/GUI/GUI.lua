@@ -433,6 +433,7 @@ GUI.SidebarConfig = {
             { id = "cleanobjectivetrackerheader", text = "Clean Objective Header"  },
             { id = "copytooltip",                 text = "Copy Anything"           },
             { id = "enhancedobjectivetext",       text = "Enhanced Objective Text" },
+            { id = "micromenuskin",               text = "Micro Menu Skin"         },
             { id = "drawer",                      text = "Minimap Drawer"          },
             { id = "editmode",                    text = "Nudge Tool"              },
             { id = "performance",                 text = "Performance"             },
@@ -2268,6 +2269,7 @@ local function ItemEnabledState(id)
     elseif id == "performance"         then return db.performance          and db.performance.enabled          or false
     elseif id == "enhancedobjectivetext"      then return db.enhancedObjectiveText      and db.enhancedObjectiveText.enabled      or false
     elseif id == "cleanobjectivetrackerheader" then return db.cleanObjectiveTrackerHeader and db.cleanObjectiveTrackerHeader.enabled or false
+    elseif id == "micromenuskin"     then return db.microMenuSkin  and db.microMenuSkin.enabled  or false
     elseif id == "whisperalert"      then return db.whisperAlert and db.whisperAlert.enabled or false
     elseif id == "filterexpansiononly" then return db.filterExpansionOnly and db.filterExpansionOnly.enabled or false
     elseif id == "autobuy"           then local cdb = SP.GetCharDB(); return cdb.autoBuy and cdb.autoBuy.enabled or false
@@ -7190,6 +7192,115 @@ GUI:RegisterContent("cleanobjectivetrackerheader", function(parent)
             Refresh()
         end, "Clean Objective Header"), 28)
     y = y + card1:GetTotalHeight() + T.paddingSmall
+
+    parent:SetHeight(y)
+end)
+
+-- ============================================================
+-- Page: Micro Menu Skin
+-- ============================================================
+GUI:RegisterContent("micromenuskin", function(parent)
+    local db = SP.GetDB().microMenuSkin
+    local y  = 0
+
+    local function Apply()
+        if SP.MicroMenuSkin then SP.MicroMenuSkin:Refresh() end
+    end
+
+    -- ---------- Card 1 : enable ----------
+    local card1 = GUI:CreateCard(parent, "Micro Menu Skin", y)
+    card1:AddLabel(
+        "Reskins the micro menu buttons (character, spellbook, talents, collections...) "..
+        "in a flat ElvUI-like style: dark backdrop, thin border, accent border on hover, "..
+        "and Blizzard's button frame art stripped away so only the icon shows.",
+        T.textMuted)
+    card1:AddLabel(
+        "Button placement stays under Edit Mode \226\128\148 only size and spacing can be "..
+        "overridden below. Disabling needs a /reload to fully restore Blizzard's original art.",
+        T.textMuted)
+    card1:AddSeparator()
+    card1:AddRow(GUI:CreateToggle(parent, "Enable micro menu skin", db.enabled,
+        function(v)
+            db.enabled = v
+            Apply()
+        end, "Micro Menu Skin"), 28)
+    y = y + card1:GetTotalHeight() + T.paddingSmall
+
+    -- ---------- Card 2 : colours ----------
+    local card2 = GUI:CreateCard(parent, "Colors", y)
+
+    local bc = db.backdropColor
+    card2:AddRow(GUI:CreateStackedColorSwatch(parent, "Backdrop",
+        bc.r, bc.g, bc.b,
+        function(r, g, b, a)
+            bc.r, bc.g, bc.b = r, g, b
+            if a ~= nil then bc.a = a end
+            Apply()
+        end, bc.a), 52)
+
+    local br = db.borderColor
+    card2:AddRow(GUI:CreateStackedColorSwatch(parent, "Border",
+        br.r, br.g, br.b,
+        function(r, g, b, a)
+            br.r, br.g, br.b = r, g, b
+            if a ~= nil then br.a = a end
+            Apply()
+        end, br.a), 52)
+
+    local hc = db.hoverColor
+    card2:AddRow(GUI:CreateStackedColorSwatch(parent, "Hover / pushed accent",
+        hc.r, hc.g, hc.b,
+        function(r, g, b, a)
+            hc.r, hc.g, hc.b = r, g, b
+            if a ~= nil then hc.a = a end
+            Apply()
+        end, hc.a), 52)
+
+    card2:AddSeparator()
+    card2:AddRow(GUI:CreateToggle(parent, "Show backdrop", db.showBackdrop,
+        function(v) db.showBackdrop = v; Apply() end), 28)
+    card2:AddRow(GUI:CreateToggle(parent, "Show border", db.showBorder,
+        function(v) db.showBorder = v; Apply() end), 28)
+    y = y + card2:GetTotalHeight() + T.paddingSmall
+
+    -- ---------- Card 3 : sizing ----------
+    local card3 = GUI:CreateCard(parent, "Sizing", y)
+    card3:AddRow(GUI:CreateSlider(parent, "Border thickness", 1, 4, 1, db.borderSize,
+        function(v) db.borderSize = v; Apply() end), 36)
+    card3:AddRow(GUI:CreateSlider(parent, "Icon inset", 0, 8, 1, db.iconInset,
+        function(v) db.iconInset = v; Apply() end), 36)
+    card3:AddLabel("How far the icon sits inside the button edge.", T.textMuted)
+    card3:AddRow(GUI:CreateSlider(parent, "Icon zoom (%)", 0, 40, 1,
+        math.floor((db.iconZoom or 0) * 100 + 0.5),
+        function(v) db.iconZoom = v / 100; Apply() end), 36)
+    card3:AddLabel("Crops the icon inward to remove Blizzard's transparent padding.", T.textMuted)
+    card3:AddRow(GUI:CreateSlider(parent, "Highlight opacity (%)", 0, 60, 1,
+        math.floor((db.highlightAlpha or 0) * 100 + 0.5),
+        function(v) db.highlightAlpha = v / 100; Apply() end), 36)
+    y = y + card3:GetTotalHeight() + T.paddingSmall
+
+    -- ---------- Card 4 : layout ----------
+    local card4 = GUI:CreateCard(parent, "Size & Spacing", y)
+    card4:AddLabel(
+        "Takes over the button size and the gap between them, then lets Blizzard's own "..
+        "grid re-lay everything out. Leave off to keep Blizzard's sizing.",
+        T.textMuted)
+    card4:AddSeparator()
+    card4:AddRow(GUI:CreateToggle(parent, "Override size & spacing", db.overrideLayout,
+        function(v) db.overrideLayout = v; Apply() end), 28)
+    card4:AddRow(GUI:CreateSlider(parent, "Button size", 12, 48, 1, db.buttonSize,
+        function(v) db.buttonSize = v; Apply() end), 36)
+    card4:AddRow(GUI:CreateSlider(parent, "Spacing", -8, 20, 1, db.buttonSpacing,
+        function(v) db.buttonSpacing = v; Apply() end), 36)
+    card4:AddLabel("0 = backdrops touch edge to edge. Blizzard's native value is -5.", T.textMuted)
+    y = y + card4:GetTotalHeight() + T.paddingSmall
+
+    -- ---------- Card 5 : extras ----------
+    local card5 = GUI:CreateCard(parent, "Extras", y)
+    card5:AddRow(GUI:CreateToggle(parent, "Desaturate icons", db.desaturate,
+        function(v) db.desaturate = v; Apply() end), 28)
+    card5:AddLabel("Grayscale icons \226\128\148 they colour back in on hover.", T.textMuted)
+    y = y + card5:GetTotalHeight() + T.paddingSmall
 
     parent:SetHeight(y)
 end)

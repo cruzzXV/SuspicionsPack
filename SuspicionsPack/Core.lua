@@ -8,7 +8,7 @@ local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 _G.SuspicionsPack = SP
 NS.SP = SP
 
-SP.VERSION = "1.8.15"
+SP.VERSION = "1.9.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -588,6 +588,22 @@ local DEFAULTS = {
         },
         cleanObjectiveTrackerHeader = {
             enabled = false,
+        },
+        microMenuSkin = {
+            enabled        = false,
+            showBackdrop   = true,
+            showBorder     = true,
+            borderSize     = 1,
+            iconInset      = 2,
+            iconZoom       = 0.10,
+            highlightAlpha = 0.20,
+            desaturate     = false,
+            overrideLayout = false,
+            buttonSize     = 26,
+            buttonSpacing  = 0,
+            backdropColor  = { r = 0.06, g = 0.06, b = 0.06, a = 0.85 },
+            borderColor    = { r = 0.00, g = 0.00, b = 0.00, a = 1.00 },
+            hoverColor     = { r = 0.90, g = 0.06, b = 0.22, a = 1.00 },
         },
         tankMD = {
             enabled         = false,
@@ -1171,6 +1187,9 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["1.9.0"] = {
+        { type = "new", text = "Micro Menu Skin: nouveau module — reskin ElvUI-like du micromenu (backdrop, bordure, accent au survol, icônes croppées, taille + écart réglables)." },
+    },
     ["1.8.15"] = {
         { type = "fix", text = "ReapPredict: revert lerp custom — retour SetValue ExponentialEaseOut natif (plus de trous)." },
     },
@@ -1256,7 +1275,7 @@ SP.Changelog = {
     },
 }
 
-SP.ChangelogOrder = { "1.8.15", "1.8.14", "1.8.13", "1.8.12", "1.8.11", "1.8.10", "1.8.9", "1.8.8", "1.8.7", "1.8.4", "1.8.3", "1.8.2", "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
+SP.ChangelogOrder = { "1.9.0", "1.8.15", "1.8.14", "1.8.13", "1.8.12", "1.8.11", "1.8.10", "1.8.9", "1.8.8", "1.8.7", "1.8.4", "1.8.3", "1.8.2", "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
