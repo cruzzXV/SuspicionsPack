@@ -3,7 +3,7 @@
 
 local SP = SuspicionsPack
 
-local Cursor = SP:NewModule("Cursor", "AceEvent-3.0")
+local Cursor = SP:NewSPModule("Cursor", "cursor")
 SP.Cursor = Cursor
 
 -- ============================================================
@@ -33,6 +33,10 @@ end
 -- ============================================================
 local mainFrame  = nil
 local clickFrame = nil   -- second circle, visible only while mouse button held ≥ 150 ms
+
+-- Declared up here, not next to PreviewClickCircle: Deactivate cancels it, and
+-- a closure cannot see a `local` declared further down the file.
+local _previewClickTimer = nil
 
 -- ============================================================
 -- Color helpers
@@ -232,20 +236,50 @@ end
 -- ============================================================
 -- Public API
 -- ============================================================
-function Cursor.Enable()
+-- Named Activate/Deactivate, NOT Enable/Disable.
+-- AceAddon puts its own Enable/Disable mixin on every module table, so a
+-- module function with those names SHADOWS the lifecycle: any caller doing
+-- mod:Disable() then ran the feature teardown with a stray `self` argument
+-- instead of the AceAddon one, never cleared enabledState, and here also
+-- wrote to the saved variables.
+--
+-- Deliberately DOT functions that never touch `self`: the GUI and Core call
+-- SP.Cursor.Refresh() while ModuleMixin calls self:Activate()/self:Deactivate(),
+-- so the module table arrives as a stray first argument on one of the two
+-- paths. Ignoring it entirely is the only shape that is correct for both.
+function Cursor.Activate()
     local db = GetDB()
     if not db.enabled then return end
     if not mainFrame then CreateCursorFrame() end
     mainFrame:Show()
 end
 
-function Cursor.Disable()
+function Cursor.Deactivate()
+    -- The cursor is driven by an OnUpdate on mainFrame, which is parented to
+    -- UIParent: hiding it is what actually stops the driver.
     if mainFrame   then mainFrame:Hide()  end
     if clickFrame  then clickFrame:Hide() end
+    if _previewClickTimer then
+        _previewClickTimer:Cancel()
+        _previewClickTimer = nil
+    end
 end
 
+-- Doubles as ModuleMixin:Refresh -- it already dispatches to Activate or
+-- Deactivate on db.enabled, so OnEnable/OnDisable come from the mixin.
 function Cursor.Refresh()
     local db = GetDB()
+
+    -- Keep AceAddon's flag tracking db.enabled. Without this the feature runs
+    -- while the module is flagged disabled, and a later mod:Disable() is a
+    -- no-op -- AceAddon returns early and OnDisable/Deactivate never run.
+    if db and db.enabled and Cursor.IsEnabled and not Cursor:IsEnabled() then
+        Cursor:Enable()
+        return
+    elseif not (db and db.enabled) and Cursor.IsEnabled and Cursor:IsEnabled() then
+        Cursor:Disable()
+        return
+    end
 
     if not mainFrame then CreateCursorFrame() end
 
@@ -280,13 +314,12 @@ function Cursor.Refresh()
     end
 
     if db.enabled then
-        Cursor.Enable()
+        Cursor.Activate()
     else
-        Cursor.Disable()
+        Cursor.Deactivate()
     end
 end
 
-local _previewClickTimer = nil
 function Cursor.PreviewClickCircle()
     local db = GetDB()
     local cr, cg, cb = GetClickColor()
@@ -340,25 +373,8 @@ end
 
 -- ============================================================
 -- AceAddon Module lifecycle
+--
+-- Nothing left to write: OnEnable (deferred to PLAYER_LOGIN, then Refresh) and
+-- OnDisable (UnregisterAllEvents + Deactivate) both come from SP.ModuleMixin --
+-- see Core/Module.lua. Cursor.Refresh above is the mixin's Refresh.
 -- ============================================================
-
-function Cursor:OnEnable()
-    if IsLoggedIn() then
-        self:OnLogin()
-    else
-        self:RegisterEvent("PLAYER_LOGIN", "OnLogin")
-    end
-end
-
-function Cursor:OnDisable()
-    self:UnregisterAllEvents()
-    Cursor.Disable()
-end
-
-function Cursor:OnLogin()
-    local db = GetDB()
-    if db.enabled then
-        CreateCursorFrame()
-        mainFrame:Show()
-    end
-end

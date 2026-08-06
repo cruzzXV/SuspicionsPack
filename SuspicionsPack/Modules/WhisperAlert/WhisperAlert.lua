@@ -3,7 +3,7 @@
 
 local SP = SuspicionsPack
 
-local WA = SP:NewModule("WhisperAlert", "AceEvent-3.0")
+local WA = SP:NewSPModule("WhisperAlert", "whisperAlert")
 SP.WhisperAlert = WA
 
 -- ============================================================
@@ -24,6 +24,7 @@ end
 
 -- ============================================================
 -- DB helper
+-- Kept as a file local: PlayAlert() is a file-scope function with no `self`.
 -- ============================================================
 local function GetDB()
     return SP.GetDB().whisperAlert
@@ -69,42 +70,14 @@ end
 
 -- ============================================================
 -- Activate / Deactivate
+-- Everything else (Refresh / OnEnable / OnDisable) comes from SP.ModuleMixin.
 -- ============================================================
 function WA:Activate()
-    local db = GetDB()
-    if not db or not db.enabled then return end
+    if not self:IsOn() then return end
     self:RegisterEvent("CHAT_MSG_WHISPER",    "OnWhisper")
     self:RegisterEvent("CHAT_MSG_BN_WHISPER", "OnBNetWhisper")
 end
 
 function WA:Deactivate()
     self:UnregisterAllEvents()
-end
-
-function WA:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        self:Activate()
-    else
-        self:Deactivate()
-    end
-end
-
--- ============================================================
--- AceAddon lifecycle
--- ============================================================
-function WA:OnEnable()
-    if IsLoggedIn() then
-        local db = GetDB()
-        if db and db.enabled then self:Activate() end
-    else
-        self:RegisterEvent("PLAYER_LOGIN", function()
-            local db = GetDB()
-            if db and db.enabled then self:Activate() end
-        end)
-    end
-end
-
-function WA:OnDisable()
-    self:Deactivate()
 end

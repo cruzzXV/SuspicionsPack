@@ -3,7 +3,7 @@
 
 local SP = SuspicionsPack
 
-local CT = SP:NewModule("CombatTimer", "AceEvent-3.0")
+local CT = SP:NewSPModule("CombatTimer", "combatTimer")
 SP.CombatTimer = CT
 
 -- ============================================================
@@ -17,35 +17,15 @@ local string_format  = string.format
 local C_Timer        = C_Timer
 local UIParent       = UIParent
 
-local SP_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
-local BLANK   = "Interface\\Buttons\\WHITE8X8"
+local BLANK   = SP.BLANK
 
-local FONT_FACES = {
-    ["Expressway"]    = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf",
-    ["Friz Quadrata"] = "Fonts\\FRIZQT__.TTF",
-    ["Arial Narrow"]  = "Fonts\\ARIALN.TTF",
-    ["Morpheus"]      = "Fonts\\MORPHEUS.TTF",
-    ["Skurri"]        = "Fonts\\SKURRI.TTF",
-    ["Damage"]        = "Fonts\\DAMAGE.TTF",
-    ["Ambiguity"]     = "Fonts\\2002.TTF",
-    ["Nimrod MT"]     = "Fonts\\NIMROD.TTF",
-}
-CT.FontFaceOrder = {
-    "Expressway", "Friz Quadrata", "Arial Narrow", "Morpheus",
-    "Skurri", "Damage", "Ambiguity", "Nimrod MT",
-}
 
+-- Font names now resolve through Core: SP.FONT_FACES is the single
+-- source of truth and SP.ResolveFont falls back to the pack default.
+-- The private table this used to carry SHADOWED LibSharedMedia, so any
+-- font the user added via another addon silently became Expressway here.
 local function GetFontPath(name)
-    return FONT_FACES[name]
-        or (SP.GetFontPath and SP.GetFontPath(name))
-        or SP_FONT
-end
-
--- ============================================================
--- DB helper
--- ============================================================
-local function GetDB()
-    return SP.GetDB().combatTimer
+    return SP.ResolveFont(name)
 end
 
 -- ============================================================
@@ -82,7 +62,7 @@ end
 -- ============================================================
 function CT:CreateTimerFrame()
     if self.frame then return end
-    local db = GetDB()
+    local db = self:GetDB()
 
     local f = CreateFrame("Frame", "SP_CombatTimerFrame", UIParent, "BackdropTemplate")
     f:SetSize(80, 30)
@@ -108,7 +88,7 @@ end
 -- Apply all settings from DB
 -- ============================================================
 function CT:ApplySettings()
-    local db = GetDB()
+    local db = self:GetDB()
     if not self.text then return end
 
     self._cachedRate = GetRefreshRate(db.format or "MM:SS")
@@ -171,7 +151,7 @@ end
 -- ============================================================
 function CT:ApplyPosition()
     if not self.frame then return end
-    local db = GetDB()
+    local db = self:GetDB()
     self.frame:ClearAllPoints()
     local anchorFrom  = db.anchorFrom  or "CENTER"
     local anchorTo    = db.anchorTo    or "CENTER"
@@ -184,7 +164,7 @@ end
 -- ============================================================
 function CT:UpdateFrameSize()
     if not self.frame or not self.text then return end
-    local db = GetDB()
+    local db = self:GetDB()
     local bd = db.backdrop or {}
     local pw = bd.paddingW or 10
     local ph = bd.paddingH or 6
@@ -198,7 +178,7 @@ end
 -- ============================================================
 function CT:UpdateText()
     if not self.text then return end
-    local db    = GetDB()
+    local db    = self:GetDB()
     local total = self.running
         and (self.startTime > 0 and (GetTime() - self.startTime) or 0)
         or  (SP.lastCombatDuration or 0)
@@ -212,22 +192,47 @@ function CT:UpdateText()
 end
 
 -- ============================================================
--- OnUpdate throttle
+-- Tick
+--
+-- The label needs 4 Hz (or 10 Hz with tenths). It used to be driven by a
+-- per-frame OnUpdate that threw away ~56 of every 60 calls, armed in Activate()
+-- and removed only in Deactivate() -- so with "show last duration" on it kept
+-- running out of combat for the whole session.
+--
+-- Now it subscribes to the shared ticker only while the clock is actually
+-- counting, and unsubscribes itself the moment it isn't.
 -- ============================================================
-function CT:OnUpdate(elapsed)
-    if not self.running and not self.isPreview then return end
-    self.elapsed = (self.elapsed or 0) + elapsed
-    local rate = self._cachedRate or 0.25
-    if self.elapsed < rate then return end
-    self.elapsed = self.elapsed - rate
-    self:UpdateText()
+local TICK_KEY = "combatTimer"
+
+function CT:StartTicking()
+    SP.Tick.Add(TICK_KEY, function(dt)
+        -- Self-disarm: whoever cleared `running` does not have to remember to
+        -- unsubscribe.
+        --
+        -- Preview is deliberately NOT a reason to tick: in preview `running` is
+        -- false, so UpdateText renders the frozen SP.lastCombatDuration -- the
+        -- old handler redrew that identical string 60 times a second.
+        if not self.running then
+            SP.Tick.Remove(TICK_KEY)
+            return
+        end
+        self.elapsed = (self.elapsed or 0) + dt
+        local rate = self._cachedRate or 0.25
+        if self.elapsed < rate then return end
+        self.elapsed = self.elapsed - rate
+        self:UpdateText()
+    end)
+end
+
+function CT:StopTicking()
+    SP.Tick.Remove(TICK_KEY)
 end
 
 -- ============================================================
 -- Combat events
 -- ============================================================
 function CT:OnEnterCombat()
-    local db = GetDB()
+    local db = self:GetDB()
     if self.running or not db.enabled then return end
 
     self.startTime        = GetTime()
@@ -243,6 +248,7 @@ function CT:OnEnterCombat()
     end
     self:ApplySettings()
     self:UpdateText()
+    self:StartTicking()
 end
 
 function CT:OnExitCombat()
@@ -251,8 +257,10 @@ function CT:OnExitCombat()
     SP.lastCombatDuration = GetTime() - self.startTime
     self.running          = false
     self.startTime        = 0
+    -- Clock stopped: the frozen final duration needs no per-frame work.
+    self:StopTicking()
 
-    local db  = GetDB()
+    local db  = self:GetDB()
     local dur = FormatTime(SP.lastCombatDuration, db.format or "MM:SS")
     if db.printToChat ~= false then
         local ac  = SP.Theme and SP.Theme.accent or { 1, 1, 1 }
@@ -286,7 +294,7 @@ function CT:HidePreview()
     if self.frame then
         self.frame:Hide()
         -- Restore if the timer is genuinely running or showLastDuration is on
-        local db = GetDB()
+        local db = self:GetDB()
         if self.running or (db and db.showLastDuration) then
             self.frame:Show()
         end
@@ -294,11 +302,14 @@ function CT:HidePreview()
 end
 
 -- ============================================================
--- Activate / Deactivate — called by GUI enable toggle
+-- Activate / Deactivate
+--
+-- Called by the GUI enable toggle and by ModuleMixin:Refresh(). Refresh,
+-- OnEnable and OnDisable all come from ModuleMixin -- see Core/Module.lua.
 -- ============================================================
 function CT:Activate()
-    local db = GetDB()
-    if not db.enabled then return end
+    local db = self:GetDB()
+    if not (db and db.enabled) then return end
 
     self:CreateTimerFrame()
     self:ApplySettings()
@@ -309,48 +320,24 @@ function CT:Activate()
     self:RegisterEvent("PLAYER_REGEN_DISABLED", "OnEnterCombat")
     self:RegisterEvent("PLAYER_REGEN_ENABLED",  "OnExitCombat")
 
-    self.frame:SetScript("OnUpdate", function(_, elapsed)
-        self:OnUpdate(elapsed)
-    end)
-
-    if db.showLastDuration then self.frame:Show() end
+    -- No OnUpdate here any more. The ticker is armed by OnEnterCombat and
+    -- disarms itself when the clock stops -- so enabling the
+    -- module no longer costs a per-frame dispatch for the rest of the session.
+    -- Catch the case where the module is enabled mid-fight.
+    if UnitAffectingCombat("player") then
+        self:OnEnterCombat()
+    elseif db.showLastDuration then
+        self.frame:Show()
+    end
 end
 
 function CT:Deactivate()
+    self:StopTicking()
     if self.frame then
-        self.frame:SetScript("OnUpdate", nil)
         self.frame:Hide()
     end
     self.running          = false
     self.isPreview        = false
     SP.lastCombatDuration = 0
     self:UnregisterAllEvents()
-end
-
-function CT:Refresh()
-    local db = GetDB()
-    if db.enabled then
-        self:Activate()
-    else
-        self:Deactivate()
-    end
-end
-
--- ============================================================
--- AceAddon lifecycle
--- ============================================================
-function CT:OnEnable()
-    if IsLoggedIn() then
-        local db = GetDB()
-        if db and db.enabled then self:Activate() end
-    else
-        self:RegisterEvent("PLAYER_LOGIN", function()
-            local db = GetDB()
-            if db and db.enabled then self:Activate() end
-        end)
-    end
-end
-
-function CT:OnDisable()
-    self:Deactivate()
 end

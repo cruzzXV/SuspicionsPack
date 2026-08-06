@@ -4,7 +4,7 @@
 -- Activates automatically for Devourer DH only.
 local SP = SuspicionsPack
 
-local ReapPredict = SP:NewModule("ReapPredict", "AceEvent-3.0")
+local ReapPredict = SP:NewSPModule("ReapPredict", "reapMeter")
 SP.ReapPredict = ReapPredict
 
 -- ============================================================
@@ -177,9 +177,15 @@ end
 -- ============================================================
 -- Aura reads
 -- ============================================================
+-- pcall does NOT contain taint: a `not aura` truthiness test or an `aura ~= nil`
+-- comparison on a secret value taints execution just the same, and here the
+-- results drive SetShown/SetValue calls, so the taint reaches Blizzard frames.
+-- Same class as the isOnGCD bug (see lessons.md).
 local function ReadAuraApplications(spellID)
     local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, spellID)
-    if not ok or not aura then return nil end
+    if not ok then return nil end
+    if issecretvalue(aura) then return nil end
+    if not aura then return nil end
     return aura.applications
 end
 
@@ -188,7 +194,8 @@ local function ReadVMStacks()       return ReadAuraApplications(VM_STACK_SPELLID
 
 local function IsInVMPhase()
     local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, VM_FORM_SPELLID)
-    return ok and aura ~= nil
+    if not ok or issecretvalue(aura) then return false end
+    return aura ~= nil
 end
 
 -- ============================================================
@@ -362,6 +369,14 @@ local RecomputeDerived
 local RebuildCellSeparators
 local EnsureCDMSyncHook
 local SyncToCDMNow
+
+-- Snap-to-external-bar helpers. Declared here (and filled in further down)
+-- because UpdateFuryBar sits above the implementation and a closure cannot
+-- reach a `local function` defined later in the file.
+--
+-- Grouped into one table rather than six file-scope locals: this file is close
+-- to Lua's hard limit of 200 locals per chunk, and six more tipped it over.
+local Snap = { barName = "ERB_PrimaryBar" }   -- EllesmereUI's primary (power) bar
 
 local scythesEmbraceKnown   = false
 local celestialEchoesKnown  = false
@@ -541,6 +556,17 @@ local function UpdateFuryBar(sfStacks)
     if furyMax ~= lastFuryMax then
         lastFuryMax = furyMax
         ApplyFuryLayout()
+    end
+    -- Self-healing: the bar we snap to belongs to another addon and may be
+    -- created after us, or rebuilt on a spec change, so retry until it takes.
+    -- Throttled to 1 Hz because the retry runs a full ApplyFuryLayout -- with
+    -- the toggle on but EllesmereUI absent it would otherwise never stop.
+    if Snap.Wanted() and not furyFrame._snapped then
+        local now = GetTime()
+        if now - (furyFrame._snapRetryAt or 0) >= 1 then
+            furyFrame._snapRetryAt = now
+            ApplyFuryLayout()
+        end
     end
     local fury = UnitPower("player", FURY_POWER_TYPE)
     ApplyToBar(furyFrame.furyFillBar,     fury)
@@ -960,6 +986,9 @@ local function CreateFuryBar()
 
     local soulFuryPreview = CreateFrame("StatusBar", nil, furyFrame)
     soulFuryPreview:SetFrameStrata("MEDIUM")
+    -- Frame edge, NOT the fill texture: this preview's value domain starts at
+    -- REAP_CAP_BASE, so its left edge must sit at the position of that stack
+    -- count (soulFuryBar's full width), not wherever the fill happens to be.
     soulFuryPreview:SetPoint("LEFT", soulFuryBar, "RIGHT", 0, 0)
     soulFuryPreview:SetSize((REAP_CAP_MOC - REAP_CAP_BASE) * REAP_SOUL_FURY * pxPerFury, H)
     soulFuryPreview:SetStatusBarTexture(BAR_TEXTURE)
@@ -1004,6 +1033,178 @@ local function CreateFuryBar()
     return furyFrame
 end
 
+-- ============================================================
+-- Snap-to-external-bar
+--
+-- Glues the prediction chain to the fill edge of another addon's resource bar
+-- (EllesmereUI's ERB_PrimaryBar by default) so there is never a gap between
+-- where their fill ends and where our prediction starts.
+--
+-- The whole trick is that we anchor to the external bar's STATUS BAR TEXTURE,
+-- not to its frame. The texture's right edge *is* the fill edge, and because
+-- it is a real anchor the engine re-resolves it every frame -- including
+-- during the external bar's own smooth-fill interpolation. No polling, no
+-- arithmetic, no timing skew: the gap is impossible by construction.
+--
+-- Overflow is handled the same way. Reparenting our bars onto the external
+-- StatusBar means its SetClipsChildren(true) cuts us off exactly at its right
+-- edge, so the prediction can never spill outside the frame at high fury.
+-- ============================================================
+
+-- Resolves a bar reference to { container, statusBar, fillTexture }.
+-- Accepts either an EllesmereUI-style wrapper (outer Frame + inner `_sb`) or a
+-- plain StatusBar, so this works with bars from other addons too.
+function Snap.Resolve(name)
+    if not name or name == "" then return nil end
+    local f = _G[name]
+    if not f or type(f) ~= "table" or not f.GetObjectType then return nil end
+
+    -- EllesmereUI wraps its bars: the named global is a Frame holding the
+    -- border, and the real StatusBar (which clips the fill) is on `_sb`.
+    local sb = f._sb
+    if not (sb and sb.GetStatusBarTexture) then
+        if f.GetStatusBarTexture then sb = f else return nil end
+    end
+
+    local tex = sb:GetStatusBarTexture()
+    if not tex then return nil end
+    return f, sb, tex
+end
+
+function Snap.Name()
+    local db = GetDB()
+    local L  = db and db.layout
+    local n  = L and L.snapBarName
+    if n == nil or n == "" then return Snap.barName end
+    return n
+end
+
+function Snap.Wanted()
+    local db = GetDB()
+    local L  = db and db.layout
+    return (L and L.snapToBar) and true or false
+end
+
+-- Width + max of the external bar, so ApplyFuryLayout can compute px/fury in
+-- the external bar's own scale. Returns nil when snapping is off or the bar is
+-- not (yet) available, and callers fall back to our own geometry.
+function Snap.Geometry()
+    if not Snap.Wanted() then return nil end
+    local _, sb = Snap.Resolve(Snap.Name())
+    if not sb then return nil end
+
+    if sb.IsRectValid and not sb:IsRectValid() then return nil end
+    local w = sb:GetWidth()
+    if not w or w <= 0 then return nil end
+
+    -- Max always comes from the game, never from the external bar's
+    -- GetMinMaxValues. Reading theirs looked appealing but buys nothing (they
+    -- set it from UnitPowerMax too) and introduces a race: on a spec or talent
+    -- change our handler can run before theirs, so we would bake px/fury from
+    -- the stale max and never recompute. It would also mean doing arithmetic on
+    -- another addon's widget values without an issecretvalue guard.
+    local max = GetPlayerFuryMax()
+    if not max or max <= 0 then return nil end
+
+    return w, max
+end
+
+-- Points the head of the prediction chain at the right place and reparents the
+-- chain so clipping applies. Safe to call repeatedly.
+function Snap.ApplyAnchor()
+    if not furyFrame then return end
+    local head = furyFrame.consumeBar
+    if not head then return end
+
+    local chain = {
+        furyFrame.consumeBar,
+        furyFrame.flatBar,
+        furyFrame.soulFuryBar,
+        furyFrame.soulFuryPreview,
+    }
+
+    -- Remember the original frame levels once, so un-snapping restores them
+    -- exactly instead of recomputing a value that collides with `overlay`.
+    if not furyFrame._chainLevels then
+        local lv = {}
+        for i = 1, #chain do lv[i] = chain[i]:GetFrameLevel() end
+        furyFrame._chainLevels = lv
+    end
+
+    local _, sb, tex
+    if Snap.Wanted() then
+        _, sb, tex = Snap.Resolve(Snap.Name())
+    end
+
+    -- Require the geometry too, not just the frames. Latching _snapped on the
+    -- anchor alone would disarm the retry while px/fury had silently fallen
+    -- back to our own scale -- glued in the right place at the wrong size.
+    local geomOK = sb and tex and Snap.Geometry() ~= nil
+
+    if geomOK then
+        for _, bar in ipairs(chain) do
+            if bar:GetParent() ~= sb then
+                bar:SetParent(sb)
+            end
+            -- Strata is NOT inherited once explicitly set, and EllesmereUI lets
+            -- the user pick one. Without this the prediction can render behind
+            -- their opaque background.
+            bar:SetFrameStrata(sb:GetFrameStrata())
+            bar:SetFrameLevel(sb:GetFrameLevel() + 2)
+        end
+        head:ClearAllPoints()
+        head:SetPoint("LEFT", tex, "RIGHT", 0, 0)
+
+        -- Their bar draws the fury; ours would be a second, independently
+        -- animated fill edge right next to the chain -- i.e. the gap again.
+        furyFrame.furyFillBar:Hide()
+        furyFrame._snapped = true
+
+        -- EllesmereUI resizes its bar on every profile switch, option edit and
+        -- unlock-mode drag. Without this our px/fury would keep the width it
+        -- had when we first snapped. Hooked once per target frame.
+        if furyFrame._sizeHookOn ~= sb then
+            furyFrame._sizeHookOn = sb
+            sb:HookScript("OnSizeChanged", function()
+                if furyFrame and furyFrame._snapped then ApplyFuryLayout() end
+            end)
+        end
+    else
+        -- Standalone: chain head follows our own fury fill again.
+        for i, bar in ipairs(chain) do
+            if bar:GetParent() ~= furyFrame then
+                bar:SetParent(furyFrame)
+            end
+            bar:SetFrameStrata(furyFrame:GetFrameStrata())
+            bar:SetFrameLevel(furyFrame._chainLevels[i])
+        end
+        head:ClearAllPoints()
+        head:SetPoint("LEFT", furyFrame.furyFillBar:GetStatusBarTexture(), "RIGHT", 0, 0)
+        furyFrame.furyFillBar:Show()
+        furyFrame._snapped = false
+    end
+end
+
+-- Show/hide and alpha have to reach the chain explicitly: while snapped the
+-- four bars are children of the external StatusBar, so furyFrame:SetShown /
+-- SetAlpha no longer touch them and they would stay frozen on screen after the
+-- module is disabled or the player swaps spec.
+function Snap.PropagateShown(shown)
+    if not (furyFrame and furyFrame._snapped) then return end
+    furyFrame.consumeBar:SetShown(shown)
+    furyFrame.flatBar:SetShown(shown)
+    furyFrame.soulFuryBar:SetShown(shown)
+    if not shown then furyFrame.soulFuryPreview:Hide() end
+end
+
+function Snap.PropagateAlpha(a)
+    if not (furyFrame and furyFrame._snapped) then return end
+    furyFrame.consumeBar:SetAlpha(a)
+    furyFrame.flatBar:SetAlpha(a)
+    furyFrame.soulFuryBar:SetAlpha(a)
+    furyFrame.soulFuryPreview:SetAlpha(a)
+end
+
 function ApplyFuryLayout()
     if not furyFrame then return end
     local db = GetDB()
@@ -1016,9 +1217,20 @@ function ApplyFuryLayout()
 
     local furyMax = GetPlayerFuryMax()
     if not furyMax or furyMax == 0 then return end
-    local pxPerFury = W / furyMax
+
+    -- In snap mode the whole prediction chain must speak the external bar's
+    -- pixel scale, not ours: a px/fury derived from our own width would make
+    -- every segment the wrong length even once the chain head is glued in the
+    -- right place.
+    local snapW, snapMax = Snap.Geometry()
+    local pxPerFury = (snapW and snapMax and snapMax > 0)
+        and (snapW / snapMax)
+        or  (W / furyMax)
+
     furyFrame._pxPerFury = pxPerFury
     furyFrame._height    = H
+
+    Snap.ApplyAnchor()
 
     local fillBar = furyFrame.furyFillBar
     fillBar:SetSize(W, H)
@@ -1029,10 +1241,23 @@ function ApplyFuryLayout()
     furyFrame.soulFuryPreview:SetSize((REAP_CAP_MOC - REAP_CAP_BASE) * REAP_SOUL_FURY * pxPerFury, H)
     furyFrame.soulFuryPreview:SetMinMaxValues(REAP_CAP_BASE, REAP_CAP_MOC)
 
-    local tickX = VOID_RAY_COST * pxPerFury
+    -- 100-fury tick.
+    --
+    -- The offset is computed in the pixel scale we just chose, so it has to be
+    -- measured from the origin that scale belongs to. While snapped, px/fury
+    -- comes from the external bar but the tick was still anchored to our own
+    -- frame's TOPLEFT -- two different origins and two different widths, so the
+    -- mark landed nowhere near 100 fury.
+    local tickX   = VOID_RAY_COST * pxPerFury
+    local tickRef = furyFrame
+    if furyFrame._snapped then
+        local _, sb = Snap.Resolve(Snap.Name())
+        if sb then tickRef = sb end
+    end
+
     furyFrame.tick:ClearAllPoints()
-    furyFrame.tick:SetPoint("TOP",    furyFrame, "TOPLEFT",    tickX, 0)
-    furyFrame.tick:SetPoint("BOTTOM", furyFrame, "BOTTOMLEFT", tickX, 0)
+    furyFrame.tick:SetPoint("TOP",    tickRef, "TOPLEFT",    tickX, 0)
+    furyFrame.tick:SetPoint("BOTTOM", tickRef, "BOTTOMLEFT", tickX, 0)
 
     furyFrame.furyLabel:SetFont(NUMBER_FONT, font, "OUTLINE")
 
@@ -1224,7 +1449,9 @@ end
 
 function UpdateFuryVisibility()
     if not furyFrame then return end
-    furyFrame:SetShown(ShowFuryBarPref())
+    local furyShown = ShowFuryBarPref()
+    furyFrame:SetShown(furyShown)
+    Snap.PropagateShown(furyShown)
     local hideProjection = lastVMPhase == true
     furyFrame.flatBar:SetShown(not hideProjection)
     furyFrame.soulFuryBar:SetShown(not hideProjection)
@@ -1241,19 +1468,35 @@ end
 -- Poll frame (raw — OnUpdate only works when frame is shown)
 -- ============================================================
 local pollFrame
+-- 10 Hz meter refresh.
+--
+-- A fixed-rate anim ticker rather than an OnUpdate with an accumulator: the C
+-- engine sleeps between fires, so this costs ZERO Lua at frame rate. The old
+-- version paid a dispatch 60 times a second to throw away 5 of every 6 calls,
+-- and it ran for the entire session on any Devourer DH -- in a city, out of
+-- combat, with nothing happening.
 local function EnsurePollFrame()
     if pollFrame then return end
-    pollFrame = CreateFrame("Frame")
-    local accum = 0
-    pollFrame:SetScript("OnUpdate", function(_, elapsed)
-        accum = accum + elapsed
-        if accum < 0.1 then return end
-        accum = 0
+    pollFrame = SP.Tick.NewAnimTicker(function()
         UpdateMeter()
-    end)
+        return true   -- keep ticking until Stop() is called
+    end, 0.1)
 end
 
-local function Enable()
+-- ============================================================
+-- Activate / Deactivate
+--
+-- Colon methods on the module table rather than file-scope locals: this is the
+-- SP.ModuleMixin contract (Core/Module.lua), and it also gives back three of
+-- the four remaining local slots in this chunk.
+-- NOT named Enable/Disable -- those are AceAddon's own mixin methods and a
+-- module field with either name silently shadows the addon lifecycle.
+-- ============================================================
+function ReapPredict:Activate()
+    -- Only registers the eight raw unit events once we know this character is
+    -- actually a Devourer DH with the module turned on.
+    ReapPredict:EnsureUnitEvents()
+
     if not frame then CreateMeter() end
     frame:SetShown(ShowSoulBarPref())
     ApplyLock()
@@ -1269,7 +1512,7 @@ local function Enable()
     ApplyBarTexture()   -- restore saved texture (no-op when using default Solid)
 
     EnsurePollFrame()
-    pollFrame:Show()
+    pollFrame.Start()
     UpdateMeter()
 
     -- CDM width sync: install hook and snap immediately if enabled
@@ -1281,20 +1524,59 @@ local function Enable()
     if FadeRefresh then FadeRefresh() end
 end
 
-local function Disable()
+function ReapPredict:Deactivate()
     if FadeDeactivate then FadeDeactivate() end   -- restore alpha before hiding
-    if pollFrame      then pollFrame:Hide()      end
+    if pollFrame      then pollFrame.Stop()      end
     if frame          then frame:Hide()          end
-    if furyFrame then furyFrame:Hide() end
+    if furyFrame then furyFrame:Hide(); Snap.PropagateShown(false) end
+
+    -- Drop the raw unit events too. Hiding the frames stopped the drawing but
+    -- left UNIT_AURA and UNIT_POWER_FREQUENT dispatching for the whole session.
+    if ReapPredict._eventsFrame then
+        ReapPredict._eventsFrame:UnregisterAllEvents()
+    end
 end
 
-local function Refresh()
+-- Kept instead of ModuleMixin:Refresh, which only knows about db.enabled: this
+-- one also re-reads the spec and talent caches and gates on Devourer DH.
+--
+-- A DOT function on purpose. The GUI's enable toggle calls mod.Refresh() with
+-- no arguments, while ModuleMixin calls self:Refresh(); ignoring the argument
+-- entirely is the only shape that is correct on both paths.
+function ReapPredict.Refresh()
+    -- The sweep may have Ace-disabled this module at login, in which case
+    -- OnEnable -- and therefore LoadSizesFromDB() -- never ran, leaving the
+    -- pixel constants nil. Enabling routes back here through the mixin once
+    -- they exist. Mirrors ModuleMixin:Refresh; needed because this is a DOT
+    -- override that the mixin's re-Enable branch cannot reach.
+    local _db = GetDB()
+    if _db and _db.enabled and ReapPredict.IsEnabled and not ReapPredict:IsEnabled() then
+        ReapPredict:Enable()
+        return
+    end
     local db = GetDB()
-    if not (db and db.enabled) then Disable(); return end
+    if not (db and db.enabled) then
+        -- These three used to be registered once in OnEnable and never
+        -- dropped. They exist only to notice that this character has BECOME a
+        -- Devourer DH, which is meaningless while the module is switched off.
+        ReapPredict:UnregisterEvent("PLAYER_ENTERING_WORLD")
+        ReapPredict:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+        ReapPredict:UnregisterEvent("TRAIT_CONFIG_UPDATED")
+        ReapPredict:Deactivate()
+        return
+    end
+
+    -- Deliberately NOT in Activate(): Activate only runs for a Devourer DH, so
+    -- registering there would mean a DH sitting in another spec never hears
+    -- about the spec change that should switch the meter on.
+    ReapPredict:RegisterEvent("PLAYER_ENTERING_WORLD",         "OnPlayerEnteringWorld")
+    ReapPredict:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", "OnRefreshEvent")
+    ReapPredict:RegisterEvent("TRAIT_CONFIG_UPDATED",          "OnRefreshEvent")
+
     RefreshSpecCache()
     RefreshScythesEmbrace()
     RefreshCelestialEchoes()
-    if IsDDH() then Enable() else Disable() end
+    if IsDDH() then ReapPredict:Activate() else ReapPredict:Deactivate() end
 end
 
 -- ============================================================
@@ -1372,7 +1654,7 @@ local fadeEventFrame = CreateFrame("Frame")
 
 local function FadeApply(a)
     if frame     then frame:SetAlpha(a)     end
-    if furyFrame then furyFrame:SetAlpha(a) end
+    if furyFrame then furyFrame:SetAlpha(a); Snap.PropagateAlpha(a) end
 end
 
 local function FadeStop()
@@ -1733,29 +2015,58 @@ end
 local DumpState
 local DumpCDMViewer
 
-local function RegisterSettings()
-    -- Settings live in the SuspicionsPack GUI (/spack → Reap Meter). Nothing to do here.
-end
-
 -- ============================================================
 -- Module lifecycle
+--
+-- OnEnable is kept rather than taken from SP.ModuleMixin because
+-- LoadSizesFromDB() has to run before anything reads CONTAINER_W / the colour
+-- table, and the CDM setup prompt is scheduled from here. OnDisable does come
+-- from the mixin: UnregisterAllEvents + Deactivate, which is exactly what the
+-- hand-written one did.
 -- ============================================================
 function ReapPredict:OnEnable()
     LoadSizesFromDB()
-    RegisterSettings()
 
-    self:RegisterEvent("PLAYER_ENTERING_WORLD",          "OnPlayerEnteringWorld")
-    self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED",  "OnRefreshEvent")
-    self:RegisterEvent("TRAIT_CONFIG_UPDATED",           "OnRefreshEvent")
-
-    Refresh()
+    -- Refresh registers/unregisters the three "did this character become a
+    -- Devourer DH?" events itself, so they are gone while the module is off.
+    ReapPredict.Refresh()
 
     if C_Timer and C_Timer.After then
         C_Timer.After(3.0, CheckCDMSetup)
     end
+end
 
-    -- Raw unit event frame (AceEvent doesn't support RegisterUnitEvent)
-    if not ReapPredict._eventsFrame then
+-- Raw unit event frame (AceEvent doesn't support RegisterUnitEvent).
+--
+-- Built lazily from Activate(), NOT from OnEnable: these are eight unit events
+-- including UNIT_AURA and UNIT_POWER_FREQUENT -- the noisiest pair in the game
+-- -- and registering them in OnEnable meant every player paid the dispatch
+-- regardless of class and regardless of db.enabled, with nothing ever
+-- unregistering them (OnDisable's UnregisterAllEvents is the AceEvent mixin and
+-- does not reach a raw frame).
+--
+-- Activate() only runs for a Devourer Demon Hunter with the module on, so on
+-- any other character these are never registered at all.
+function ReapPredict:EnsureUnitEvents()
+    if ReapPredict._eventsFrame then
+        -- Re-arm after a Deactivate() unregistered them. Unconditional:
+        -- RegisterUnitEvent is idempotent, and probing a single event would
+        -- silently skip the other seven if anything ever unregisters one alone.
+        local e = ReapPredict._eventsFrame
+        do
+            e:RegisterUnitEvent("UNIT_SPELLCAST_START",          "player")
+            e:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED",      "player")
+            e:RegisterUnitEvent("UNIT_SPELLCAST_FAILED",         "player")
+            e:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED",    "player")
+            e:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP",   "player")
+            e:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START",  "player")
+            e:RegisterUnitEvent("UNIT_AURA",                     "player")
+            e:RegisterUnitEvent("UNIT_POWER_FREQUENT",           "player")
+        end
+        return
+    end
+
+    do
         local events = CreateFrame("Frame")
         events:RegisterUnitEvent("UNIT_SPELLCAST_START",          "player")
         events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED",     "player")
@@ -1888,13 +2199,8 @@ function ReapPredict:OnEnable()
     end
 end
 
-function ReapPredict:OnDisable()
-    self:UnregisterAllEvents()
-    Disable()
-end
-
 function ReapPredict:OnPlayerEnteringWorld()
-    Refresh()
+    ReapPredict.Refresh()
     if C_Timer and C_Timer.After then
         C_Timer.After(3.0, CheckCDMSetup)
         -- Retry CDM sync hook: Ayije_CDM may not have built anchorContainers yet at OnEnable
@@ -1905,7 +2211,7 @@ function ReapPredict:OnPlayerEnteringWorld()
         end)
         -- Re-evaluate fading after the world finishes loading. WoW can reset
         -- frame alpha during the loading-screen transition, so the initial
-        -- FadeRefresh() inside Enable() fires too early.
+        -- FadeRefresh() inside Activate() fires too early.
         C_Timer.After(0.5, function()
             if FadeRefresh then FadeRefresh() end
         end)
@@ -1913,7 +2219,7 @@ function ReapPredict:OnPlayerEnteringWorld()
 end
 
 function ReapPredict:OnRefreshEvent()
-    Refresh()
+    ReapPredict.Refresh()
 end
 
 -- ============================================================
@@ -2004,10 +2310,10 @@ end
 
 -- ============================================================
 -- Public API
+--
+-- ReapPredict.Refresh is defined further up, next to Activate/Deactivate --
+-- the GUI still calls it as mod.Refresh().
 -- ============================================================
-function ReapPredict.Refresh()
-    Refresh()
-end
 
 -- GUI-callable wrappers (closures over module-local state)
 ReapPredict.DEFAULT_COLORS     = DEFAULT_COLORS
@@ -2118,16 +2424,31 @@ local function StartERBPick(callback)
             return
         end
         -- Collect all frames at cursor; skip our own catcher.
+        -- We report both the width and the frame's global NAME: snapping needs
+        -- a name it can re-resolve every session, since frame handles don't
+        -- survive a reload and the target addon may load after us.
         local foci = GetMouseFoci and { GetMouseFoci() } or {}
-        local bestW = 0
+        local bestW, bestName = 0, nil
         for _, f in ipairs(foci) do
             if f and f ~= self and f.GetWidth then
                 local w = math.floor(f:GetWidth() + 0.5)
-                if w > bestW and w < 3000 then bestW = w end
+                if w > bestW and w < 3000 then
+                    bestW = w
+                    -- Walk up until we find something with a global name: the
+                    -- clickable region is often an unnamed inner StatusBar.
+                    local node, name = f, nil
+                    for _ = 1, 4 do
+                        if not node or not node.GetName then break end
+                        local n = node:GetName()
+                        if n and _G[n] == node then name = n break end
+                        node = node.GetParent and node:GetParent() or nil
+                    end
+                    bestName = name
+                end
             end
         end
         ExitERBPick()
-        if callback then callback(bestW > 0 and bestW or nil) end
+        if callback then callback(bestW > 0 and bestW or nil, bestName) end
     end)
 
     erbPickFrame:Show()
@@ -2150,4 +2471,45 @@ function ReapPredict.StartERBWidthPick(onDone)
         end
         if onDone then onDone(w) end
     end)
+end
+
+-- Candidate bars to snap to, for the GUI dropdown.
+--
+-- Deliberately NOT a click-picker: EllesmereUI calls EnableMouse(false) on its
+-- resource bars on purpose (a mouse-enabled bar would steal mouseover focus),
+-- and GetMouseFoci only ever returns mouse-enabled regions -- so a picker can
+-- never select them. It would silently land on WorldFrame instead.
+function ReapPredict.GetSnapBarChoices()
+    local out = {}
+    local known = {
+        { key = "ERB_PrimaryBar",   label = "EllesmereUI \226\128\148 power bar (fury)" },
+        { key = "ERB_SecondaryBar", label = "EllesmereUI \226\128\148 class resource" },
+        { key = "ERB_HealthBar",    label = "EllesmereUI \226\128\148 health bar" },
+    }
+    for _, e in ipairs(known) do
+        if Snap.Resolve(e.key) then
+            out[#out + 1] = { key = e.key, label = e.label }
+        end
+    end
+    return out
+end
+
+-- Public: set the snap target by name. Rejects anything that doesn't resolve to
+-- a usable status bar, so the retry loop can never be armed against a target
+-- that will never appear. Returns true on success.
+function ReapPredict.SetSnapBar(name)
+    if not Snap.Resolve(name) then return false end
+    local db = GetDB()
+    local L  = db and db.layout
+    if not L then return false end
+    L.snapBarName = name
+    ApplyFurySize()
+    return true
+end
+
+-- Public: the resolved snap target, for the GUI to show what it is following.
+function ReapPredict.GetSnapStatus()
+    local name  = Snap.Name()
+    local found = Snap.Resolve(name) ~= nil
+    return Snap.Wanted(), name, found
 end

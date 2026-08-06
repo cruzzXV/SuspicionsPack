@@ -21,7 +21,7 @@ local DataObj = LDB:NewDataObject("SuspicionsPack", {
     iconB  = T.accent[3],
     OnClick = function(_, btn)
         if btn == "LeftButton" then
-            if SP.GUI then SP.GUI.Toggle() end
+            SP:ToggleGUI()   -- loads the LoadOnDemand options addon if needed
         end
     end,
     OnTooltipShow = function(tt)

@@ -3,7 +3,7 @@
 -- Per-spec overrides: 0 = hidden, 100 = full opacity.
 local SP = SuspicionsPack
 
-local SEA = SP:NewModule("SpellEffectAlpha", "AceEvent-3.0")
+local SEA = SP:NewSPModule("SpellEffectAlpha", "spellEffectAlpha")
 SP.SpellEffectAlpha = SEA
 
 -- ============================================================
@@ -70,19 +70,24 @@ SEA.SpecIcons = {
 
 -- ============================================================
 -- Helpers
+-- Kept as a file-scope local: ApplyNow is a dot function with no `self`, so it
+-- cannot reach the mixin's self:GetDB().
 -- ============================================================
 local function GetDB()
     return SP.GetDB().spellEffectAlpha
 end
 
+-- True while our values are the ones in the CVars. Without it, Deactivate would
+-- write "1"/"1" at every login for players who have the module switched off --
+-- exactly the bug the db.enabled gate below was added to fix.
+local _applied = false
+
 local function ApplyAlpha()
     local db = GetDB()
-    if not db or not db.enabled then
-        -- When disabled, restore to full opacity
-        SetCVar("spellActivationOverlayOpacity", "1")
-        SetCVar("displaySpellActivationOverlays", "1")
-        return
-    end
+    -- Never write a CVar while switched off. AceAddon enables every module at
+    -- login regardless of the user's setting, so an ungated write here silently
+    -- overwrote the player's own Blizzard CVars every session.
+    if not db or not db.enabled then return end
 
     -- Safe spec ID resolution
     local specIndex = GetSpecialization and GetSpecialization() or 0
@@ -97,22 +102,32 @@ local function ApplyAlpha()
     -- SetCVar expects strings (WoW Midnight compatibility)
     SetCVar("spellActivationOverlayOpacity", tostring(finalVal))
     SetCVar("displaySpellActivationOverlays", finalVal > 0 and "1" or "0")
+    _applied = true
+end
+
+local function RestoreAlpha()
+    if not _applied then return end
+    _applied = false
+    -- Restore defaults. Strings, not numbers: SetCVar expects strings on
+    -- Midnight, and the rest of this file already passes them that way.
+    SetCVar("spellActivationOverlayOpacity", "1")
+    SetCVar("displaySpellActivationOverlays", "1")
 end
 
 -- ============================================================
 -- Module lifecycle
+-- OnEnable / OnDisable / Refresh come from SP.ModuleMixin. PLAYER_LOGIN is
+-- deliberately NOT registered here: the mixin already owns that event for its
+-- own deferral, and AceEvent keeps only one handler per event per object.
 -- ============================================================
-function SEA:OnEnable()
+function SEA:Activate()
     self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", "OnSpecChanged")
-    self:RegisterEvent("PLAYER_LOGIN", "OnSpecChanged")
     ApplyAlpha()
 end
 
-function SEA:OnDisable()
-    self:UnregisterAllEvents()
-    -- Restore defaults
-    SetCVar("spellActivationOverlayOpacity", 1)
-    SetCVar("displaySpellActivationOverlays", 1)
+function SEA:Deactivate()
+    self:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    RestoreAlpha()
 end
 
 function SEA:OnSpecChanged()
@@ -122,16 +137,6 @@ end
 -- ============================================================
 -- Public API
 -- ============================================================
-function SEA:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-    else
-        if self:IsEnabled() then self:Disable() end
-    end
-    ApplyAlpha()
-end
-
 -- Called from GUI when a per-spec value changes
 function SEA.ApplyNow()
     ApplyAlpha()

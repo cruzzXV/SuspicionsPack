@@ -5,7 +5,7 @@
 
 local SP = SuspicionsPack
 
-local FastLoot = SP:NewModule("FastLoot", "AceEvent-3.0")
+local FastLoot = SP:NewSPModule("FastLoot", "fastLoot")
 SP.FastLoot = FastLoot
 
 -- ============================================================
@@ -16,20 +16,20 @@ local C_Timer = C_Timer
 
 local _retryPending  = false  -- prevents stacking 0.1s retries
 local _suppressCVar  = false  -- suppresses CVAR_UPDATE echo from our own SetCVar
-
--- ============================================================
--- DB helper
--- ============================================================
-local function GetDB()
-    return SP.GetDB().fastLoot
-end
+local _origAutoLoot  = nil    -- player's own autoLootDefault, snapshotted before we touch it
 
 -- ============================================================
 -- CVar management
+--
+-- autoLootDefault is a Blizzard setting this module does not own: it only
+-- borrows it as a fallback while active. The previous version forced it to "0"
+-- on disable, which silently turned off auto-loot for players who had it on
+-- before ever enabling FastLoot. Snapshot on the first activation, put it back
+-- on deactivation.
 -- ============================================================
-local function ApplyCVar(enable)
+local function SetAutoLoot(value)
     _suppressCVar = true
-    C_CVar.SetCVar("autoLootDefault", enable and "1" or "0")
+    C_CVar.SetCVar("autoLootDefault", value)
     _suppressCVar = false
 end
 
@@ -46,23 +46,14 @@ local function LootAll()
 end
 
 -- ============================================================
--- Public API
--- ============================================================
-function FastLoot:Refresh()
-    local db = GetDB()
-    ApplyCVar(db and db.enabled)
-end
-
--- ============================================================
 -- Event handlers
 -- ============================================================
 function FastLoot:OnLootReady()
-    local db = GetDB()
-    if not (db and db.enabled) then return end
+    if not self:IsOn() then return end
 
     -- Ensure the CVar is set so Blizzard's own pass also loots
     if C_CVar.GetCVar("autoLootDefault") ~= "1" then
-        ApplyCVar(true)
+        SetAutoLoot("1")
     end
 
     -- Loot every slot right now
@@ -73,8 +64,7 @@ function FastLoot:OnLootReady()
         _retryPending = true
         C_Timer.After(0.1, function()
             _retryPending = false
-            local db2 = GetDB()
-            if db2 and db2.enabled then LootAll() end
+            if self:IsOn() then LootAll() end
         end)
     end
 end
@@ -82,36 +72,46 @@ end
 function FastLoot:OnCVarUpdate(_, cvarName)
     if cvarName ~= "autoLootDefault" then return end
     if _suppressCVar then return end
-    local db = GetDB()
-    if not (db and db.enabled) then return end
+    if not self:IsOn() then return end
     -- Re-apply if the game silently reverted the value (e.g. zone transition)
     if C_CVar.GetCVar("autoLootDefault") ~= "1" then
-        ApplyCVar(true)
+        SetAutoLoot("1")
     end
 end
 
-function FastLoot:OnLogin()
-    local db = GetDB()
-    if not (db and db.enabled) then return end
-    -- 1 s delay so the game's own CVar restoration pass finishes first
-    C_Timer.After(1.0, function() ApplyCVar(true) end)
-end
-
 -- ============================================================
--- AceAddon lifecycle
+-- Module lifecycle
+-- OnEnable / OnDisable / Refresh come from SP.ModuleMixin.
+--
+-- LOOT_READY and CVAR_UPDATE used to be registered in OnEnable only, while
+-- Refresh merely flipped the CVar: any Ace-level disable left the module
+-- permanently dead until a /reload. They live in Activate now.
 -- ============================================================
-function FastLoot:OnEnable()
-    if IsLoggedIn() then
-        self:OnLogin()
-    else
-        self:RegisterEvent("PLAYER_LOGIN", "OnLogin")
+function FastLoot:Activate()
+    -- Snapshot before the first write so Deactivate can restore it.
+    if _origAutoLoot == nil then
+        _origAutoLoot = C_CVar.GetCVar("autoLootDefault") or "0"
     end
-    self:RegisterEvent("LOOT_READY",   "OnLootReady")
-    self:RegisterEvent("CVAR_UPDATE",  "OnCVarUpdate")
+
+    self:RegisterEvent("LOOT_READY",  "OnLootReady")
+    self:RegisterEvent("CVAR_UPDATE", "OnCVarUpdate")
+
+    SetAutoLoot("1")
+
+    -- Re-apply after 1 s: at login the game runs its own CVar restoration pass
+    -- after PLAYER_LOGIN and would otherwise overwrite the value above.
+    C_Timer.After(1.0, function()
+        if self:IsOn() then SetAutoLoot("1") end
+    end)
 end
 
-function FastLoot:OnDisable()
-    self:UnregisterAllEvents()
+function FastLoot:Deactivate()
+    self:UnregisterEvent("LOOT_READY")
+    self:UnregisterEvent("CVAR_UPDATE")
     _retryPending = false
-    ApplyCVar(false)
+
+    if _origAutoLoot ~= nil then
+        SetAutoLoot(_origAutoLoot)
+        _origAutoLoot = nil
+    end
 end

@@ -15,7 +15,7 @@ local wipe           = wipe
 local table_insert   = table.insert
 local table_sort     = table.sort
 local UIParent       = UIParent
-local BLANK          = "Interface\\Buttons\\WHITE8X8"
+local BLANK          = SP.BLANK
 local SP_MEDIA       = "Interface\\AddOns\\SuspicionsPack\\Media\\GUITextures\\"
 local SP_LOGO_TEX    = "Interface\\AddOns\\SuspicionsPack\\Media\\Icons\\icon128x128.png"
 local ARROW_TEX      = SP_MEDIA .. "collapse.tga"
@@ -1707,67 +1707,6 @@ local function MakeCheckerSwatch(parent, w, h)
     return swatch
 end
 
-function GUI:CreateColorSwatch(parent, labelText, r, g, b, callback)
-    local rowH = 40
-    local row  = CreateFrame("Frame", nil, parent)
-    row:SetHeight(rowH)
-
-    -- Label (shrunk to leave room for hex + swatch on the right)
-    local lbl = row:CreateFontString(nil, "OVERLAY")
-    lbl:SetPoint("LEFT",  row, "LEFT",  0, 0)
-    lbl:SetPoint("RIGHT", row, "RIGHT", -120, 0)
-    ApplyFont(lbl, 12)
-    lbl:SetText(labelText or "")
-    lbl:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
-
-    -- Colored swatch button (with checkerboard alpha bg)
-    local swatch = MakeCheckerSwatch(row, 48, 22)
-    swatch:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-
-    -- Hex code label (between label and swatch)
-    local hexLbl = row:CreateFontString(nil, "OVERLAY")
-    hexLbl:SetPoint("RIGHT", swatch, "LEFT", -6, 0)
-    hexLbl:SetWidth(62)
-    ApplyFont(hexLbl, 10)
-    hexLbl:SetJustifyH("RIGHT")
-    hexLbl:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
-    hexLbl:SetText(ColorToHex(r, g, b))
-
-    local function RefreshSwatch(nr, ng, nb)
-        swatch:Refresh(nr, ng, nb)
-        hexLbl:SetText(ColorToHex(nr, ng, nb))
-    end
-    RefreshSwatch(r, g, b)
-
-    swatch:SetScript("OnClick", function()
-        local prevR, prevG, prevB = r, g, b
-        local function UpdateColor(nr, ng, nb)
-            r, g, b = nr, ng, nb
-            RefreshSwatch(r, g, b)
-            if callback then callback(r, g, b) end
-        end
-        ColorPickerFrame:SetupColorPickerAndShow(
-            BuildColorPickerInfo(prevR, prevG, prevB,
-                UpdateColor,
-                function() UpdateColor(prevR, prevG, prevB) end))
-    end)
-
-    function row:SetColor(nr, ng, nb)
-        r, g, b = nr, ng, nb
-        RefreshSwatch(nr, ng, nb)
-    end
-    function row:GetColor() return r, g, b end
-    function row:SetEnabled(en)
-        swatch:EnableMouse(en and true or false)
-        swatch:SetAlpha(en and 1 or 0.4)
-        lbl:SetTextColor(
-            T.textSecondary[1], T.textSecondary[2], T.textSecondary[3],
-            en and 1 or 0.5)
-    end
-
-    return row
-end
-
 -- ============================================================
 -- Widget: StackedColorSwatch  — label on top, swatch + hex below-left
 -- Used by CombatTimer and Backdrop color entries
@@ -2508,12 +2447,26 @@ function GUI:RefreshContent()
             container:SetPoint("RIGHT",   sc, "RIGHT",   0, 0)
             container:SetHeight(1)
 
-            builder(container)
+            -- Cache BEFORE building, and run the builder protected.
+            --
+            -- The container is created shown. If a builder throws, everything
+            -- after the call is skipped -- including the line that registers the
+            -- container -- so the hide-all loop above can never find it and it
+            -- stays visible over every page you open afterwards. Worse, each
+            -- re-visit builds another one, so the pages pile up.
+            -- That is the "pages superposées" bug in lessons.md [2026-03-29];
+            -- registering first makes the symptom impossible whatever the cause,
+            -- and a broken page is merely blank instead of poisoning the window.
+            self.PageCache[selectedItem] = container
+            self._activePage = container
+
+            local ok, err = pcall(builder, container)
+            if not ok then
+                geterrorhandler()(err)
+            end
 
             -- Sync sc height to content height set by the builder (parent:SetHeight(y))
             sc:SetHeight(container:GetHeight())
-            self.PageCache[selectedItem] = container
-            self._activePage = container
         else
             local msg = sc:CreateFontString(nil, "OVERLAY")
             msg:SetPoint("CENTER", sc, "CENTER", 0, 0)
@@ -3261,12 +3214,44 @@ GUI:RegisterContent("home", function(parent)
         return result, nil
     end
 
-    local function SP_DeepMerge(dest, src)
+    -- Merges an imported profile into the live one.
+    --
+    -- Two guards, both learned the hard way. The source is an arbitrary string
+    -- a stranger pasted, so:
+    --   * only keys the CURRENT defaults declare are copied. Without this, an
+    --     export taken before a section was deleted re-injects those dead keys
+    --     permanently -- exactly what the migration runner just cleaned up.
+    --   * `_migrations` is never copied, or importing an old profile would
+    --     carry its flags in and convince the runner that migrations already
+    --     ran on data that has not been migrated.
+    local function SP_DeepMerge(dest, src, schema)
+        -- An EMPTY schema table means "unconstrained map", not "nothing
+        -- allowed". Several profile defaults are declared as `{}` because they
+        -- hold pure user data with unpredictable keys -- cvars,
+        -- drawer.buttonRules, movementAlert.disabledSpells and
+        -- movementAlert.spellOverrides. Treating those as an empty whitelist
+        -- silently dropped every one of the user's entries on import.
+        local unconstrained = (schema == nil) or (next(schema) == nil)
+
         for k, v in pairs(src) do
-            if type(v) == "table" and type(dest[k]) == "table" then
-                SP_DeepMerge(dest[k], v)
-            else
-                dest[k] = v
+            if k ~= "_migrations" and k ~= "_dbVersion" then
+                if unconstrained or schema[k] ~= nil then
+                    -- Explicit lookup, not `schema and schema[k] or nil`: that
+                    -- idiom collapses a legitimately `false` schema value to
+                    -- nil, which then reads as "unconstrained" and lets
+                    -- arbitrary keys through on the next pass.
+                    local sub
+                    if type(schema) == "table" then sub = schema[k] end
+
+                    if type(v) == "table" and type(dest[k]) == "table" then
+                        SP_DeepMerge(dest[k], v, sub)
+                    elseif sub == nil or type(v) == type(sub) then
+                        -- Refuse a type swap: without this, importing a table
+                        -- over a boolean default turned that key into a table
+                        -- and every later import bypassed the schema under it.
+                        dest[k] = v
+                    end
+                end
             end
         end
     end
@@ -3276,7 +3261,7 @@ GUI:RegisterContent("home", function(parent)
     local function GetProfileDialog()
         if SP._profileDialog then return SP._profileDialog end
 
-        local BLANK = "Interface\\Buttons\\WHITE8X8"
+        local BLANK = SP.BLANK
         local PFONT = SP.GetFontPath and SP.GetFontPath("Expressway")
                    or "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
         local SB_W  = 4   -- scrollbar track/thumb width (matches SP main scrollbar)
@@ -3510,7 +3495,8 @@ GUI:RegisterContent("home", function(parent)
                 print("|cffff4444[SuspicionsPack]|r Import failed: " .. (err or "unknown error"))
                 return
             end
-            SP_DeepMerge(SP.db.profile, data)
+            SP_DeepMerge(SP.db.profile, data,
+                SP.DEFAULTS and SP.DEFAULTS.profile or nil)
             if SP.RefreshTheme then SP.RefreshTheme() end
             dlg:Hide()
             print("|cff" .. accentHex .. "[SuspicionsPack]|r Profile imported. Type /reload for full effect.")
@@ -3572,7 +3558,7 @@ GUI:RegisterContent("drawer", function(parent)
     enableRow = GUI:CreateToggle(parent, "Enable Drawer", db.enabled, function(v)
         db.enabled = v
         UpdateChildState(v)
-        if v then SP.Drawer.Enable() else SP.Drawer.Disable() end
+        SP.Drawer.Refresh()   -- routes through the lifecycle so IsEnabled tracks db.enabled
     end, "Minimap Drawer")
     card1:AddRow(enableRow, 28)
     card1:AddSeparator()
@@ -4330,7 +4316,7 @@ GUI:RegisterContent("cursor", function(parent)
     local limitRow = GUI:CreateToggle(parent, "Limit Update Rate (saves CPU)", db.limitUpdateRate,
         function(v)
             db.limitUpdateRate = v
-            Cursor.Refresh()
+            SP.Cursor.Refresh()
         end)
     card5:AddRow(limitRow, 28)
     card5:AddSeparator()
@@ -4339,7 +4325,7 @@ GUI:RegisterContent("cursor", function(parent)
     local function MsFromDb() return math.floor((db.updateInterval or 0.02) * 1000 + 0.5) end
     local intervalRow = GUI:CreateSlider(parent, "Update Interval (ms)", 8, 200, 1,
         MsFromDb(),
-        function(v) db.updateInterval = v / 1000; Cursor.Refresh() end)
+        function(v) db.updateInterval = v / 1000; SP.Cursor.Refresh() end)
     card5:AddRow(intervalRow, 44)
 
     y = y + card5:GetTotalHeight() + T.paddingSmall
@@ -4379,7 +4365,7 @@ GUI:RegisterContent("copytooltip", function(parent)
         db.enabled,
         function(v)
             db.enabled = v
-            if SP.CopyTooltip then SP.CopyTooltip.Refresh() end
+            if SP.CopyTooltip then SP.CopyTooltip:Refresh() end
         end, "Copy Anything"), 28)
     y = y + card1:GetTotalHeight() + T.paddingSmall
 
@@ -4417,7 +4403,7 @@ GUI:RegisterContent("filterexpansiononly", function(parent)
         function(v)
             db.enabled = v
             UpdateChildState(v)
-            if SP.FilterExpansionOnly then SP.FilterExpansionOnly.Refresh() end
+            if SP.FilterExpansionOnly then SP.FilterExpansionOnly:Refresh() end
         end, "Filter Expansion Only")
     card1:AddRow(enableRow, 28)
     y = y + card1:GetTotalHeight() + T.paddingSmall
@@ -4442,7 +4428,7 @@ GUI:RegisterContent("fastloot", function(parent)
         db.enabled,
         function(v)
             db.enabled = v
-            if SP.FastLoot then SP.FastLoot.Refresh() end
+            if SP.FastLoot then SP.FastLoot:Refresh() end
         end, "Fast Loot"), 28)
     y = y + card1:GetTotalHeight() + T.paddingSmall
 
@@ -4457,7 +4443,7 @@ GUI:RegisterContent("durability", function(parent)
     local db = SP.GetDB().durability
 
     local function ApplySettings()
-        if SP.Durability then SP.Durability.Refresh() end
+        if SP.Durability then SP.Durability:Refresh() end
     end
 
     local y            = 0
@@ -4858,7 +4844,7 @@ GUI:RegisterContent("automation", function(parent)
         function(v)
             local p = SP.GetDB().performance
             if p then p.hideScreenshotMsg = v end
-            if SP.Performance then SP.Performance.Refresh() end
+            if SP.Performance then SP.Performance:Refresh() end
         end)
     card:AddRow(r6b, 28); table.insert(childRows, r6b)
     AddDesc("Suppresses the \"Screenshot saved\" message.")
@@ -4948,7 +4934,7 @@ GUI:RegisterContent("invitationgroupe", function(parent)
     enableRow = GUI:CreateToggle(parent, "Enable Auto Invite", db.enabled,
         function(v)
             db.enabled = v
-            if SP.AutoInvite then SP.AutoInvite.Refresh() end
+            if SP.AutoInvite then SP.AutoInvite:Refresh() end
             UpdateAIChildState(v)
         end, "Group Invitations")
     card:AddRow(enableRow, 28)
@@ -5094,7 +5080,7 @@ GUI:RegisterContent("combattimer", function(parent)
             UpdateCTChildState(v)
             local ct = GetCT()
             if ct then
-                if v then ct:Activate() else ct:Deactivate() end
+                ct:Refresh()
             end
         end, "Combat Timer")
     card1:AddRow(ctEnableRow, 28)
@@ -6410,7 +6396,10 @@ GUI:RegisterContent("focustargetmarker", function(parent)
         [8] = {0.75, 1.00, 0.25, 0.50},  -- Skull
     }
     local function MarkerLabel(i)
-        local t = MARKER_COORDS[i]
+        -- Fall back rather than index nil: a saved db.marker outside 1..8 (0 in
+        -- particular, which `or 5` does NOT catch since 0 is truthy in Lua)
+        -- otherwise threw here and aborted the whole page.
+        local t = MARKER_COORDS[i] or MARKER_COORDS[5]
         return string.format(
             "|TInterface\\TargetingFrame\\UI-RaidTargetingIcons:16:16:0:0:256:256:%d:%d:%d:%d|t %s",
             t[1]*256, t[2]*256, t[3]*256, t[4]*256,
@@ -6462,13 +6451,13 @@ GUI:RegisterContent("focustargetmarker", function(parent)
 
     local markerRow = GUI:CreateDropdown(parent, "Raid Marker",
         markerDisplayList,
-        MarkerLabel(db.marker or 5),
+        MarkerLabel(tonumber(db.marker) or 5),
         function(lbl)
             for i = 1, 8 do
                 if MarkerLabel(i) == lbl then
                     db.marker = i
                     -- Rewrite the macro immediately if the module is active
-                    if SP.FocusTargetMarker and SP.FocusTargetMarker:IsEnabled() then
+                    if SP.FocusTargetMarker and SP.FocusTargetMarker:IsOn() then
                         SP.FocusTargetMarker:Activate()
                     end
                     break
@@ -6502,7 +6491,7 @@ GUI:RegisterContent("autoplaystyle", function(parent)
     local db = SP.GetDB().autoPlaystyle
 
     local function ApplySettings()
-        if SP.AutoPlaystyle then SP.AutoPlaystyle.Refresh() end
+        if SP.AutoPlaystyle then SP.AutoPlaystyle:Refresh() end
     end
 
     local y = 0
@@ -6569,7 +6558,7 @@ GUI:RegisterContent("deathalert", function(parent)
     local db = SP.GetDB().deathAlert
 
     local function ApplySettings()
-        if SP.DeathAlert then SP.DeathAlert.Refresh() end
+        if SP.DeathAlert then SP.DeathAlert:Refresh() end
     end
 
     -- Shared editbox helper
@@ -6893,7 +6882,7 @@ GUI:RegisterContent("groupjoinedreminder", function(parent)
     local db = SP.GetDB().groupJoinedReminder
 
     local function ApplySettings()
-        if SP.GroupJoinedReminder then SP.GroupJoinedReminder.Refresh() end
+        if SP.GroupJoinedReminder then SP.GroupJoinedReminder:Refresh() end
     end
 
     local y = 0
@@ -6920,7 +6909,7 @@ GUI:RegisterContent("craftshopper", function(parent)
     local db = SP.GetDB().craftShopper
 
     local function ApplySettings()
-        if SP.CraftShopper then SP.CraftShopper.Refresh() end
+        if SP.CraftShopper then SP.CraftShopper:Refresh() end
     end
 
     local y = 0
@@ -6950,7 +6939,7 @@ GUI:RegisterContent("performance", function(parent)
     local y  = 0
 
     local function Refresh()
-        if SP.Performance then SP.Performance.Refresh() end
+        if SP.Performance then SP.Performance:Refresh() end
     end
 
     -- Child cards fade when the module is disabled
@@ -7111,7 +7100,7 @@ GUI:RegisterContent("enhancedobjectivetext", function(parent)
     local y  = 0
 
     local function Refresh()
-        if SP.EnhancedObjectiveText then SP.EnhancedObjectiveText.Refresh() end
+        if SP.EnhancedObjectiveText then SP.EnhancedObjectiveText:Refresh() end
     end
 
     local eotChildCards = {}
@@ -7178,7 +7167,7 @@ GUI:RegisterContent("cleanobjectivetrackerheader", function(parent)
     local y  = 0
 
     local function Refresh()
-        if SP.CleanObjectiveTrackerHeader then SP.CleanObjectiveTrackerHeader.Refresh() end
+        if SP.CleanObjectiveTrackerHeader then SP.CleanObjectiveTrackerHeader:Refresh() end
     end
 
     local card1 = GUI:CreateCard(parent, "Clean Objective Tracker Header", y)
@@ -7313,11 +7302,11 @@ GUI:RegisterContent("silvermoonmapicon", function(parent)
     local db = SP.GetDB().silvermoonMapIcon
 
     local function ApplySettings()
-        if SP.SilvermoonMapIcon then SP.SilvermoonMapIcon.Refresh() end
+        if SP.SilvermoonMapIcon then SP.SilvermoonMapIcon:Refresh() end
     end
 
     local function ApplyPinSettings()
-        if SP.SilvermoonMapIcon then SP.SilvermoonMapIcon.RefreshPins() end
+        if SP.SilvermoonMapIcon then SP.SilvermoonMapIcon:RefreshPins() end
     end
 
     local y = 0
@@ -7403,7 +7392,7 @@ GUI:RegisterContent("gatewayalert", function(parent)
             db.enabled = v
             UpdateGAState(v)
             ApplySettings()
-            if SP.GatewayAlert then SP.GatewayAlert.Refresh() end
+            if SP.GatewayAlert then SP.GatewayAlert:Refresh() end
             local ac  = SP.Theme.accent
             local hex = string.format("%02X%02X%02X",
                 math.floor(ac[1]*255+0.5), math.floor(ac[2]*255+0.5), math.floor(ac[3]*255+0.5))
@@ -7495,7 +7484,7 @@ GUI:RegisterContent("whisperalert", function(parent)
     local card1        -- forward-declared for UpdateWAState closure
 
     local function ApplySettings()
-        if SP.WhisperAlert then SP.WhisperAlert.Refresh() end
+        if SP.WhisperAlert then SP.WhisperAlert:Refresh() end
         GUI.UpdateSidebarCheckmarks()
     end
 
@@ -7640,7 +7629,7 @@ GUI:RegisterContent("autobuy", function(parent)
               or "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 
     local function ApplySettings()
-        if SP.AutoBuy then SP.AutoBuy.Refresh() end
+        if SP.AutoBuy then SP.AutoBuy:Refresh() end
     end
 
     local y = 0
@@ -8202,7 +8191,7 @@ GUI:RegisterContent("spelleffectalpha", function(parent)
     local db = SP.GetDB().spellEffectAlpha
 
     local function ApplySettings()
-        if SP.SpellEffectAlpha then SP.SpellEffectAlpha.Refresh() end
+        if SP.SpellEffectAlpha then SP.SpellEffectAlpha:Refresh() end
     end
 
     local y = 0
@@ -8342,7 +8331,7 @@ GUI:RegisterContent("combatcross", function(parent)
             UpdateChildState(v)
             local cc = GetCC()
             if cc then
-                if v then cc:Activate() else cc:Deactivate() end
+                cc:Refresh()
             end
         end, "Combat Cross")
     card1:AddRow(enableRow, 28)
@@ -8626,14 +8615,14 @@ GUI:RegisterContent("reapmeter", function(parent)
         matchBtn:SetPoint("LEFT", matchWrap, "LEFT", 0, 0)
         matchBtn:SetScript("OnClick", function()
             if not (mod and mod.StartERBWidthPick) then return end
-            matchBtn:SetText("Click the bar…  (Esc / clic droit = annuler)")
+            matchBtn.lbl:SetText("Click the bar\226\128\166  (Esc / right-click = cancel)")
             matchBtn:SetEnabled(false)
             mod.StartERBWidthPick(function(w)
                 matchBtn:SetEnabled(true)
                 if w then
-                    matchBtn:SetText(("Largeur matchée : %d px"):format(w))
+                    matchBtn.lbl:SetText(("Width matched: %d px"):format(w))
                 else
-                    matchBtn:SetText("Match Ellesmere width")
+                    matchBtn.lbl:SetText("Match Ellesmere width")
                 end
             end)
         end)
@@ -8725,6 +8714,9 @@ GUI:RegisterContent("reapmeter", function(parent)
     card3:AddRow(furySizeRow, 44)
 
     -- Match Ellesmere width (fury bar)
+    -- NOTE: GUI:CreateButton never calls btn:SetFontString(lbl), so
+    -- Button:SetText is a silent no-op here -- the label has to be set through
+    -- btn.lbl directly or the feedback never appears.
     do
         local matchWrap = CreateFrame("Frame", nil, parent)
         matchWrap:SetHeight(28)
@@ -8732,18 +8724,77 @@ GUI:RegisterContent("reapmeter", function(parent)
         matchBtn:SetPoint("LEFT", matchWrap, "LEFT", 0, 0)
         matchBtn:SetScript("OnClick", function()
             if not (mod and mod.StartERBWidthPick) then return end
-            matchBtn:SetText("Click the bar…  (Esc / clic droit = annuler)")
+            matchBtn.lbl:SetText("Click the bar\226\128\166  (Esc / right-click = cancel)")
             matchBtn:SetEnabled(false)
             mod.StartERBWidthPick(function(w)
                 matchBtn:SetEnabled(true)
-                if w then
-                    matchBtn:SetText(("Largeur matchée : %d px"):format(w))
-                else
-                    matchBtn:SetText("Match Ellesmere width")
-                end
+                matchBtn.lbl:SetText(w and ("Width matched: %d px"):format(w)
+                                       or "Match Ellesmere width")
             end)
         end)
         card3:AddRow(matchWrap, 28)
+    end
+
+    card3:AddSeparator()
+
+    -- Snap to an external bar's fill edge (EllesmereUI's fury bar by default)
+    do
+        card3:AddLabel(
+            "Sticks the prediction to another bar's fill edge instead of this bar's own. "..
+            "No gap is possible, not even mid-animation, and the prediction is clipped "..
+            "at the right edge instead of overflowing.", T.textMuted)
+
+        local snapStatusLbl
+
+        local function RefreshSnapStatus()
+            if not (snapStatusLbl and mod and mod.GetSnapStatus) then return end
+            local on, name, found = mod.GetSnapStatus()
+            if not on then
+                snapStatusLbl:SetText("")
+            elseif found then
+                snapStatusLbl:SetText("|cff55ff55Following|r " .. (name or "?"))
+            else
+                snapStatusLbl:SetText("|cffff5555Not found:|r " .. (name or "?"))
+            end
+        end
+
+        card3:AddRow(GUI:CreateToggle(parent, "Snap to Ellesmere bar",
+            L.snapToBar,
+            function(v)
+                L.snapToBar = v
+                Call("ApplyFurySize")
+                RefreshSnapStatus()
+            end), 28)
+
+        -- A dropdown, not a click-picker: EllesmereUI calls EnableMouse(false)
+        -- on its resource bars deliberately, and GetMouseFoci only returns
+        -- mouse-enabled regions -- a picker can never select them and would
+        -- silently land on WorldFrame instead.
+        local choices = (mod and mod.GetSnapBarChoices and mod.GetSnapBarChoices()) or {}
+        if #choices > 0 then
+            local opts = {}
+            for _, c in ipairs(choices) do
+                opts[#opts + 1] = { key = c.key, label = c.label }
+            end
+            card3:AddRow(GUI:CreateDropdown(parent, "Bar to follow", opts,
+                L.snapBarName or "ERB_PrimaryBar",
+                function(v)
+                    if mod and mod.SetSnapBar then mod.SetSnapBar(v) end
+                    RefreshSnapStatus()
+                end), 44)
+        else
+            card3:AddLabel("|cffff5555No EllesmereUI bar detected.|r "..
+                "Check that EllesmereUI Resource Bars is enabled.", T.textMuted)
+        end
+
+        local statusWrap = CreateFrame("Frame", nil, parent)
+        statusWrap:SetHeight(20)
+        snapStatusLbl = statusWrap:CreateFontString(nil, "OVERLAY")
+        snapStatusLbl:SetPoint("LEFT", statusWrap, "LEFT", 0, 0)
+        ApplyFont(snapStatusLbl, 11)
+        snapStatusLbl:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
+        card3:AddRow(statusWrap, 20)
+        RefreshSnapStatus()
     end
 
     -- Font size (font face is set in Shared)

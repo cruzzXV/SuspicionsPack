@@ -4,14 +4,14 @@
 -- with per-item Search-AH and Quick-Buy buttons.
 local SP = SuspicionsPack
 
-local CS = SP:NewModule("CraftShopper", "AceEvent-3.0")
+local CS = SP:NewSPModule("CraftShopper", "craftShopper")
 SP.CraftShopper = CS
 
 -- ============================================================
 -- Constants
 -- ============================================================
 local SP_FONT      = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
-local BLANK        = "Interface\\Buttons\\WHITE8X8"
+local BLANK        = SP.BLANK
 local SCAN_DELAY   = 0.3
 local ROW_H        = 24
 local SHOP_W       = 340
@@ -56,6 +56,10 @@ local ShowBuyPopup
 
 -- ============================================================
 -- DB
+--
+-- Kept as file-locals rather than folded into ModuleMixin:GetDB(): IsEnabled()
+-- below is read from plain local functions (DoScan, ShowIfNeeded and friends)
+-- that have no `self` to reach the module through.
 -- ============================================================
 local function GetDB()
     return SP.GetDB().craftShopper
@@ -318,6 +322,23 @@ local function UnregisterAllAux()
     CS._aux:UnregisterEvent("AUCTION_HOUSE_SHOW_ERROR")
 end
 
+-- Tear down an open confirm popup from the outside (AH closed, module switched
+-- off). pendingBuy.Cleanup cancels the 15 s countdown ticker, hides the popup,
+-- re-enables the row's Buy button and drops the aux events -- without it the
+-- ticker survived the popup and fired CancelCommoditiesPurchase into a closed
+-- Auction House.
+local function AbortPendingBuy(cancelServerSide)
+    if not pendingBuy then return end
+    local cleanup = pendingBuy.Cleanup
+    -- CancelCommoditiesPurchase throws if the AH is already closed, and takes
+    -- no arguments. Same guard the popup's own Cancel button uses.
+    if cancelServerSide and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+        C_AuctionHouse.CancelCommoditiesPurchase()
+    end
+    if cleanup then cleanup() end
+    pendingBuy = nil
+end
+
 -- ============================================================
 -- Purchase-confirmation popup (SP-themed)
 -- ============================================================
@@ -490,11 +511,18 @@ ShowBuyPopup = function(item, buyBtn)
     end)
 
     cancelBtn:SetScript("OnClick", function()
-        C_AuctionHouse.CancelCommoditiesPurchase(item.itemID)
+        -- CancelCommoditiesPurchase throws a Lua error if the AH is already
+        -- closed, and the 15 s auto-cancel ticker walks into that on its own
+        -- whenever the user closes the AH with the popup open.
+        -- It also takes no arguments.
+        if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+            C_AuctionHouse.CancelCommoditiesPurchase()
+        end
         Cleanup()
     end)
 
     pendingBuy = {
+        Cleanup = Cleanup,   -- exposed so AbortPendingBuy can close this popup
         OnPrice = function(_, total)
             GetAux():UnregisterEvent("COMMODITY_PRICE_UPDATED")
             spinner:Hide()
@@ -1052,41 +1080,53 @@ local function UnregisterHeavy()
 end
 
 -- ============================================================
--- Module lifecycle
+-- Activate / Deactivate
+--
+-- Called by the GUI enable toggle and by ModuleMixin:Refresh(). Refresh,
+-- OnEnable and OnDisable all come from ModuleMixin -- see Core/Module.lua.
+--
+-- Nothing is registered outside Activate: TRACKED_RECIPE_UPDATE and the HEAVY
+-- set (BAG_UPDATE_DELAYED above all) used to be live even with the module
+-- switched off, so every bag change rebuilt the shopping list for a feature the
+-- player had turned away.
 -- ============================================================
-function CS:OnEnable()
-    if IsLoggedIn() then
-        self:OnLogin()
-    else
-        self:RegisterEvent("PLAYER_LOGIN", "OnLogin")
-    end
+function CS:Activate()
+    if not IsEnabled() then return end
+
     self:RegisterEvent("TRACKED_RECIPE_UPDATE", "OnTrackedRecipeUpdate")
     -- Clear per-item caches on logout so stale tooltip/schematic data
     -- doesn't persist across sessions (e.g. after a patch changes item flags).
     self:RegisterEvent("PLAYER_LOGOUT", "OnLogout")
+
+    if HasTracked() then
+        RegisterHeavy()
+        DoScan()
+    end
+end
+
+function CS:Deactivate()
+    self:UnregisterEvent("TRACKED_RECIPE_UPDATE")
+    self:UnregisterEvent("PLAYER_LOGOUT")
+    UnregisterHeavy()
+
+    AbortPendingBuy(true)
+    UnregisterAllAux()
+    lastBuyID = nil
+
+    if pendingScan then pendingScan:Cancel(); pendingScan = nil end
+    scanRunning = false
+
+    -- Drop the shopping list too: RebuildShopFrame (theme switch) and
+    -- ShowIfNeeded would otherwise re-show a panel built while the module was
+    -- still on. Activate rescans from scratch.
+    items = {}
+    if CS._shopFrame then CS._shopFrame:Hide() end
 end
 
 function CS:OnLogout()
     wipe(ahCache)
     wipe(schemCache)
     wipe(schemRecraft)
-end
-
-function CS:OnDisable()
-    self:UnregisterAllEvents()
-    UnregisterHeavy()
-    UnregisterAllAux()
-    if pendingScan then pendingScan:Cancel(); pendingScan = nil end
-    if CS._shopFrame then CS._shopFrame:Hide() end
-end
-
-function CS:OnLogin()
-    self:UnregisterEvent("PLAYER_LOGIN")
-    if not IsEnabled() then return end
-    if HasTracked() then
-        RegisterHeavy()
-        DoScan()
-    end
 end
 
 -- ============================================================
@@ -1104,11 +1144,16 @@ function CS:OnTrackedRecipeUpdate()
     end
 end
 
+-- The HEAVY handlers are only registered while the module is on, but they also
+-- re-read the setting: a bag update is the single most frequent event in the
+-- game and must never rebuild the list for a switched-off module.
 function CS:BAG_UPDATE_DELAYED()
+    if not IsEnabled() then return end
     ScheduleScan()
 end
 
 function CS:CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE(_, result)
+    if not IsEnabled() then return end
     if result == 0 and not scanRunning then DoScan() end
 end
 
@@ -1119,17 +1164,14 @@ function CS:AUCTION_HOUSE_SHOW()
 end
 
 function CS:AUCTION_HOUSE_CLOSED()
+    -- Close any open confirm popup first: its 15 s ticker would otherwise call
+    -- CancelCommoditiesPurchase against an Auction House that is already gone,
+    -- which is a hard Lua error. cancelServerSide is deliberately false here --
+    -- there is no AH left to cancel against.
+    AbortPendingBuy(false)
+    lastBuyID = nil
     if CS._shopFrame then CS._shopFrame:Hide() end
     UnregisterAllAux()
-end
-
-function CS:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-    else
-        if self:IsEnabled() then self:Disable() end
-    end
 end
 
 -- Called by SP.RefreshTheme() so accent-colored elements rebuild with new colors.

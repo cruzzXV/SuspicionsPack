@@ -4,7 +4,7 @@
 
 local SP = SuspicionsPack
 
-local MA = SP:NewModule("MovementAlert", "AceEvent-3.0")
+local MA = SP:NewSPModule("MovementAlert", "movementAlert")
 SP.MovementAlert = MA
 
 -- ============================================================
@@ -25,23 +25,17 @@ local LSM                = LibStub and LibStub("LibSharedMedia-3.0", true)
 
 local SP_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 
-local FONT_FACES = {
-    ["Expressway"]    = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf",
-    ["Friz Quadrata"] = "Fonts\\FRIZQT__.TTF",
-    ["Arial Narrow"]  = "Fonts\\ARIALN.TTF",
-    ["Morpheus"]      = "Fonts\\MORPHEUS.TTF",
-    ["Skurri"]        = "Fonts\\SKURRI.TTF",
-    ["Damage"]        = "Fonts\\DAMAGE.TTF",
-    ["Ambiguity"]     = "Fonts\\2002.TTF",
-    ["Nimrod MT"]     = "Fonts\\NIMROD.TTF",
-}
-MA.FontFaceOrder = {
-    "Expressway", "Friz Quadrata", "Arial Narrow", "Morpheus",
-    "Skurri", "Damage", "Ambiguity", "Nimrod MT",
-}
+-- Localised with a fallback (matching BloodlustAlert/ReapPredict). This module
+-- reads spell/cooldown APIs on a 10 Hz loop, so a missing global would be a
+-- hard error several times a second.
+local _issecretvalue = issecretvalue or function() return false end
 
+-- Font names now resolve through Core: SP.FONT_FACES is the single
+-- source of truth and SP.ResolveFont falls back to the pack default.
+-- The private table this used to carry SHADOWED LibSharedMedia, so any
+-- font the user added via another addon silently became Expressway here.
 local function GetFontPath(name)
-    return FONT_FACES[name] or SP_FONT
+    return SP.ResolveFont(name)
 end
 
 -- ============================================================
@@ -215,8 +209,14 @@ local function BuildMovementSpellList()
                     local displayId = spellId
                     if C_Spell.GetOverrideSpell then
                         local ok, oid = pcall(C_Spell.GetOverrideSpell, spellId)
-                        if ok and oid and oid > 0 and oid ~= spellId then
-                            if C_Spell.GetSpellInfo(oid) then
+                        -- pcall does NOT stop taint propagation: comparing a
+                        -- secret value taints execution regardless. Same class
+                        -- as the isOnGCD bug that broke Blizzard_CooldownViewer.
+                        -- Guard FIRST: Lua evaluates left to right, so putting
+                        -- `oid ~= nil` before the check would already have
+                        -- compared a secret value.
+                        if ok and not _issecretvalue(oid) and oid ~= nil then
+                            if oid > 0 and oid ~= spellId and C_Spell.GetSpellInfo(oid) then
                                 displayId = oid
                             end
                         end
@@ -434,10 +434,43 @@ local function ApplyStyles()
 end
 
 -- ============================================================
+-- Tick arming
+--
+-- The per-frame driver exists only to refresh a COUNTDOWN. Everything else is
+-- already event-driven (SPELL_UPDATE_COOLDOWN, UNIT_AURA, UNIT_SPELLCAST_SENT).
+-- It used to be armed in Refresh() and never disarmed, so enabling this module
+-- cost ten C_Spell.GetSpellCooldown scans a second for the rest of the session,
+-- standing in a city, with nothing on screen.
+--
+-- Now: armed whenever something countdown-shaped becomes visible, and it
+-- unsubscribes itself as soon as nothing is displayed.
+-- ============================================================
+local TICK_KEY = "movementAlert"
+local MATick   -- forward-declared: ArmTick is used above its definition
+
+local function ArmTick()
+    if MATick then SP.Tick.Add(TICK_KEY, MATick) end
+end
+
+-- ============================================================
 -- CheckMovementCooldown
 -- ============================================================
 local function CheckMovementCooldown()
     if MA.isPreview then return end
+
+    -- Nothing to draw while the module is off. Without this, the Time Spiral
+    -- preview (which arms deliberately even when disabled) fell through here
+    -- after its auto-cancel and rendered the real alert.
+    local _db = GetDB()
+    if not (_db and _db.enabled) then
+        fsText:Hide()
+        SP.Tick.Remove(TICK_KEY)
+        return
+    end
+
+    -- Armed BEFORE the timeSpiralOn guard: the 10 s expiry lives inside the
+    -- tick, so a spiral left running with nothing subscribed could never end.
+    ArmTick()
     if f.timeSpiralOn then return end
     if f.ignoreMovementCd then fsText:Hide(); return end
     local db   = GetDB()
@@ -480,21 +513,28 @@ end
 -- ============================================================
 -- OnUpdate
 -- ============================================================
-local function OnUpdate(self, elapsed)
-    if MA.isPreview then return end
+-- Assigns the forward-declared local. `self` is the module frame `f`, which is
+-- a file-scope local, so the ticker callback reaches it directly.
+MATick = function(elapsed)
+    local self = f
+    if MA.isPreview then
+        SP.Tick.Remove(TICK_KEY)
+        return
+    end
 
-    self.timeSinceLastUpdate = self.timeSinceLastUpdate + elapsed
+    self.timeSinceLastUpdate = (self.timeSinceLastUpdate or 0) + elapsed
     local db = GetDB()
     if self.timeSinceLastUpdate < (db.updateInterval or 0.1) then return end
     self.timeSinceLastUpdate = 0
 
     if self.timeSpiralOn then
-        local remaining = 10 - (GetTime() - self.timeSpiralOn)
+        local remaining = TIME_SPIRAL_DURATION - (GetTime() - self.timeSpiralOn)
         if remaining <= 0 then
             self.timeSpiralOn = false
             ResetTSTextPosition()
             fsText:Hide()
             HideTSIcon()
+            SP.Tick.Remove(TICK_KEY)
             return
         end
         ApplyTSTextPosition()
@@ -511,6 +551,12 @@ local function OnUpdate(self, elapsed)
     end
 
     CheckMovementCooldown()
+
+    -- Nothing on screen and no Time Spiral running: there is no countdown left
+    -- to refresh, so stop costing a frame. The events re-arm via ArmTick.
+    if not fsText:IsShown() and not self.timeSpiralOn then
+        SP.Tick.Remove(TICK_KEY)
+    end
 end
 
 -- ============================================================
@@ -570,6 +616,7 @@ local function OnEvent(self, event, ...)
             if TIME_SPIRAL_ABILITIES[spellId] then
                 if GetTime() > castFilterExpiry then
                     self.timeSpiralOn = GetTime()
+                    ArmTick()
                     f_tsTextPositioned = false   -- force reposition on next OnUpdate tick
                     if db.timeSpiralPlaySound and db.timeSpiralSound then
                         local soundPath = LSM and LSM:Fetch("sound", db.timeSpiralSound) or db.timeSpiralSound
@@ -607,6 +654,9 @@ end
 
 function MA:HidePreview()
     self.isPreview = false
+    -- Re-evaluate immediately: MATick unsubscribed itself when preview began,
+    -- so without this a live countdown stays frozen until the next event.
+    CheckMovementCooldown()
     if fsText then fsText:Hide() end
 end
 
@@ -614,6 +664,7 @@ function MA:ShowTimeSpiralPreview()
     if self.isPreview then return end  -- don't conflict with drag preview
     local db = GetDB()
     f.timeSpiralOn = GetTime()
+    ArmTick()
     f_tsTextPositioned = false  -- force reposition on next tick / immediate render
     -- Immediate render so there's no 1-tick delay and it works when disabled
     local c     = db.timeSpiralColor or { 0.451, 0.741, 0.522, 1 }
@@ -649,13 +700,14 @@ end
 
 -- ============================================================
 -- Module lifecycle
+--
+-- OnEnable (deferred to PLAYER_LOGIN, then Refresh) and OnDisable
+-- (UnregisterAllEvents + Deactivate) come from SP.ModuleMixin -- see
+-- Core/Module.lua. Refresh is kept because it does more than the mixin's: it
+-- restyles and rebuilds the spell caches before dispatching, and the GUI calls
+-- it after every settings change, not just on enable/disable.
 -- ============================================================
-function MA:OnEnable()
-    self:Refresh()
-end
-
 function MA:Refresh()
-    local db = GetDB()
     ApplyStyles()
     ApplyTSIconPosition()
     if not f.timeSpiralOn then
@@ -665,22 +717,40 @@ function MA:Refresh()
     f.spellsToIgnoreGlow = GetGlowIgnoreList()
     RefreshCastFilters()
 
-    if db.enabled then
-        f:SetScript("OnEvent", OnEvent)
-        f:SetScript("OnUpdate", OnUpdate)
-        f:RegisterEvent("PLAYER_ENTERING_WORLD")
-        f:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-        f:RegisterEvent("PLAYER_TALENT_UPDATE")
-        f:RegisterEvent("TRAIT_CONFIG_UPDATED")
-        f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
-        f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE")
-        f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
-        f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-        f:RegisterUnitEvent("UNIT_AURA", "player")
-    else
-        f:SetScript("OnEvent", nil)
-        f:SetScript("OnUpdate", nil)
-        f:UnregisterAllEvents()
-        fsText:Hide()
-    end
+    -- Delegate the dispatch so AceAddon's flag tracks db.enabled the same
+    -- way it does for every other module.
+    SP.ModuleMixin.Refresh(self)
+end
+
+function MA:Activate()
+    -- All nine registrations live on the raw frame `f`, so AceEvent's
+    -- UnregisterAllEvents does not reach them -- Deactivate below has to.
+    f:SetScript("OnEvent", OnEvent)
+    -- No OnUpdate: the ticker is armed on demand by ArmTick and
+    -- unsubscribes itself when nothing is being counted down.
+    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    f:RegisterEvent("PLAYER_TALENT_UPDATE")
+    f:RegisterEvent("TRAIT_CONFIG_UPDATED")
+    f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
+    f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE")
+    f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
+    f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+    f:RegisterUnitEvent("UNIT_AURA", "player")
+    -- Evaluate current state now: enabling mid-cooldown used to show
+    -- nothing until an unrelated event arrived.
+    CheckMovementCooldown()
+end
+
+function MA:Deactivate()
+    f:SetScript("OnEvent", nil)
+    f:UnregisterAllEvents()
+    SP.Tick.Remove(TICK_KEY)
+    if fsText then fsText:Hide() end
+    HideTSIcon()
+    -- Cleared, not just hidden: timeSpiralOn holds a GetTime() stamp and its
+    -- 10 s expiry lives inside the tick. Leaving it set means a later
+    -- re-activate inherits a stale countdown that has no subscriber to end it.
+    f.timeSpiralOn = false
+    ResetTSTextPosition()
 end

@@ -4,7 +4,7 @@
 
 local SP = SuspicionsPack
 
-local CopyTooltip = SP:NewModule("CopyTooltip", "AceEvent-3.0")
+local CopyTooltip = SP:NewSPModule("CopyTooltip", "copyTooltip")
 SP.CopyTooltip = CopyTooltip
 
 -- ============================================================
@@ -19,13 +19,6 @@ local CreateFrame           = CreateFrame
 local select                = select
 local strsplit              = strsplit
 local tostring              = tostring
-
--- ============================================================
--- DB helper
--- ============================================================
-local function GetDB()
-    return SP.GetDB().copyTooltip
-end
 
 -- ============================================================
 -- Static popup — shown once and reused
@@ -137,7 +130,16 @@ local function ExtractTooltipData()
                 if macroName then
                     local idx     = GetMacroIndexByName and GetMacroIndexByName(macroName)
                     local spellId = idx and GetMacroSpell and GetMacroSpell(idx)
-                    local _, link = idx and GetMacroItem and GetMacroItem(idx) or nil, nil
+
+                    -- Must be a statement, not an expression: `local _, link =
+                    -- cond and f(idx) or nil, nil` parses as `(expr), nil`, so
+                    -- `link` was always nil and the item-macro branch below was
+                    -- unreachable.
+                    local link
+                    if idx and GetMacroItem then
+                        local _, itemLink = GetMacroItem(idx)
+                        link = itemLink
+                    end
                     if spellId then
                         local si = C_Spell and C_Spell.GetSpellInfo(spellId)
                         if si then copyName, copyId = si.name, spellId end
@@ -179,7 +181,10 @@ end
 local _lastCopyTime = 0
 
 function CopyTooltip:OnKeyDown(key)
-    local db = GetDB()
+    -- The key frame's OnKeyDown script is installed once and never removed, so
+    -- it re-reads the setting here as well as being keyboard-disabled by
+    -- Deactivate().
+    local db = self:GetDB()
     if not db or not db.enabled then return end
     local cfgKey = strupper(db.key or "C")
     if strupper(key) ~= cfgKey then return end
@@ -202,29 +207,9 @@ function CopyTooltip:OnKeyDown(key)
 end
 
 -- ============================================================
--- AceAddon Module lifecycle
+-- Activate / Deactivate
+-- Everything else (Refresh / OnEnable / OnDisable) comes from SP.ModuleMixin.
 -- ============================================================
-function CopyTooltip:OnEnable()
-    if IsLoggedIn() then
-        self:OnLogin()
-    else
-        self:RegisterEvent("PLAYER_LOGIN", "OnLogin")
-    end
-end
-
-function CopyTooltip:OnDisable()
-    self:UnregisterAllEvents()
-    if self.keyFrame then
-        self.keyFrame:EnableKeyboard(false)
-    end
-end
-
-function CopyTooltip:OnLogin()
-    local db = GetDB()
-    if not db or not db.enabled then return end
-    self:Activate()
-end
-
 function CopyTooltip:Activate()
     EnsureDialog()
     if not self.keyFrame then
@@ -243,14 +228,5 @@ end
 function CopyTooltip:Deactivate()
     if self.keyFrame then
         self.keyFrame:EnableKeyboard(false)
-    end
-end
-
-function CopyTooltip:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        self:Activate()
-    else
-        self:Deactivate()
     end
 end

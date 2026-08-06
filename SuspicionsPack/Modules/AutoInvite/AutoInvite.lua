@@ -3,16 +3,12 @@
 -- Default keywords: "inv", "123"
 local SP = SuspicionsPack
 
-local AutoInvite = SP:NewModule("AutoInvite", "AceEvent-3.0")
+local AutoInvite = SP:NewSPModule("AutoInvite", "autoInvite")
 SP.AutoInvite = AutoInvite
 
 -- ============================================================
 -- Helpers
 -- ============================================================
-local function GetDB()
-    return SP.GetDB().autoInvite
-end
-
 local function StripRealm(name)
     return (name:match("^([^%-]+)")) or name
 end
@@ -78,19 +74,39 @@ end
 
 -- ============================================================
 -- Module lifecycle
+-- OnEnable / OnDisable / Refresh come from SP.ModuleMixin.
 -- ============================================================
-function AutoInvite:OnEnable()
-    self:RegisterEvent("CHAT_MSG_WHISPER",    "OnWhisper")
-    self:RegisterEvent("GUILD_ROSTER_UPDATE", "OnRosterUpdate")
-    -- Seed the guild cache immediately
-    if IsInGuild() then
-        C_GuildInfo.GuildRoster()
-        UpdateGuildCache()
-    end
+function AutoInvite:Activate()
+    self:RegisterEvent("CHAT_MSG_WHISPER", "OnWhisper")
+    self:ApplyGuildWatch()
 end
 
-function AutoInvite:OnDisable()
-    self:UnregisterAllEvents()
+function AutoInvite:Deactivate()
+    self:UnregisterEvent("CHAT_MSG_WHISPER")
+    self:UnregisterEvent("GUILD_ROSTER_UPDATE")
+    wipe(guildCache)
+end
+
+-- The guild cache is read from exactly one place: the `db.inviteGuild` branch of
+-- OnWhisper, which is only reachable when inviteAll is explicitly false. With
+-- any other setting the whole roster was being walked on every
+-- GUILD_ROSTER_UPDATE to build a table nothing ever looked at, so the event is
+-- only registered when the cache is actually needed.
+--
+-- Note `db.inviteAll == false`, not `not db.inviteAll`: nil means "key predates
+-- this option", which OnWhisper treats as invite-everyone.
+function AutoInvite:ApplyGuildWatch()
+    local db = self:GetDB()
+    if db and db.inviteAll == false and db.inviteGuild then
+        self:RegisterEvent("GUILD_ROSTER_UPDATE", "OnRosterUpdate")
+        if IsInGuild() then
+            C_GuildInfo.GuildRoster()
+            UpdateGuildCache()
+        end
+    else
+        self:UnregisterEvent("GUILD_ROSTER_UPDATE")
+        wipe(guildCache)
+    end
 end
 
 function AutoInvite:OnRosterUpdate()
@@ -101,7 +117,7 @@ end
 --   event, message, sender, language, channelStr, target, flags,
 --   _, channelNum, channelName, _, lineID, senderGUID
 function AutoInvite:OnWhisper(_, message, sender, _, _, _, _, _, _, _, _, _, senderGUID)
-    local db = GetDB()
+    local db = self:GetDB()
     if not db or not db.enabled then return end
 
     -- Keyword check
@@ -132,14 +148,5 @@ function AutoInvite:OnWhisper(_, message, sender, _, _, _, _, _, _, _, _, _, sen
     if canInvite then
         C_PartyInfo.InviteUnit(sender)
         print("|cffe51039SuspicionsPack|r : invited |cffffffff" .. StripRealm(sender) .. "|r")
-    end
-end
-
-function AutoInvite:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-    else
-        if self:IsEnabled() then self:Disable() end
     end
 end

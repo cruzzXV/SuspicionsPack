@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r
 ## Notes: Collection of QoL features
 ## Author: Cruzz
-## Version: 1.9.0
+## Version: 2.0.0
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## SavedVariables: SuspicionsPackDB
 ## IconTexture: Interface\AddOns\SuspicionsPack\Media\Icons\icon.png
@@ -22,6 +22,9 @@ Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
 # Core — creates the AceAddon object; must load before any module
 Core.lua
+Core\Ticker.lua
+Core\Migration.lua
+Core\Module.lua
 
 # Modules — each calls SP:NewModule() so they must load after Core.lua
 Modules\Drawer\Drawer.lua
@@ -58,5 +61,4 @@ Modules\ReapPredict\ReapPredict.lua
 # Minimap Button module
 Core\MinimapButton.lua
 
-# GUI
-GUI\GUI.lua
+# GUI lives in the SuspicionsPack_Config companion addon (LoadOnDemand).

@@ -2,15 +2,8 @@
 -- Hides the "Objectives" header at the top of the quest tracker.
 local SP = SuspicionsPack
 
-local COTH = SP:NewModule("CleanObjectiveTrackerHeader", "AceEvent-3.0")
+local COTH = SP:NewSPModule("CleanObjectiveTrackerHeader", "cleanObjectiveTrackerHeader")
 SP.CleanObjectiveTrackerHeader = COTH
-
--- ============================================================
--- DB helper
--- ============================================================
-local function GetDB()
-    return SP.GetDB().cleanObjectiveTrackerHeader
-end
 
 -- ============================================================
 -- Apply / Restore
@@ -36,19 +29,24 @@ local function ShowHeader()
 end
 
 -- ============================================================
--- Module lifecycle
+-- Activate / Deactivate
+-- Everything else (Refresh / OnEnable / OnDisable) comes from SP.ModuleMixin.
 -- ============================================================
 function COTH:Activate()
     -- ObjectiveTrackerFrame is lazy-loaded — defer to be safe
     C_Timer.After(1, function()
+        -- C_Timer.After cannot be cancelled, so re-read the setting instead:
+        -- the user may have switched the module off inside this one-second window.
+        if not self:IsOn() then return end
         HideHeader()
         -- Hook Show() once so Blizzard re-shows don't fight us
         local tracker = _G.ObjectiveTrackerFrame
         if tracker and tracker.Header and not hooked then
             hooked = true
+            -- hooksecurefunc can never be removed, so the hook stays installed
+            -- for the whole session and gates itself on the live setting.
             hooksecurefunc(tracker.Header, "Show", function()
-                local db = GetDB()
-                if db and db.enabled then
+                if self:IsOn() then
                     HideHeader()
                 end
             end)
@@ -58,35 +56,4 @@ end
 
 function COTH:Deactivate()
     ShowHeader()
-end
-
-function COTH:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-        self:Activate()
-    else
-        if self:IsEnabled() then self:Disable() end
-        self:Deactivate()
-    end
-end
-
-function COTH:OnEnable()
-    if IsLoggedIn() then
-        local db = GetDB()
-        if db and db.enabled then self:Activate() end
-    else
-        self:RegisterEvent("PLAYER_LOGIN", "OnLogin")
-    end
-end
-
-function COTH:OnLogin()
-    self:UnregisterEvent("PLAYER_LOGIN")
-    local db = GetDB()
-    if db and db.enabled then self:Activate() end
-end
-
-function COTH:OnDisable()
-    self:UnregisterAllEvents()
-    self:Deactivate()
 end

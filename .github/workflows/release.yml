@@ -19,7 +19,8 @@ jobs:
           zip -r SuspicionsPack-${{ github.ref_name }}.zip \
             SuspicionsPack/ \
             SuspicionsPackNudgeTool/ \
-            SuspicionsPackClassIcons/
+            SuspicionsPackClassIcons/ \
+            SuspicionsPack_Config/
 
       - name: Release
         uses: softprops/action-gh-release@v2

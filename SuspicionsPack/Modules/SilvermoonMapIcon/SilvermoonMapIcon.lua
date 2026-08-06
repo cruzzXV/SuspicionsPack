@@ -2,7 +2,7 @@
 -- World map only — no minimap pins.
 local SP = SuspicionsPack
 
-local SMI = SP:NewModule("SilvermoonMapIcon", "AceEvent-3.0")
+local SMI = SP:NewSPModule("SilvermoonMapIcon", "silvermoonMapIcon")
 SP.SilvermoonMapIcon = SMI
 
 -- ============================================================
@@ -13,6 +13,9 @@ local WORLD_SCALE       = 0.65  -- multiplier on top of each pin's own scale val
 
 -- ============================================================
 -- DB
+-- Kept as file-scope locals: GetVisibleSources and the data provider's
+-- RefreshAllData are plain closures with no module `self`, so they cannot use
+-- the mixin's self:GetDB() / self:IsOn().
 -- ============================================================
 local function GetDB()
     return SP.GetDB().silvermoonMapIcon
@@ -44,15 +47,24 @@ local professionToSkillLine = {
 
 local playerProfessions = {}
 
+local function AddProfession(prof)
+    if not prof then return end
+    local name, _, _, _, _, _, skillLine = GetProfessionInfo(prof)
+    if skillLine then playerProfessions[skillLine] = name end
+end
+
 local function UpdatePlayerProfessions()
     wipe(playerProfessions)
+    -- GetProfessions returns nil for any slot the character hasn't learned, so
+    -- these must be handled individually: ipairs over { p1, p2, fish, cook }
+    -- stops at the first nil, which silently dropped cooking for anyone
+    -- without fishing (and dropped everything for a character with no primary
+    -- professions).
     local p1, p2, _, fish, cook = GetProfessions()
-    for _, prof in ipairs({ p1, p2, fish, cook }) do
-        if prof then
-            local name, _, _, _, _, _, skillLine = GetProfessionInfo(prof)
-            playerProfessions[skillLine] = name
-        end
-    end
+    AddProfession(p1)
+    AddProfession(p2)
+    AddProfession(fish)
+    AddProfession(cook)
 end
 
 -- ============================================================
@@ -243,50 +255,38 @@ end
 
 -- ============================================================
 -- Module lifecycle
+-- OnEnable / OnDisable / Refresh come from SP.ModuleMixin.
 -- ============================================================
-function SMI:OnEnable()
-    if IsLoggedIn() then
-        self:OnLogin()
-    else
-        self:RegisterEvent("PLAYER_LOGIN", "OnLogin")
-    end
-end
-
-function SMI:OnDisable()
-    self:UnregisterAllEvents()
-    if self._provider then self._provider:RefreshAllData() end
-end
-
-function SMI:OnLogin()
-    self:UnregisterEvent("PLAYER_LOGIN")
-
+function SMI:Activate()
     -- World map data provider (idempotent)
     if WorldMapFrame then SetupWorldMap(WorldMapFrame) end
 
     -- Refresh profession filter when player learns/drops a profession
     self:RegisterEvent("SKILL_LINES_CHANGED", "OnSkillLinesChanged")
+
+    self:RefreshPins()
+end
+
+function SMI:Deactivate()
+    self:UnregisterEvent("SKILL_LINES_CHANGED")
+    -- A data provider cannot be detached from the world map, but
+    -- Provider:RefreshAllData bails on IsEnabled() after hiding every pin, so
+    -- this both clears the map now and keeps it clear while switched off.
+    self:RefreshPins()
 end
 
 -- SKILL_LINES_CHANGED fires when you learn or drop a profession.
 -- Refresh the world map so trainer pins appear/disappear correctly.
 function SMI:OnSkillLinesChanged()
     UpdatePlayerProfessions()
-    if self._provider then self._provider:RefreshAllData() end
+    self:RefreshPins()
 end
 
 -- ============================================================
 -- Public API — called by GUI toggles
+-- Refresh comes from the mixin and routes to Activate/Deactivate, both of
+-- which end in RefreshPins, so both GUI entry points still repaint the map.
 -- ============================================================
-function SMI:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-    else
-        if self:IsEnabled() then self:Disable() end
-    end
-    if self._provider then self._provider:RefreshAllData() end
-end
-
 function SMI:RefreshPins()
     if self._provider then self._provider:RefreshAllData() end
 end

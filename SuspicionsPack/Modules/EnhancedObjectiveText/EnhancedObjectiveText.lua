@@ -2,11 +2,13 @@
 -- Displays quest objective / error messages in a larger format.
 local SP = SuspicionsPack
 
-local EOT = SP:NewModule("EnhancedObjectiveText", "AceEvent-3.0")
+local EOT = SP:NewSPModule("EnhancedObjectiveText", "enhancedObjectiveText")
 SP.EnhancedObjectiveText = EOT
 
 -- ============================================================
 -- DB helper
+-- Kept as a file local: Apply() is a file-scope function with no `self`, and
+-- it is also reached from the dot-called EOT.Preview().
 -- ============================================================
 local function GetDB()
     return SP.GetDB().enhancedObjectiveText
@@ -63,10 +65,17 @@ local function Restore()
 end
 
 -- ============================================================
--- Module lifecycle
+-- Activate / Deactivate
+-- Everything else (Refresh / OnEnable / OnDisable) comes from SP.ModuleMixin.
 -- ============================================================
 function EOT:Activate()
-    C_Timer.After(0.5, Apply)
+    C_Timer.After(0.5, function()
+        -- C_Timer.After cannot be cancelled, so re-read the setting instead:
+        -- the user may have switched the module off inside this half-second
+        -- window, and Apply() would otherwise resize UIErrorsFrame after
+        -- Deactivate() had already restored it.
+        if self:IsOn() then Apply() end
+    end)
 end
 
 function EOT:Deactivate()
@@ -78,35 +87,4 @@ function EOT.Preview()
     if not f then return end
     Apply()
     f:AddExternalWarningMessage("Quest completed: Defeat the Lich King")
-end
-
-function EOT:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-        self:Activate()
-    else
-        if self:IsEnabled() then self:Disable() end
-        self:Deactivate()
-    end
-end
-
-function EOT:OnEnable()
-    if IsLoggedIn() then
-        local db = GetDB()
-        if db and db.enabled then self:Activate() end
-    else
-        self:RegisterEvent("PLAYER_LOGIN", "OnLogin")
-    end
-end
-
-function EOT:OnLogin()
-    self:UnregisterEvent("PLAYER_LOGIN")
-    local db = GetDB()
-    if db and db.enabled then self:Activate() end
-end
-
-function EOT:OnDisable()
-    self:UnregisterAllEvents()
-    self:Deactivate()
 end

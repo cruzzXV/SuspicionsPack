@@ -2,15 +2,8 @@
 -- Prints a chat message when you join a Mythic or Mythic+ group via the group finder.
 local SP = SuspicionsPack
 
-local GroupJoinedReminder = SP:NewModule("GroupJoinedReminder", "AceEvent-3.0")
+local GroupJoinedReminder = SP:NewSPModule("GroupJoinedReminder", "groupJoinedReminder")
 SP.GroupJoinedReminder = GroupJoinedReminder
-
--- ============================================================
--- DB helper
--- ============================================================
-local function GetDB()
-    return SP.GetDB().groupJoinedReminder
-end
 
 -- ============================================================
 -- Internal state
@@ -25,8 +18,7 @@ function GroupJoinedReminder:OnGroupLeft()
 end
 
 function GroupJoinedReminder:OnLFGEvent(event, ...)
-    local db = GetDB()
-    if not db or not db.enabled then return end
+    if not self:IsOn() then return end
 
     -- Cache the group name from the join event
     if event == "LFG_LIST_JOINED_GROUP" then
@@ -69,30 +61,17 @@ end
 
 -- ============================================================
 -- Module lifecycle
+-- OnEnable / OnDisable / Refresh come from SP.ModuleMixin.
 -- ============================================================
-function GroupJoinedReminder:OnEnable()
-    local db = GetDB()
-    if db and db.enabled then
-        self:RegisterEvent("GROUP_LEFT",                   "OnGroupLeft")
-        self:RegisterEvent("LFG_LIST_JOINED_GROUP",        "OnLFGEvent")
-        self:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", "OnLFGEvent")
-    end
+function GroupJoinedReminder:Activate()
+    self:RegisterEvent("GROUP_LEFT",                   "OnGroupLeft")
+    self:RegisterEvent("LFG_LIST_JOINED_GROUP",        "OnLFGEvent")
+    self:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", "OnLFGEvent")
 end
 
-function GroupJoinedReminder:OnDisable()
-    self:UnregisterAllEvents()
-end
-
-function GroupJoinedReminder:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-        self:RegisterEvent("GROUP_LEFT",                   "OnGroupLeft")
-        self:RegisterEvent("LFG_LIST_JOINED_GROUP",        "OnLFGEvent")
-        self:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", "OnLFGEvent")
-    else
-        self:UnregisterEvent("GROUP_LEFT")
-        self:UnregisterEvent("LFG_LIST_JOINED_GROUP")
-        self:UnregisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
-    end
+function GroupJoinedReminder:Deactivate()
+    self:UnregisterEvent("GROUP_LEFT")
+    self:UnregisterEvent("LFG_LIST_JOINED_GROUP")
+    self:UnregisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
+    pendingGroupName = nil
 end

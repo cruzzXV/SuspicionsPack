@@ -4,7 +4,7 @@
 
 local SP = SuspicionsPack
 
-local BLAlert = SP:NewModule("BloodlustAlert", "AceEvent-3.0")
+local BLAlert = SP:NewSPModule("BloodlustAlert", "bloodlustAlert")
 SP.BloodlustAlert = BLAlert
 
 -- ============================================================
@@ -69,25 +69,13 @@ end)
 
 local BL_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 
-local FONT_FACES = {
-    ["Expressway"]    = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf",
-    ["Friz Quadrata"] = "Fonts\\FRIZQT__.TTF",
-    ["Arial Narrow"]  = "Fonts\\ARIALN.TTF",
-    ["Morpheus"]      = "Fonts\\MORPHEUS.TTF",
-    ["Skurri"]        = "Fonts\\SKURRI.TTF",
-    ["Damage"]        = "Fonts\\DAMAGE.TTF",
-    ["Ambiguity"]     = "Fonts\\2002.TTF",
-    ["Nimrod MT"]     = "Fonts\\NIMROD.TTF",
-}
-BLAlert.FontFaceOrder = {
-    "Expressway", "Friz Quadrata", "Arial Narrow", "Morpheus",
-    "Skurri", "Damage", "Ambiguity", "Nimrod MT",
-}
 
+-- Font names now resolve through Core: SP.FONT_FACES is the single
+-- source of truth and SP.ResolveFont falls back to the pack default.
+-- The private table this used to carry SHADOWED LibSharedMedia, so any
+-- font the user added via another addon silently became Expressway here.
 local function GetFontPath(name)
-    return FONT_FACES[name]
-        or (SP.GetFontPath and SP.GetFontPath(name))
-        or BL_FONT
+    return SP.ResolveFont(name)
 end
 
 -- ============================================================
@@ -156,11 +144,10 @@ end
 
 -- ============================================================
 -- Helpers
+--
+-- No file-local GetDB: every reader here is a colon method, so they all go
+-- through ModuleMixin:GetDB() -- see Core/Module.lua.
 -- ============================================================
-local function GetDB()
-    return SP.GetDB().bloodlustAlert
-end
-
 local function ResolveSound(key)
     if key == "random" then
         local choices = {}
@@ -178,7 +165,7 @@ end
 -- ============================================================
 
 function BLAlert:OnUnitAura(event, unit, updateInfo)
-    local db = GetDB()
+    local db = self:GetDB()
     if not (db and db.enabled) then return end
     if active or not armed then return end
 
@@ -200,13 +187,19 @@ function BLAlert:OnUnitAura(event, unit, updateInfo)
     -- Slow path : confirmation via GetPlayerAuraBySpellID + vérification de fraîcheur.
     for _, spellId in ipairs(EXHAUSTION_IDS) do
         local aura = C_UnitAuras.GetPlayerAuraBySpellID(spellId)
-        if aura and aura.expirationTime then
-            local dur = aura.duration
-            if not dur or dur <= 0 then dur = 600 end
-            local appliedTime = aura.expirationTime - dur
-            if (GetTime() - appliedTime) < 40 then
-                self:StartBL()
-                return
+        if aura then
+            -- Read the fields, then guard, THEN test. `if aura.expirationTime`
+            -- is itself a truthiness branch on a possibly-secret value, so the
+            -- guard has to come before it -- not after, as a first pass had it.
+            local expiration = aura.expirationTime
+            local dur        = aura.duration
+            if not _issecretvalue(expiration) and not _issecretvalue(dur) and expiration then
+                if not dur or dur <= 0 then dur = 600 end
+                local appliedTime = expiration - dur
+                if (GetTime() - appliedTime) < BL_DURATION then
+                    self:StartBL()
+                    return
+                end
             end
         end
     end
@@ -218,7 +211,7 @@ end
 function BLAlert:ApplyTimerSettings()
     BuildTimerFrame()
     if not timerFrame then return end
-    local db = GetDB()
+    local db = self:GetDB()
     if not db then return end
 
     local anchorFrame = _G[db.timerAnchorFrame or "UIParent"] or UIParent
@@ -291,7 +284,7 @@ function BLAlert:StartBL()
     armed  = false
 
     if soundHandle then StopSound(soundHandle, 500); soundHandle = nil end
-    local db  = GetDB()
+    local db  = self:GetDB()
     local ch  = db and db.channel or "Master"
     local key = db and db.sound or DEFAULT_SOUND
     if db and db.playSound ~= false then
@@ -343,37 +336,6 @@ function BLAlert:StopBL()
     end)
 end
 
--- ============================================================
--- AceAddon lifecycle
--- ============================================================
-function BLAlert:OnEnable()
-    if IsLoggedIn() then
-        self:OnLogin()
-    else
-        self:RegisterEvent("PLAYER_LOGIN", "OnLogin")
-    end
-end
-
-function BLAlert:OnDisable()
-    self:UnregisterAllEvents()
-    unitAuraFrame:UnregisterEvent("UNIT_AURA")
-    if active then self:StopBL() end
-    armed = true
-    if rearmTimer  then rearmTimer:Cancel();  rearmTimer  = nil end
-    if fadeTimer   then fadeTimer:Cancel();   fadeTimer   = nil end
-    if timerTicker then timerTicker:Cancel(); timerTicker = nil end
-    blStartTime = nil
-    if timerFrame then timerFrame:Hide() end
-end
-
-function BLAlert:OnLogin()
-    local db = GetDB()
-    if not (db and db.enabled) then return end
-    unitAuraFrame:RegisterUnitEvent("UNIT_AURA", "player")
-    self:RegisterEvent("PLAYER_DEAD",           "OnPlayerDead")
-    self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
-end
-
 function BLAlert:OnPlayerDead()
     if active then self:StopBL() end
 end
@@ -383,22 +345,44 @@ function BLAlert:OnEnteringWorld()
 end
 
 -- ============================================================
--- Refresh (called by GUI toggle)
+-- Activate / Deactivate
+--
+-- Called by the GUI enable toggle and by ModuleMixin:Refresh(). Refresh,
+-- OnEnable and OnDisable all come from ModuleMixin -- see Core/Module.lua.
+--
+-- UNIT_AURA lives on our own unitAuraFrame, not on AceEvent, because
+-- AceEvent-3.0 has no RegisterUnitEvent. That frame therefore has to be
+-- registered and unregistered here by hand; self:UnregisterAllEvents() knows
+-- nothing about it.
 -- ============================================================
-function BLAlert:Refresh()
-    local db = GetDB()
-    if not db then return end
+function BLAlert:Activate()
+    if not self:IsOn() then return end
 
-    if db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-        unitAuraFrame:RegisterUnitEvent("UNIT_AURA", "player")
-        self:RegisterEvent("PLAYER_DEAD",           "OnPlayerDead")
-        self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
-    else
-        unitAuraFrame:UnregisterEvent("UNIT_AURA")
-        self:UnregisterEvent("PLAYER_DEAD")
-  
-        self:UnregisterEvent("PLAYER_ENTERING_WORLD")
-        if active then self:StopBL() end
-    end
+    unitAuraFrame:RegisterUnitEvent("UNIT_AURA", "player")
+    self:RegisterEvent("PLAYER_DEAD",           "OnPlayerDead")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
+end
+
+function BLAlert:Deactivate()
+    unitAuraFrame:UnregisterEvent("UNIT_AURA")
+    self:UnregisterEvent("PLAYER_DEAD")
+    self:UnregisterEvent("PLAYER_ENTERING_WORLD")
+
+    if active then self:StopBL() end
+    armed = true
+
+    -- StopBL only runs when a lust was actually in progress, so every timer is
+    -- cancelled again here: a Deactivate mid-countdown must leave nothing armed.
+    if rearmTimer  then rearmTimer:Cancel();  rearmTimer  = nil end
+    if stopTimer   then stopTimer:Cancel();   stopTimer   = nil end
+    if fadeTimer   then fadeTimer:Cancel();   fadeTimer   = nil end
+    if timerTicker then timerTicker:Cancel(); timerTicker = nil end
+    if soundHandle then StopSound(soundHandle, 500); soundHandle = nil end
+
+    blStartTime  = nil
+    lastTimerNum = nil
+
+    -- The GUI preview owns the frame while it is open; only the module's own
+    -- countdown display is torn down here.
+    if timerFrame and not self.isTimerPreview then timerFrame:Hide() end
 end

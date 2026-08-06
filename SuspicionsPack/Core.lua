@@ -6,9 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-NS.SP = SP
-
-SP.VERSION = "1.9.0"
+SP.VERSION = "2.0.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -59,9 +57,23 @@ local function GetFontProbe()
     return _fontProbe
 end
 
+-- True only if the asset actually exists. SetFont both throws on a missing file
+-- ("Invalid font asset (Fonts\NIMROD.TTF): file not found") AND returns false on
+-- some failures, so both have to be checked -- returning pcall's results raw
+-- would leak a second value and let a `false` return through as valid.
+local _fontValidCache = {}
+
 function SP.IsFontPathValid(path)
     if type(path) ~= "string" or path == "" then return false end
-    return pcall(GetFontProbe().SetFont, GetFontProbe(), path, 12, "")
+
+    local cached = _fontValidCache[path]
+    if cached ~= nil then return cached end
+
+    local probe = GetFontProbe()
+    local ok, res = pcall(probe.SetFont, probe, path, 12, "")
+    local valid = ok and res ~= false
+    _fontValidCache[path] = valid
+    return valid
 end
 
 local _fontListCache = nil
@@ -71,8 +83,14 @@ function SP.GetFontList()
     local lsm = LibStub and LibStub("LibSharedMedia-3.0", true)
     local names = {}
     if lsm then
-        for name in pairs(lsm:HashTable("font")) do
-            names[#names + 1] = name
+        for name, path in pairs(lsm:HashTable("font")) do
+            -- Skip assets the client no longer ships. Blizzard drops fonts
+            -- between expansions (Fonts\NIMROD.TTF is gone on Midnight) and LSM
+            -- keeps advertising them, so offering one in the dropdown meant
+            -- SetFont threw and took down the whole options page.
+            if SP.IsFontPathValid(path) then
+                names[#names + 1] = name
+            end
         end
         table.sort(names)
     end
@@ -83,16 +101,83 @@ function SP.GetFontList()
     return names
 end
 
+-- The pack's own font, and the fallback for every unresolved name.
+SP.DEFAULT_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
+
+-- Names the GUI dropdowns offer on top of whatever LibSharedMedia knows.
+-- Single source of truth: six modules used to carry a private copy of this
+-- table, which SHADOWED this resolver -- so any LSM font the user picked
+-- (including fonts registered by other addons) silently fell back to Expressway
+-- in those modules while working everywhere else.
+SP.FONT_FACES = {
+    ["Expressway"]    = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf",
+    ["Friz Quadrata"] = "Fonts\\FRIZQT__.TTF",
+    ["Arial Narrow"]  = "Fonts\\ARIALN.TTF",
+    ["Arial"]         = "Fonts\\ARIALN.TTF",   -- legacy alias (Durability)
+    ["Morpheus"]      = "Fonts\\MORPHEUS.TTF",
+    ["Skurri"]        = "Fonts\\SKURRI.TTF",
+    ["Damage"]        = "Fonts\\DAMAGE.TTF",
+    ["Ambiguity"]     = "Fonts\\2002.TTF",
+    ["Nimrod MT"]     = "Fonts\\NIMROD.TTF",
+}
+
+-- Resolves a font name to a path. Returns nil on a miss so callers that want to
+-- distinguish "unknown" from "default" still can; use SP.ResolveFont when you
+-- just want something usable.
 function SP.GetFontPath(name)
     if not name then return nil end
+
+    -- LibSharedMedia FIRST. Checking the builtin table first would SHADOW it --
+    -- the very bug this table replaced six private copies of. LSM maps
+    -- "Morpheus" and "Skurri" to the _CYR variants, so preferring the builtin
+    -- path silently changed those two fonts' glyphs.
     local lsm = LibStub and LibStub("LibSharedMedia-3.0", true)
     if lsm then
-        local path = lsm:Fetch("font", name)
+        local path = lsm:Fetch("font", name, true)   -- noDefault: we want a real miss
         if path and SP.IsFontPathValid(path) then
             return path
         end
     end
+
+    -- Fallback for names LSM does not know. Validated too: Blizzard removes
+    -- font assets between expansions (Fonts\NIMROD.TTF is gone on Midnight) and
+    -- an unvalidated return made SetFont throw inside a GUI page builder,
+    -- killing the whole page.
+    local builtin = SP.FONT_FACES[name]
+    if builtin and SP.IsFontPathValid(builtin) then return builtin end
+
     return nil
+end
+
+-- Always returns a usable path. This is what modules should call.
+function SP.ResolveFont(name)
+    return SP.GetFontPath(name) or SP.DEFAULT_FONT
+end
+
+-- The flat white texture, used as a backdrop/border fill all over the addon.
+-- Was written out as a literal in six separate files.
+SP.BLANK = "Interface\\Buttons\\WHITE8X8"
+
+-- Applies the standard anchor block that eight alert modules each hand-rolled:
+-- clear points, resolve the named anchor frame, place it, set the strata.
+--
+-- The anchor frame is resolved by name at call time, matching what the modules
+-- already do individually -- this helper is a de-duplication, not a fix.
+-- NOTE when migrating CombatTimer: its ApplyPosition deliberately does NOT set
+-- the frame strata, while this helper always does.
+function SP.ApplyAnchor(frame, db, defX, defY, defStrata)
+    if not (frame and db) then return end
+
+    local anchorTo = _G[db.anchorFrame or "UIParent"] or UIParent
+    frame:ClearAllPoints()
+    frame:SetPoint(
+        db.anchorFrom or "CENTER",
+        anchorTo,
+        db.anchorTo   or "CENTER",
+        db.x          or defX or 0,
+        db.y          or defY or 0
+    )
+    frame:SetFrameStrata(db.frameStrata or defStrata or "HIGH")
 end
 
 -- StatusBar texture helpers (LibSharedMedia)
@@ -124,14 +209,6 @@ function SP.GetStatusBarPath(name)
     return "Interface\\TargetingFrame\\UI-StatusBar"
 end
 
--- ============================================================
--- Colors (base palette used by Drawer module only — GUI uses SP.Theme)
--- ============================================================
-SP.C = {
-    SUBTEXT = { 0.6, 0.6, 0.6, 1 },
-}
-
--- ============================================================
 -- Theme presets
 -- ============================================================
 SP.ThemePresets = {
@@ -745,8 +822,6 @@ local DEFAULTS = {
             anchorFrom        = "CENTER",
             anchorTo          = "CENTER",
             anchorFrame       = "UIParent",
-            playSound         = false,
-            soundKey          = nil,
             displayDuration   = 5,    -- seconds before auto-hide; 0 = stay forever
             playTTS           = false,
             ttsText           = "Potion Ready",
@@ -774,110 +849,6 @@ local DEFAULTS = {
             timerShowLabel    = true,
             timerShowBar      = true,
             timerBgOpacity    = 0.85,
-        },
-        interruptTracker = {
-            enabled        = false,
-            locked         = true,
-            preview        = false,
-            posX           = 0,
-            posY           = -200,
-            anchorFrom     = "CENTER",
-            anchorTo       = "CENTER",
-            anchorFrame    = "UIParent",
-            growDirection  = "Down",
-            maxBars        = 5,
-            spacing        = 2,
-            showPlayerName = true,
-            showTimer      = true,
-            showReadyText  = false,
-            readyText      = "Ready",
-            barWidth       = 200,
-            barHeight      = 24,
-            iconSize       = 24,
-            useClassColor  = true,
-            -- Bar visual
-            barTexture      = "Blizzard",
-            fgColorR        = 0.2,  fgColorG  = 0.8,  fgColorB  = 1.0,
-            bgColorR        = 0.1,  bgColorG  = 0.1,  bgColorB  = 0.1,  bgColorA = 0.7,
-            -- Border
-            enableBorder    = false,
-            borderThickness = 1,
-            borderPadding   = 0,
-            borderColorR    = 0.5,  borderColorG = 0.5, borderColorB = 0.5,
-            -- Icon
-            showIcon        = true,
-            iconPosition    = "LEFT",
-            iconOffsetX     = -4,   iconOffsetY  = 0,
-            -- Name font
-            nameFontFace    = "Friz Quadrata TT",
-            nameFontSize    = 11,
-            nameFontOutline = "OUTLINE",
-            nameColorR      = 1,    nameColorG   = 1,   nameColorB   = 1,
-            nameShadow      = false,
-            nameOffsetX     = 5,    nameOffsetY  = 0,
-            nameShadowX     = 1.6,  nameShadowY  = -0.7,
-            -- Timer font
-            timerFontFace    = "Friz Quadrata TT",
-            timerFontSize    = 11,
-            timerFontOutline = "OUTLINE",
-            timerColorR      = 1,   timerColorG  = 1,   timerColorB  = 1,
-            timerShadow      = false,
-            timerOffsetX     = -5,  timerOffsetY = 0,
-            timerShadowX     = 1.0, timerShadowY = -1.0,
-        },
-        mythicCast = {
-            enabled       = false,
-            locked        = true,
-            preview       = false,
-            posX          = 0,
-            posY          = 100,
-            anchorFrom    = "CENTER",
-            anchorTo      = "CENTER",
-            anchorFrame   = "UIParent",
-            growDirection = "Up",
-            maxBars       = 6,
-            spacing       = 2,
-            showTimer     = true,
-            showTarget    = true,
-            showRaidIcon  = true,
-            barWidth      = 224,
-            barHeight     = 28,
-            iconSize      = 30,
-            raidIconSize  = 24,
-            -- Bar visual
-            barTexture      = "Blizzard",
-            fgColorINT_R    = 0.3,  fgColorINT_G = 0.85, fgColorINT_B = 0.3,
-            fgColorNI_R     = 1.0,  fgColorNI_G  = 0.13, fgColorNI_B  = 0.17,
-            bgColorR        = 0.27, bgColorG     = 0.27, bgColorB     = 0.27, bgColorA = 0.7,
-            -- Border
-            enableBorder    = false,
-            borderThickness = 1,
-            borderPadding   = 0,
-            borderColorR    = 0.5,  borderColorG = 0.5, borderColorB = 0.5,
-            -- Icon
-            showIcon        = true,
-            iconPosition    = "LEFT",
-            iconOffsetX     = 2,    iconOffsetY  = 0,
-            -- Raid mark offsets
-            raidMarkOffsetX = -2,   raidMarkOffsetY = -2,
-            -- Spell name font
-            spellAlignment  = "LEFT",
-            spellFontFace   = "Friz Quadrata TT",
-            spellFontSize   = 12,
-            spellFontOutline = "OUTLINE",
-            spellColorR     = 1,    spellColorG  = 1,   spellColorB  = 1,
-            spellShadow     = false,
-            spellOffsetX    = 36,   spellOffsetY = 0,
-            spellShadowX    = 1.0,  spellShadowY = -1.0,
-            -- Target (mob) name font
-            targetAlignment  = "CENTER",
-            targetFontFace   = "Friz Quadrata TT",
-            targetFontSize   = 12,
-            targetFontOutline = "OUTLINE",
-            targetColorR    = 0.3,  targetColorG = 0.85, targetColorB = 0.3,
-            targetShadow    = false,
-            targetOffsetX   = 0,    targetOffsetY = 0,
-            targetShadowX   = 1.0,  targetShadowY = -1.0,
         },
         spellEffectAlpha = {
             enabled       = false,
@@ -944,6 +915,11 @@ local DEFAULTS = {
         },
     },
 }
+
+-- Exposed so the GUI profile import can use the current schema as a
+-- whitelist: without it, importing a string exported before a section was
+-- deleted re-injects those dead keys permanently.
+SP.DEFAULTS = DEFAULTS
 
 -- ============================================================
 -- DB accessor — always returns the current profile table.
@@ -1021,10 +997,6 @@ function Px.SetupFrameBackdrop(frame, bgR, bgG, bgB, bgA, brR, brG, brB, brA, si
     frame:SetBackdropBorderColor(brR or 0.12, brG or 0.12, brB or 0.12, brA or 1)
 end
 
-function Px.SetBackgroundColor(frame, r, g, b, a)
-    if frame.SetBackdropColor then frame:SetBackdropColor(r, g, b, a) end
-end
-
 function Px.ApplyFont(fs, size, fontPath)
     if not fs then return end
     fs:SetFont(fontPath or "Fonts\\FRIZQT__.TTF", size, "")
@@ -1055,6 +1027,13 @@ function SP:OnInitialize()
     -- AceDB-3.0 manages SavedVariables, deep-copies defaults, and handles profiles.
     -- Passing "Default" as the 3rd arg means all characters share the "Default"
     -- profile by default (equivalent to the old single global saved variable).
+    -- Migrations run against the RAW saved table, before AceDB copies defaults
+    -- on top of it. Doing it after would mean pruning keys that AceDB has just
+    -- rawset back in, and the prune would silently do nothing.
+    if SP.RunMigrations then
+        SP.RunMigrations(_G.SuspicionsPackDB)
+    end
+
     self.db = LibStub("AceDB-3.0"):New("SuspicionsPackDB", DEFAULTS, "Default")
 
     -- Apply the saved theme into SP.Theme before the GUI is ever built
@@ -1083,6 +1062,13 @@ end
 
 -- OnEnable: called right after OnInitialize (and after all module OnEnable calls).
 function SP:OnEnable()
+    -- Reconcile AceAddon's module flags with the user's settings before any
+    -- login event fires, so a module the user turned off never gets a chance
+    -- to register anything.
+    if SP.ApplyModuleEnabledStates then
+        SP:ApplyModuleEnabledStates()
+    end
+
     local ac = SP.Theme.accent
     local aHex = string.format("%02X%02X%02X",
         math.floor(ac[1]*255+0.5), math.floor(ac[2]*255+0.5), math.floor(ac[3]*255+0.5))
@@ -1178,8 +1164,43 @@ end
 
 -- Slash command handler
 -- "/spack" → toggle the Settings GUI
-function SP:ToggleGUI(input)
-    if self.GUI then self.GUI.Toggle() end
+-- Loads the options UI on demand.
+--
+-- GUI.lua is ~9000 lines / 43% of the pack's source and nothing needs it until
+-- the user actually opens the window, so it lives in a LoadOnDemand companion
+-- addon and is kept off the login path entirely.
+--
+-- Returns true once SP.GUI exists. Safe to call repeatedly: LoadAddOn is a
+-- no-op on an already-loaded addon.
+function SP.EnsureGUI()
+    if SP.GUI then return true end
+
+    local load = (C_AddOns and C_AddOns.LoadAddOn) or _G.LoadAddOn
+    if not load then return false end
+
+    local ok, reason = load("SuspicionsPack_Config")
+    if not ok then
+        print("|cffff4444[SuspicionsPack]|r Could not load the options UI ("
+              .. tostring(reason) .. "). Make sure \"SuspicionsPack Options\" "
+              .. "is enabled in the AddOns list.")
+        return false
+    end
+    if not SP.GUI then
+        -- LoadAddOn reported success but the file did not define SP.GUI: a Lua
+        -- error at load, or a truncated GUI.lua (which has shipped twice
+        -- before). Without this the button silently does nothing forever and
+        -- re-calls LoadAddOn on every click.
+        print("|cffff4444[SuspicionsPack]|r The options UI loaded but failed to "
+              .. "initialise. Check your Lua error frame and reinstall the "
+              .. "options addon.")
+        return false
+    end
+    return true
+end
+
+function SP:ToggleGUI()
+    if not SP.EnsureGUI() then return end
+    SP.GUI.Toggle()
 end
 
 -- ============================================================
@@ -1187,6 +1208,65 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["2.0.0"] = {
+        { type = "new", text = "Full architecture rebuild. Every module was rewritten onto a shared foundation." },
+        { type = "new", text = "A module you turn off now costs nothing at all \226\128\148 it registers no events and runs no code." },
+        { type = "new", text = "Animations and timers stop completely when idle instead of running all session." },
+        { type = "new", text = "The options window is loaded only when you open it: 43%% less code read at login." },
+        { type = "new", text = "Your settings are migrated and cleaned up on upgrade." },
+        { type = "fix", text = "Dozens of fixes across the pack, including settings that only applied after a /reload." },
+    },
+    ["1.13.1"] = {
+        { type = "fix", text = "Focus Target Marker no longer announces your kick marker on healer specs \226\128\148 except Restoration Shaman. The macro still works on every spec." },
+    },
+    ["1.13.0"] = {
+        { type = "new", text = "All 30 modules now share one enable/disable contract \226\128\148 a module you turn off registers nothing at login." },
+        { type = "fix", text = "TankMD now works as soon as you enable it, without a /reload." },
+        { type = "fix", text = "FastLoot no longer hijacks your Blizzard auto-loot setting, and restores it when disabled." },
+        { type = "fix", text = "CVars are restored to your own values when the module is disabled." },
+    },
+    ["1.12.0"] = {
+        { type = "fix", text = "Automation: the master toggle now actually turns everything off \226\128\148 seven features kept running when it was off." },
+        { type = "fix", text = "Auto role check no longer keeps accepting after you switch it off." },
+        { type = "fix", text = "MovementAlert and Automation now clean up properly when disabled." },
+    },
+    ["1.11.1"] = {
+        { type = "fix", text = "ReapPredict: the 100 fury tick was misplaced while snapped to an external bar." },
+    },
+    ["1.11.0"] = {
+        { type = "new", text = "The options UI is now a load-on-demand companion addon: 43% less code parsed at login." },
+        { type = "new", text = "Saved variables are migrated and pruned on upgrade \226\128\148 dead settings from removed modules are cleaned out." },
+        { type = "fix", text = "Profile import no longer re-injects settings from deleted features." },
+    },
+    ["1.10.0"] = {
+        { type = "new", text = "Shared ticker: per-frame loops now stop entirely when idle." },
+        { type = "fix", text = "CombatTimer no longer runs a per-frame loop out of combat." },
+        { type = "fix", text = "MovementAlert no longer scans cooldowns 10x/second with nothing on screen." },
+        { type = "fix", text = "ReapPredict: the 10 Hz meter poll costs no per-frame Lua any more." },
+    },
+    ["1.9.4"] = {
+        { type = "fix", text = "Fonts: assets removed by Blizzard (Nimrod) no longer break an options page \226\128\148 they are validated and filtered out of the dropdown." },
+    },
+    ["1.9.3"] = {
+        { type = "fix", text = "GUI: option pages could stack on top of each other. A failing page is now cached before it builds, so it can always be hidden." },
+        { type = "fix", text = "Focus Target Marker: a saved marker outside 1-8 aborted the page." },
+    },
+    ["1.9.2"] = {
+        { type = "fix",  text = "ReapPredict: 8 raw unit events (UNIT_AURA, UNIT_POWER_FREQUENT) no longer registered for non-Devourer characters." },
+        { type = "fix",  text = "SpellEffectAlpha / Performance: no longer overwrite your Blizzard CVars at login while disabled." },
+        { type = "fix",  text = "Fonts: LibSharedMedia fonts now resolve in every module (six private tables were shadowing the resolver)." },
+        { type = "fix",  text = "Removed ~130 lines of dead code." },
+    },
+    ["1.9.1"] = {
+        { type = "fix", text = "GUI: 21 settings only applied after a /reload (Refresh called without self)." },
+        { type = "fix", text = "Taint: issecretvalue guards added in CombatCross, MovementAlert, ReapPredict, BloodlustAlert, PotionAlert." },
+        { type = "fix", text = "Performance: the quest watch sweep no longer freezes the client (spread over frames)." },
+        { type = "fix", text = "AutoBuy: vendor purchases were broken (wrong API return) and could hang in a loop." },
+        { type = "fix", text = "PotionAlert: the alert showed permanently when you did not carry the potion." },
+        { type = "fix", text = "CombatCross: range fixed for Vengeance, Guardian and Protection Paladin." },
+        { type = "fix", text = "SilvermoonMapIcon: professions were partly ignored (iteration over a table with holes)." },
+        { type = "fix", text = "CraftShopper: cancelling an AH purchase could throw a Lua error." },
+    },
     ["1.9.0"] = {
         { type = "new", text = "Micro Menu Skin: nouveau module — reskin ElvUI-like du micromenu (backdrop, bordure, accent au survol, icônes croppées, taille + écart réglables)." },
     },
@@ -1224,7 +1304,7 @@ SP.Changelog = {
         { type = "fix",    text = "PotionAlert: fixed module not triggering correctly." },
     },
     ["1.8.3"] = {
-        { type = "fix", text = "Hotfix: corrected corrupted files from v1.8.1 release (GUI.lua truncated, MovementAlert\/Durability\/ReapPredict ended with null bytes). TROLLEG" },
+        { type = "fix", text = "Hotfix: corrected corrupted files from v1.8.1 release (GUI.lua truncated, MovementAlert/Durability/ReapPredict ended with null bytes). TROLLEG" },
     },
     ["1.8.1"] = {
         { type = "fix", text = "Hotfix: corrected truncated Core.lua from v1.8.0 release." },
@@ -1274,8 +1354,6 @@ SP.Changelog = {
         { type = "fix",    text = "Various bug fixes" },
     },
 }
-
-SP.ChangelogOrder = { "1.9.0", "1.8.15", "1.8.14", "1.8.13", "1.8.12", "1.8.11", "1.8.10", "1.8.9", "1.8.8", "1.8.7", "1.8.4", "1.8.3", "1.8.2", "1.8.1", "1.8.0", "1.7.3", "1.7.0", "1.6.9", "1.6.8", "1.6.7", "1.6.6", "1.6.5", "1.6.4", "1.6.3", "1.6.0" }
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
@@ -1521,9 +1599,16 @@ function PreviewManager:Start()
             if mdb then
                 -- dbSubKey entries use ~=false so that nil (not yet set) counts as enabled,
                 -- while an explicit false (user disabled) suppresses the preview.
-                local enabled = entry.dbSubKey
-                    and (mdb.enabled and mdb[entry.dbSubKey] ~= false)
-                    or  mdb.enabled
+                -- Explicit branch, not `a and b or c`: when the middle term is
+                -- false that idiom falls through to `or mdb.enabled` and
+                -- returns true, which is the opposite of what the comment above
+                -- describes (a disabled sub-feature still previewed).
+                local enabled
+                if entry.dbSubKey then
+                    enabled = mdb.enabled and mdb[entry.dbSubKey] ~= false
+                else
+                    enabled = mdb.enabled
+                end
                 if enabled and mod[entry.show] then
                     mod[entry.show](mod)
                 end

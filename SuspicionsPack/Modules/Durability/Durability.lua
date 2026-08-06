@@ -4,7 +4,7 @@
 
 local SP = SuspicionsPack
 
-local DUR = SP:NewModule("Durability", "AceEvent-3.0")
+local DUR = SP:NewSPModule("Durability", "durability")
 SP.Durability = DUR
 
 -- ============================================================
@@ -17,31 +17,18 @@ local math_floor                 = math.floor
 local ipairs                     = ipairs
 local UIParent                   = UIParent
 
-local FONT_FACES = {
-    ["Expressway"]    = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf",
-    ["Friz Quadrata"] = "Fonts\\FRIZQT__.TTF",
-    ["Arial"]         = "Fonts\\ARIALN.TTF",
-    ["Morpheus"]      = "Fonts\\MORPHEUS.TTF",
-}
-DUR.FontFaceOrder = { "Expressway", "Friz Quadrata", "Arial", "Morpheus" }
 
-local SP_FONT = FONT_FACES["Expressway"]
 
+-- Font names now resolve through Core: SP.FONT_FACES is the single
+-- source of truth and SP.ResolveFont falls back to the pack default.
+-- The private table this used to carry SHADOWED LibSharedMedia, so any
+-- font the user added via another addon silently became Expressway here.
 local function GetFontPath(name)
-    return FONT_FACES[name]
-        or (SP.GetFontPath and SP.GetFontPath(name))
-        or SP_FONT
+    return SP.ResolveFont(name)
 end
 
 -- Inventory slots: Head, Shoulder, Chest, Waist, Legs, Feet, Wrists, Gloves, MH, OH, Ranged
 local SLOTS = { 1, 3, 5, 6, 7, 8, 9, 10, 16, 17, 18 }
-
--- ============================================================
--- DB helpers
--- ============================================================
-local function GetDB()
-    return SP.GetDB().durability
-end
 
 -- ============================================================
 -- Module state
@@ -70,40 +57,23 @@ end
 -- ============================================================
 function DUR:CreateWarningFrame()
     if self.frame then return end
-    local db = GetDB()
+    local db = self:GetDB()
+    if not db then return end
 
-    local f = CreateFrame("Frame", "SP_DurabilityWarning", UIParent)
-    f:SetSize(200, 30)
-    f:SetPoint("CENTER", UIParent, "CENTER", db.x or 0, db.y or -200)
-    f:SetFrameStrata(db.frameStrata or "HIGH")
-    f:SetFrameLevel(200)
-    f:EnableMouse(false)
-    f:Hide()
-
-    local fontPath    = GetFontPath(db.fontFace or "Expressway")
-    local outlineFlag = (db.fontOutline ~= "NONE" and db.fontOutline) or ""
-    local txt = f:CreateFontString(nil, "OVERLAY")
-    txt:SetPoint("CENTER")
-    txt:SetFont(fontPath, db.fontSize or 20, outlineFlag)
-    txt:SetText(db.warningText or "REPAIR NOW")
-    txt:SetJustifyH("CENTER")
-
-    local c = db.color or { 1, 0.537, 0.2, 1 }
-    txt:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-
-    -- Pulse animation
-    local ag    = f:CreateAnimationGroup()
-    ag:SetLooping("BOUNCE")
-    local alpha = ag:CreateAnimation("Alpha")
-    alpha:SetFromAlpha(1)
-    alpha:SetToAlpha(0.25)
-    alpha:SetDuration(0.6)
-    alpha:SetSmoothing("IN_OUT")
-    ag:Play()
+    -- Built by the shared factory: this was ~30 lines duplicated almost
+    -- verbatim across eight alert modules, and the copies had already drifted
+    -- from each other on the outline default and mouse handling.
+    local f, txt = SP.CreateAlertFrame("SP_DurabilityWarning", db, {
+        defaultY       = -200,
+        defaultSize    = 20,
+        defaultColor   = { 1, 0.537, 0.2, 1 },
+        text           = db.warningText or "REPAIR NOW",
+        pulse          = { from = 1, to = 0.25, duration = 0.6 },
+    })
 
     self.frame   = f
     self.text    = txt
-    self.pulseAG = ag
+    self.pulseAG = f.pulseAG
 end
 
 -- ============================================================
@@ -111,7 +81,8 @@ end
 -- ============================================================
 function DUR:ApplySettings()
     if not self.frame then return end
-    local db = GetDB()
+    local db = self:GetDB()
+    if not db then return end
 
     local fontPath    = GetFontPath(db.fontFace or "Expressway")
     local outlineFlag = (db.fontOutline ~= "NONE" and db.fontOutline) or ""
@@ -147,7 +118,7 @@ function DUR:OnDurabilityCheck()
         return
     end
 
-    local db = GetDB()
+    local db = self:GetDB()
     if not db then return end
 
     local lowest = GetLowestDurability()
@@ -175,7 +146,7 @@ function DUR:HidePreview()
     if not self.frame then return end
     self.frame:EnableMouse(false)
 
-    local db = GetDB()
+    local db = self:GetDB()
     if not db or not db.enabled then
         self.frame:Hide()
         return
@@ -185,10 +156,10 @@ end
 
 -- ============================================================
 -- Activate / Deactivate
+-- Everything else (Refresh / OnEnable / OnDisable) comes from SP.ModuleMixin.
 -- ============================================================
 function DUR:Activate()
-    local db = GetDB()
-    if not db or not db.enabled then return end
+    if not self:IsOn() then return end
 
     self:CreateWarningFrame()
     self:ApplySettings()
@@ -202,6 +173,10 @@ function DUR:Activate()
     self:RegisterEvent("PLAYER_REGEN_ENABLED", "OnDurabilityCheck")
 
     C_Timer.After(0.5, function()
+        -- C_Timer.After cannot be cancelled, so re-read the setting instead:
+        -- the user may have switched the module off inside this half-second
+        -- window, and OnDurabilityCheck would otherwise re-show the frame.
+        if not self:IsOn() then return end
         self:ApplySettings()
         self:OnDurabilityCheck()
     end)
@@ -211,32 +186,4 @@ function DUR:Deactivate()
     self:UnregisterAllEvents()
     if self.frame then self.frame:Hide() end
     self.isPreview  = false
-end
-
-function DUR:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        self:Activate()
-    else
-        self:Deactivate()
-    end
-end
-
--- ============================================================
--- AceAddon lifecycle
--- ============================================================
-function DUR:OnEnable()
-    if IsLoggedIn() then
-        local db = GetDB()
-        if db and db.enabled then self:Activate() end
-    else
-        self:RegisterEvent("PLAYER_LOGIN", function()
-            local db = GetDB()
-            if db and db.enabled then self:Activate() end
-        end)
-    end
-end
-
-function DUR:OnDisable()
-    self:Deactivate()
 end

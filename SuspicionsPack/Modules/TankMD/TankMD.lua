@@ -6,7 +6,7 @@
 -- always fire on the right person without needing to set a focus.
 local SP = SuspicionsPack
 
-local TankMD = SP:NewModule("TankMD", "AceEvent-3.0")
+local TankMD = SP:NewSPModule("TankMD", "tankMD")
 SP.TankMD = TankMD
 
 -- ============================================================
@@ -60,6 +60,10 @@ local isUpdateQueued = false
 
 -- ============================================================
 -- Helpers
+--
+-- GetDB stays a file-local rather than folding into ModuleMixin:GetDB():
+-- GetTargets and ProcessUpdate are plain local functions with no `self` to
+-- reach the module through, and ProcessUpdate is handed straight to C_Timer.
 -- ============================================================
 local function GetDB()
     return SP.GetDB().tankMD
@@ -208,8 +212,19 @@ end
 
 -- ============================================================
 -- Module lifecycle
+--
+-- Refresh, OnEnable and OnDisable all come from ModuleMixin -- see
+-- Core/Module.lua.
+--
+-- The button creation and the event registrations used to live in OnEnable,
+-- which bailed out when db.enabled was false. AceAddon's defaultModuleState is
+-- true, so the module was already Ace-enabled at login and the old
+-- Activate()'s `if not self:IsEnabled() then self:Enable() end` never
+-- re-entered OnEnable: switching TankMD on in the GUI created no buttons and
+-- registered no events until a /reload. Doing that work in Activate() is the
+-- fix -- Activate is what the GUI toggle actually reaches.
 -- ============================================================
-function TankMD:OnEnable()
+function TankMD:Activate()
     local db = GetDB()
     if not (db and db.enabled) then return end
 
@@ -223,9 +238,12 @@ function TankMD:OnEnable()
     QueueUpdate()
 end
 
-function TankMD:OnDisable()
+function TankMD:Deactivate()
     self:UnregisterAllEvents()
     isUpdateQueued = false
+    -- Attributes on a SecureActionButton cannot be written in combat; the
+    -- buttons are hidden and their spell only fires on an explicit /click, so
+    -- leaving the current targets in place until the next update is harmless.
     for _, btn in ipairs(buttons) do
         if not InCombatLockdown() then
             SetButtonTarget(btn, nil)
@@ -259,22 +277,4 @@ SlashCmdList["TANKMD"] = function()
     if not found then
         print("|cffe51039TankMD|r No targets assigned (no tanks/healers in group, or module disabled).")
     end
-end
-
-function TankMD:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        self:Activate()
-    else
-        self:Deactivate()
-    end
-end
-
-function TankMD:Activate()
-    if not self:IsEnabled() then self:Enable() end
-    QueueUpdate()
-end
-
-function TankMD:Deactivate()
-    self:Disable()
 end

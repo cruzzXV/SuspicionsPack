@@ -4,7 +4,7 @@
 -- creation dialog for a Mythic+ group.
 local SP = SuspicionsPack
 
-local AutoPlaystyle = SP:NewModule("AutoPlaystyle", "AceEvent-3.0")
+local AutoPlaystyle = SP:NewSPModule("AutoPlaystyle", "autoPlaystyle")
 SP.AutoPlaystyle = AutoPlaystyle
 
 -- ============================================================
@@ -31,6 +31,8 @@ end
 
 -- ============================================================
 -- DB helper
+-- Kept as a file-scope local: ApplyPlaystyle runs from hooksecurefunc bodies
+-- that have no `self`, so it cannot use the mixin's self:GetDB().
 -- ============================================================
 local function GetDB()
     return SP.GetDB().autoPlaystyle
@@ -60,6 +62,10 @@ end
 
 -- ============================================================
 -- Hook installation (once, permanent)
+--
+-- hooksecurefunc cannot be undone, so both hook bodies go through
+-- ApplyPlaystyle, which bails on db.enabled. Deactivate therefore only has to
+-- drop the ADDON_LOADED registration.
 -- ============================================================
 local _hooked = false
 
@@ -74,6 +80,8 @@ local function InstallHooks()
 
     -- Fires when the player manually picks an activity in the dialog
     hooksecurefunc("LFGListEntryCreation_Select", function(entryCreation, filters, categoryID, groupID, activityID)
+        local db = GetDB()
+        if not db or not db.enabled then return end
         if not activityID then return end
         local activityInfo = C_LFGList.GetActivityInfoTable(activityID)
         if not activityInfo or not activityInfo.isMythicPlusActivity then return end
@@ -83,8 +91,9 @@ end
 
 -- ============================================================
 -- Module lifecycle
+-- OnEnable / OnDisable / Refresh come from SP.ModuleMixin.
 -- ============================================================
-function AutoPlaystyle:OnEnable()
+function AutoPlaystyle:Activate()
     -- Install hooks now if Blizzard_GroupFinder is already loaded,
     -- otherwise wait for its ADDON_LOADED event
     if type(LFGListEntryCreation_Show) == "function" then
@@ -94,21 +103,13 @@ function AutoPlaystyle:OnEnable()
     end
 end
 
+function AutoPlaystyle:Deactivate()
+    self:UnregisterEvent("ADDON_LOADED")
+end
+
 function AutoPlaystyle:OnAddonLoaded(_, name)
     if name == "Blizzard_GroupFinder" then
         InstallHooks()
         self:UnregisterEvent("ADDON_LOADED")
-    end
-end
-
-function AutoPlaystyle:OnDisable()
-    self:UnregisterAllEvents()
-    -- Hooks are permanent; ApplyPlaystyle's db.enabled check handles the off state
-end
-
-function AutoPlaystyle:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
     end
 end

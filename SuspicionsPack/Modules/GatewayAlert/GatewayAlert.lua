@@ -3,7 +3,7 @@
 
 local SP = SuspicionsPack
 
-local GA = SP:NewModule("GatewayAlert", "AceEvent-3.0")
+local GA = SP:NewSPModule("GatewayAlert", "gatewayAlert")
 SP.GatewayAlert = GA
 
 -- ============================================================
@@ -12,13 +12,6 @@ SP.GatewayAlert = GA
 local GATEWAY_ITEM_ID = 188152
 
 local SP_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
-
--- ============================================================
--- DB helper
--- ============================================================
-local function GetDB()
-    return SP.GetDB().gatewayAlert
-end
 
 -- ============================================================
 -- Module state
@@ -35,39 +28,20 @@ local fullUpdateTimer = nil
 -- ============================================================
 function GA:CreateAlertFrame()
     if self.frame then return end
-    local db = GetDB()
+    local db = self:GetDB()
 
-    local f = CreateFrame("Frame", "SP_GatewayAlertFrame", UIParent)
-    f:SetSize(200, 30)
-    f:SetPoint("CENTER", UIParent, "CENTER", db.x or 0, db.y or -100)
-    f:SetFrameStrata("HIGH")
-    f:SetFrameLevel(200)
-    f:EnableMouse(false)
-    f:SetMouseClickEnabled(false)
-    f:Hide()
+    local f, lbl = SP.CreateAlertFrame("SP_GatewayAlertFrame", db, {
+        defaultY       = -100,
+        defaultSize    = 16,
+        defaultOutline = "OUTLINE",
+        defaultColor   = { 0.3, 1.0, 0.4, 1 },
+        text           = "GATE USABLE",
+        pulse          = { from = 1, to = 0.25, duration = 0.5 },
+    })
 
-    local lbl = f:CreateFontString(nil, "OVERLAY")
-    local fontPath    = SP_FONT
-    local outlineFlag = (db.fontOutline ~= "NONE" and db.fontOutline) or "OUTLINE"
-    lbl:SetFont(fontPath, db.fontSize or 16, outlineFlag)
-    lbl:SetPoint("CENTER", f, "CENTER", 0, 0)
-    lbl:SetText("GATE USABLE")
-    local c = db.color or { 0.3, 1.0, 0.4, 1 }
-    lbl:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-    f.label = lbl
-
-    -- Pulse animation
-    local ag    = f:CreateAnimationGroup()
-    ag:SetLooping("BOUNCE")
-    local alpha = ag:CreateAnimation("Alpha")
-    alpha:SetFromAlpha(1)
-    alpha:SetToAlpha(0.25)
-    alpha:SetDuration(0.5)
-    alpha:SetSmoothing("IN_OUT")
-    ag:Play()
-    f.pulseGroup = ag
-
-    self.frame = f
+    f.label      = lbl          -- kept: ApplySettings and the preview read it
+    f.pulseGroup = f.pulseAG    -- kept under the old name for the same reason
+    self.frame   = f
 end
 
 -- ============================================================
@@ -75,7 +49,7 @@ end
 -- ============================================================
 function GA:ApplySettings()
     if not self.frame then return end
-    local db = GetDB()
+    local db = self:GetDB()
     self.frame:ClearAllPoints()
     local anchorFrom  = db.anchorFrom  or "CENTER"
     local anchorTo    = db.anchorTo    or "CENTER"
@@ -145,7 +119,7 @@ function GA:HidePreview()
     if not self.frame then return end
     self.frame:EnableMouse(false)
     self.frame:SetMouseClickEnabled(false)
-    local db = GetDB()
+    local db = self:GetDB()
     if not db or not db.enabled then
         self.frame:Hide()
         return
@@ -155,9 +129,12 @@ end
 
 -- ============================================================
 -- Activate / Deactivate
+--
+-- Called by the GUI enable toggle and by ModuleMixin:Refresh(). Refresh,
+-- OnEnable and OnDisable all come from ModuleMixin -- see Core/Module.lua.
 -- ============================================================
 function GA:Activate()
-    local db = GetDB()
+    local db = self:GetDB()
     if not db or not db.enabled then return end
 
     self:CreateAlertFrame()
@@ -168,6 +145,11 @@ function GA:Activate()
     self:RegisterEvent("SPELL_UPDATE_USABLE",   "CheckUsable")
 
     C_Timer.After(0.5, function()
+        -- Re-read the setting: C_Timer.After cannot be cancelled, so this can
+        -- land after a Deactivate and would otherwise re-arm FullUpdate (and
+        -- with it the frame) for a module the user just switched off.
+        local d = self:GetDB()
+        if not (d and d.enabled) then return end
         if self.frame then
             self:ApplySettings()
             self:FullUpdate()
@@ -182,32 +164,4 @@ function GA:Deactivate()
     wasUsable     = false
     hasItem       = false
     self.isPreview  = false
-end
-
-function GA:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        self:Activate()
-    else
-        self:Deactivate()
-    end
-end
-
--- ============================================================
--- AceAddon lifecycle
--- ============================================================
-function GA:OnEnable()
-    if IsLoggedIn() then
-        local db = GetDB()
-        if db and db.enabled then self:Activate() end
-    else
-        self:RegisterEvent("PLAYER_LOGIN", function()
-            local db = GetDB()
-            if db and db.enabled then self:Activate() end
-        end)
-    end
-end
-
-function GA:OnDisable()
-    self:Deactivate()
 end

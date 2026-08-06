@@ -3,8 +3,16 @@
 -- AH flow     : scan bags → show list panel with per-item Buy buttons.
 local SP = SuspicionsPack
 
-local AutoBuy = SP:NewModule("AutoBuy", "AceEvent-3.0")
+local AutoBuy = SP:NewSPModule("AutoBuy", "autoBuy")
 SP.AutoBuy = AutoBuy
+
+-- AutoBuy's settings are PER CHARACTER (item lists differ from alt to alt), so
+-- they live in SP.GetCharDB(), not the shared profile. ModuleMixin:GetDB()
+-- reads SP.GetDB()[dbKey] -- the profile -- which is the wrong table here, and
+-- IsOn()/Refresh() would read an `enabled` flag that never gets written.
+function AutoBuy:GetDB()
+    return SP.GetCharDB().autoBuy
+end
 
 -- ============================================================
 -- Preset items
@@ -53,13 +61,16 @@ AutoBuy.PresetItems = {
 -- ============================================================
 -- Constants
 -- ============================================================
-local BLANK    = "Interface\\Buttons\\WHITE8X8"
+local BLANK    = SP.BLANK
 local FONT     = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 local ROW_H  = 24
 local SHOP_W = 340
 
 -- ============================================================
 -- Helpers
+--
+-- GetDB stays a file-local as well as a module method: BuildBuyList below is a
+-- plain local function with no `self` to reach the module through.
 -- ============================================================
 local function GetDB()
     return SP.GetCharDB().autoBuy
@@ -103,10 +114,36 @@ local function DoBuy(id, minQty, buyQty)
     local numItems = GetMerchantNumItems()
     for i = 1, numItems do
         if GetMerchantItemID(i) == id then
-            local _, _, _, _, _, _, maxStack = GetMerchantItemInfo(i)
-            maxStack = maxStack or 1
+            -- GetMerchantItemInfo returns, in order:
+            --   name, texture, price, quantity, numAvailable,
+            --   isPurchasable, isUsable, extendedCost, currencyID, spellID
+            -- `quantity` (4th) is the vendor's batch size, `numAvailable` (5th)
+            -- is remaining stock in items (-1 = unlimited).
+            -- The old code read the 7th return (isUsable, a boolean) as the
+            -- stack size, so math.min() threw and aborted the whole pass.
+            local _, _, _, batchSize, numAvailable = GetMerchantItemInfo(i)
+
+            -- 0 is truthy in Lua, so `batchSize or 1` would leave a 0 in place
+            -- and math.min(0, need) would stop `need` ever decreasing -> the
+            -- while loop below would spin forever and freeze the client.
+            if batchSize == nil or batchSize < 1 then batchSize = 1 end
+
+            -- numAvailable is in items, not batches.
+            if numAvailable and numAvailable >= 0 and need > numAvailable then
+                need = numAvailable
+            end
+
+            -- BuyMerchantItem's quantity is in individual items, and the per-call
+            -- cap is GetMerchantItemMaxStack -- not the batch size. Capping at
+            -- batchSize (1 for most consumables) would issue one server call per
+            -- item and trip the purchase throttle on any large order.
+            local maxPerCall = GetMerchantItemMaxStack and GetMerchantItemMaxStack(i)
+            if type(maxPerCall) ~= "number" or maxPerCall < 1 then
+                maxPerCall = batchSize
+            end
+
             while need > 0 do
-                local toBuy = math.min(maxStack, need)
+                local toBuy = math.min(maxPerCall, need)
                 BuyMerchantItem(i, toBuy)
                 need = need - toBuy
             end
@@ -882,21 +919,35 @@ ShowIfNeeded = function()
 end
 
 -- ============================================================
--- Module lifecycle
+-- Activate / Deactivate
+--
+-- Called by the GUI enable toggle and by ModuleMixin:Refresh(). Refresh,
+-- OnEnable and OnDisable all come from ModuleMixin -- see Core/Module.lua.
+-- MERCHANT_SHOW used to be registered unconditionally in OnEnable, so a
+-- switched-off AutoBuy still woke up at every vendor.
 -- ============================================================
-function AutoBuy:OnEnable()
-    self:RegisterEvent("MERCHANT_SHOW",       "OnMerchantShow")
+function AutoBuy:Activate()
+    if not self:IsOn() then return end
+
+    self:RegisterEvent("MERCHANT_SHOW",        "OnMerchantShow")
     self:RegisterEvent("AUCTION_HOUSE_SHOW",   "OnAuctionHouseShow")
     self:RegisterEvent("AUCTION_HOUSE_CLOSED", "OnAuctionHouseClosed")
 end
 
-function AutoBuy:OnDisable()
+function AutoBuy:Deactivate()
+    self:UnregisterEvent("MERCHANT_SHOW")
+    self:UnregisterEvent("AUCTION_HOUSE_SHOW")
+    self:UnregisterEvent("AUCTION_HOUSE_CLOSED")
+
+    -- Close any open confirm popup: Cleanup cancels its 15 s countdown ticker,
+    -- which would otherwise keep running and click Cancel into a dead popup.
+    if pendingBuy and pendingBuy.Cleanup then pendingBuy.Cleanup() end
     UnregisterAllAux()
+
     if AutoBuy._listFrame then AutoBuy._listFrame:Hide() end
     items      = {}
     pendingBuy = nil
     lastBuyID  = nil
-    self:UnregisterAllEvents()
 end
 
 -- ============================================================
@@ -921,6 +972,11 @@ function AutoBuy:OnAuctionHouseShow()
     if not db or not db.enabled then return end
     -- Small delay to let the AH initialise
     C_Timer.After(0.5, function()
+        -- C_Timer.After cannot be cancelled, so re-read the setting instead:
+        -- the user may have switched AutoBuy off inside this half-second and
+        -- ShowIfNeeded would otherwise pop the panel back up.
+        local db2 = GetDB()
+        if not db2 or not db2.enabled then return end
         if AutoBuy._listFrame and AutoBuy._listFrame:IsShown() then return end
         items = BuildBuyList()
         ShowIfNeeded()
@@ -938,17 +994,5 @@ function AutoBuy:OnAuctionHouseClosed()
     lastBuyID  = nil
     if AutoBuy._listFrame then AutoBuy._listFrame:Hide() end
     items = {}
-end
-
--- ============================================================
--- Public API
--- ============================================================
-function AutoBuy:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-    else
-        if self:IsEnabled() then self:Disable() end
-    end
 end
 

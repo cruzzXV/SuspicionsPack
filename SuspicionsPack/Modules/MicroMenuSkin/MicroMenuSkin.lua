@@ -14,7 +14,7 @@
 
 local SP = SuspicionsPack
 
-local MMS = SP:NewModule("MicroMenuSkin", "AceEvent-3.0")
+local MMS = SP:NewSPModule("MicroMenuSkin", "microMenuSkin")
 SP.MicroMenuSkin = MMS
 
 -- ============================================================
@@ -64,6 +64,11 @@ local CHROME_KEYS = {
 
 -- ============================================================
 -- DB helper
+--
+-- Kept as a file-local rather than folded into ModuleMixin:GetDB(): almost
+-- every reader here (the hover handlers, the setter hooks, ApplySkin, the
+-- MicroButtonPulse hook) is a plain local function with no `self` to reach the
+-- module through, and several of them run from Blizzard's own call stack.
 -- ============================================================
 local function GetDB()
     return SP.GetDB().microMenuSkin
@@ -712,11 +717,28 @@ end
 
 -- ============================================================
 -- Module lifecycle
+--
+-- Only Activate / Deactivate live here. Refresh, OnEnable (with its
+-- PLAYER_LOGIN deferral) and OnDisable all come from ModuleMixin -- see
+-- Core/Module.lua. In particular Refresh no longer drives AceAddon's
+-- Enable/Disable: `db.enabled` is the single source of truth, and every hook
+-- installed below re-reads it, so a switched-off module is inert.
+--
+-- Refresh() must route through Activate() and not straight to ApplySkin():
+-- the first activation is what installs the UpdateMicroButtons hook, without
+-- which Blizzard wipes the skin on the next state change.
 -- ============================================================
 function MMS:Activate()
     -- Micro buttons are created during UI load, but some (Housing, Store) can
     -- appear a frame or two later, so the first pass is deferred.
     C_Timer.After(0.5, function()
+        -- Re-read the setting: C_Timer.After cannot be cancelled, so this can
+        -- land after a Deactivate. ApplySkin already gates on db.enabled, but
+        -- KillStrayFlashes does not, and neither should install hooks for a
+        -- module the user just switched off.
+        local db = GetDB()
+        if not (db and db.enabled) then return end
+
         ApplySkin()
         KillStrayFlashes()
 
@@ -743,38 +765,4 @@ end
 function MMS:Deactivate()
     self.layoutApplied = false
     RemoveSkin()
-end
-
-function MMS:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-        -- Must go through Activate(), not ApplySkin(): the first enable is
-        -- what installs the UpdateMicroButtons hook, without which Blizzard
-        -- wipes the skin on the next state change.
-        self:Activate()
-    else
-        if self:IsEnabled() then self:Disable() end
-        self:Deactivate()
-    end
-end
-
-function MMS:OnEnable()
-    if IsLoggedIn() then
-        local db = GetDB()
-        if db and db.enabled then self:Activate() end
-    else
-        self:RegisterEvent("PLAYER_LOGIN", "OnLogin")
-    end
-end
-
-function MMS:OnLogin()
-    self:UnregisterEvent("PLAYER_LOGIN")
-    local db = GetDB()
-    if db and db.enabled then self:Activate() end
-end
-
-function MMS:OnDisable()
-    self:UnregisterAllEvents()
-    self:Deactivate()
 end

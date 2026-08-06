@@ -3,7 +3,7 @@
 
 local SP = SuspicionsPack
 
-local CC = SP:NewModule("CombatCross", "AceEvent-3.0")
+local CC = SP:NewSPModule("CombatCross", "combatCross")
 SP.CombatCross = CC
 
 -- ============================================================
@@ -19,6 +19,10 @@ local C_Spell               = C_Spell
 local UnitExists            = UnitExists
 local select                = select
 
+-- Localised with a fallback, matching BloodlustAlert/ReapPredict: a missing
+-- global here would be a hard error on every range check.
+local _issecretvalue = issecretvalue or function() return false end
+
 local SP_FONT              = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 local FONT_SIZE_MULTIPLIER = 2
 local RANGE_UPDATE_THROTTLE = 0.1
@@ -26,6 +30,9 @@ local rangeUpdateElapsed   = 0
 
 -- ============================================================
 -- DB helper
+--
+-- Kept as a file-local rather than folded into ModuleMixin:GetDB(): GetColor()
+-- below is a plain local function with no `self` to reach the module through.
 -- ============================================================
 local function GetDB()
     return SP.GetDB().combatCross
@@ -54,10 +61,18 @@ local MELEE_RANGE_ABILITIES = {
     -- Tanks
     [73]  = 6552,   -- Protection Warrior: Pummel
     [250] = 49998,  -- Blood DK: Death Strike
-    [581] = 225921, -- Vengeance DH: Shear
-    [104] = 22568,  -- Guardian Druid: Mangle
+    [581] = 203782, -- Vengeance DH: Shear (5 yd). 225921 was Fracture, a 20 yd
+                    -- talent spell -- wrong range, and nil when untalented.
+                    -- FindSpellOverrideByID picks up Fracture automatically.
+    [104] = 33917,  -- Guardian Druid: Mangle. Was 22568 = Ferocious Bite, a
+                    -- Cat-Form-only finisher -- always nil in Bear Form.
     [268] = 100780, -- Brewmaster Monk: Tiger Palm
-    [66]  = 35395,  -- Protection Paladin: Crusader Strike
+    [66]  = 96231,  -- Protection Paladin: Rebuke. Crusader Strike (35395) is
+                    -- replaced for Prot, and both replacements (Hammer of the
+                    -- Righteous 53595 / Blessed Hammer 204019) are talents on a
+                    -- choice node -- either one is nil for half the players.
+                    -- Rebuke is baseline melee for every Paladin and is already
+                    -- what spec 70 uses.
 }
 
 -- Ranged DPS: specID → a long-range spell for IsSpellInRange
@@ -143,10 +158,25 @@ function CC:UpdateRangeColor()
         return
     end
 
-    local inRange = C_Spell.IsSpellInRange(self.rangeAbility, "target")
+    -- Resolve talent/hero-spec overrides: several specs replace their base
+    -- ability, and IsSpellInRange answers nil for a spell not in the spellbook,
+    -- which silently disabled range colouring for those specs.
+    local spellID = self.rangeAbility
+    if C_SpellBook and C_SpellBook.FindSpellOverrideByID then
+        spellID = C_SpellBook.FindSpellOverrideByID(spellID) or spellID
+    end
 
-    -- nil means range indeterminate (e.g. spell not known) → reset to default
-    if inRange == nil then
+    local inRange = C_Spell.IsSpellInRange(spellID, "target")
+
+    -- IsSpellInRange returns a SECRET VALUE inside instanced content. Comparing
+    -- one taints execution and the taint propagates into Blizzard frames --
+    -- the same failure that broke Blizzard_CooldownViewer via isOnGCD. This
+    -- runs 10x/second in combat, so it must be checked before any comparison.
+    --
+    -- Treated exactly like "indeterminate": reset to the default colour once.
+    -- Bailing out instead would freeze the cross on whatever colour it happened
+    -- to have when you zoned in -- permanently red if you entered out of range.
+    if _issecretvalue(inRange) or inRange == nil then
         if self.lastInRange ~= nil then
             self.lastInRange = nil
             local r, g, b, a = GetColor()
@@ -155,7 +185,7 @@ function CC:UpdateRangeColor()
         return
     end
 
-    local nowInRange = (inRange == 1 or inRange == true)
+    local nowInRange = (inRange == true)
     if nowInRange == self.lastInRange then return end
     self.lastInRange = nowInRange
 
@@ -356,11 +386,14 @@ function CC:OnExitCombat()
 end
 
 -- ============================================================
--- Activate / Deactivate — called by GUI enable toggle
+-- Activate / Deactivate
+--
+-- Called by the GUI enable toggle and by ModuleMixin:Refresh(). Refresh,
+-- OnEnable and OnDisable all come from ModuleMixin -- see Core/Module.lua.
 -- ============================================================
 function CC:Activate()
     local db = GetDB()
-    if not db.enabled then return end
+    if not (db and db.enabled) then return end
 
     self:CreateCrossFrame()
     self:ApplySettings()
@@ -383,32 +416,4 @@ function CC:Deactivate()
     self.onUpdateActive = false
     self.combatActive   = false
     self.previewActive  = false
-end
-
-function CC:Refresh()
-    local db = GetDB()
-    if db.enabled then
-        self:Activate()
-    else
-        self:Deactivate()
-    end
-end
-
--- ============================================================
--- AceAddon lifecycle
--- ============================================================
-function CC:OnEnable()
-    if IsLoggedIn() then
-        local db = GetDB()
-        if db and db.enabled then self:Activate() end
-    else
-        self:RegisterEvent("PLAYER_LOGIN", function()
-            local db = GetDB()
-            if db and db.enabled then self:Activate() end
-        end)
-    end
-end
-
-function CC:OnDisable()
-    self:Deactivate()
 end

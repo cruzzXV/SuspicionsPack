@@ -1,0 +1,15 @@
+## Interface: 120001, 120005, 120007
+## Title: |cffe51039Suspicion|r|cffffffffPack|r Options
+## Notes: Options UI for Suspicion's Pack. Loaded on demand.
+## Author: Cruzz
+## Version: 2.0.0
+## Category: |cffe51039Cruzz|r |cffffffffAddons|r
+## Dependencies: SuspicionsPack
+## LoadOnDemand: 1
+
+# The whole options UI. 9k lines / 43% of the pack's source, and none of it is
+# needed until the user actually opens the window -- so it is a load-on-demand
+# companion rather than part of the login path.
+#
+# Saved variables stay in the parent addon: this file only ever reads SP.db.
+GUI.lua

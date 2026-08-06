@@ -1,13 +1,12 @@
 -- collapsible drawer for minimap addon buttons
 local SP = SuspicionsPack
 
--- Register as an AceAddon module with AceEvent-3.0 mixin
-local Drawer = SP:NewModule("Drawer", "AceEvent-3.0")
+-- Register as an AceAddon module on the shared lifecycle mixin (Core/Module.lua)
+local Drawer = SP:NewSPModule("Drawer", "drawer")
 SP.Drawer = Drawer
 
 local _G = _G
 
-local abs   = math.abs
 local ceil  = math.ceil
 local floor = math.floor
 local ipairs, pairs = ipairs, pairs
@@ -48,6 +47,17 @@ local side    = "LEFT"
 local enabled = false
 
 local noop = function() end
+
+-- Late minimap-button scan timers (see ScheduleLatePasses). On the module
+-- rather than a file-local so Deactivate can reach it wherever it sits.
+Drawer._latePasses = {}
+function Drawer.CancelLatePasses()
+    for i = #Drawer._latePasses, 1, -1 do
+        local t = Drawer._latePasses[i]
+        if t and t.Cancel then t:Cancel() end
+        Drawer._latePasses[i] = nil
+    end
+end
 
 -- Forward declaration so Drawer.Create() polling code can reference GrabButton
 -- (GrabButton body is defined later in the file; the upvalue slot is shared)
@@ -452,9 +462,12 @@ function Drawer.Create()
     Drawer._miniScan = MiniScan
 
     -- Schedule one-shot passes to catch late-loaders
+    -- Handles are kept so Deactivate can cancel them: four timers were created
+    -- on every Activate and on every zone-in, and never released.
     local function ScheduleLatePasses()
+        Drawer.CancelLatePasses()
         for _, delay in ipairs({ 5, 15, 45, 90 }) do
-            C_Timer_NewTimer(delay, MiniScan)
+            Drawer._latePasses[#Drawer._latePasses + 1] = C_Timer_NewTimer(delay, MiniScan)
         end
     end
     Drawer._scheduleLatePasses = ScheduleLatePasses
@@ -476,27 +489,6 @@ local function FindIconTexture(btn)
         end
     end
     return nil
-end
-
-local function HasClickHandler(frame)
-    if not frame.HasScript then return false end
-    if frame:HasScript("OnClick")     and frame:GetScript("OnClick")     then return true end
-    if frame:HasScript("OnMouseUp")   and frame:GetScript("OnMouseUp")   then return true end
-    if frame:HasScript("OnMouseDown") and frame:GetScript("OnMouseDown") then return true end
-    return false
-end
-
-local function LooksLikeButton(frame)
-    if not frame or frame:IsForbidden() then return false end
-    -- Do NOT check IsShown() — buttons may be hidden at scan time (e.g. ElvUI startup)
-    local w, h = frame:GetSize()
-    if w < 16 or h < 16 or w > 60 or h > 60 then return false end
-    if abs(w - h) > 10 then return false end
-    if HasClickHandler(frame) then return true end
-    for _, child in pairs({ frame:GetChildren() }) do
-        if HasClickHandler(child) then return true end
-    end
-    return false
 end
 
 local function FreezeButton(btn)
@@ -829,30 +821,64 @@ function Drawer.GetKnownNames()
     return list
 end
 
-function Drawer.Enable()
+-- Named Activate/Deactivate, NOT Enable/Disable.
+-- AceAddon puts its own Enable/Disable mixin on every module table, so a
+-- module function with those names SHADOWS the lifecycle: any caller doing
+-- mod:Disable() then ran the feature teardown with a stray `self` argument
+-- instead of the AceAddon one, never cleared enabledState, and here also
+-- wrote to the saved variables.
+--
+-- Deliberately DOT functions that never touch `self`: the GUI calls
+-- SP.Drawer.Activate() while ModuleMixin calls self:Activate(), so the module
+-- table arrives as a stray first argument on one of the two paths. Ignoring it
+-- entirely is the only shape that is correct for both.
+function Drawer.Activate()
     enabled = true
+    Drawer.SetSide(GetDB().side)
     Drawer.Create()
     if tab then tab:Show() end
     Drawer.CaptureButtons()
     if Drawer._scheduleLatePasses then Drawer._scheduleLatePasses() end
-    SP.GetDB().drawer.enabled = true
+
+    -- Registered here rather than in OnLogin so that Deactivate can take them
+    -- back off again: switching the drawer off used to leave ADDON_LOADED and
+    -- PLAYER_ENTERING_WORLD dispatching for the rest of the session.
+    Drawer:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
+    -- Run a mini-scan each time an addon finishes loading (zero idle cost).
+    Drawer:RegisterEvent("ADDON_LOADED", "OnAddonLoaded")
 end
 
-function Drawer.Disable()
+function Drawer.Deactivate()
+    Drawer.CancelLatePasses()
     enabled = false
+
+    Drawer:UnregisterEvent("PLAYER_ENTERING_WORLD")
+    Drawer:UnregisterEvent("ADDON_LOADED")
+
     local LDB = LibStub and LibStub("LibDBIcon-1.0", true)
     if LDB and LDB.UnregisterCallback then
         LDB.UnregisterCallback(Drawer, "LibDBIcon_IconCreated")
     end
+
+    -- A pending hide timer would fire into hidden frames and repaint the tab.
+    CancelHide()
     if tab     then tab:Hide()     end
     if bar     then bar:Hide()     end
     if bgFrame then bgFrame:Hide() end
+    -- The frames are hidden directly rather than through DoHide(), so clear the
+    -- flag by hand: otherwise a re-activate repaints the tab in hover colour.
+    hovering = false
     ReleaseAllButtons()
-    SP.GetDB().drawer.enabled = false
 end
 
 -- ============================================================
 -- AceAddon Module lifecycle
+--
+-- OnEnable / OnLogin are kept instead of ModuleMixin's, because Drawer.Refresh
+-- below is a public SETTINGS refresh (14 GUI call sites plus Core's theme
+-- switch) and therefore shadows ModuleMixin:Refresh on the module table.
+-- ModuleMixin:OnEnable would call it and get a restyle, not an activation.
+-- OnDisable does come from the mixin: UnregisterAllEvents + Deactivate.
 -- ============================================================
 
 -- OnEnable is called automatically after the parent addon (SP) fully initialises.
@@ -865,22 +891,10 @@ function Drawer:OnEnable()
     end
 end
 
--- OnDisable is called if the module is disabled at runtime.
-function Drawer:OnDisable()
-    self:UnregisterAllEvents()
-    Drawer.Disable()
-end
-
 -- After login the DB is live and character data is available (class color, etc.)
 function Drawer:OnLogin()
-    local db = SP.GetDB()
-    if db and db.drawer and db.drawer.enabled then
-        Drawer.SetSide(db.drawer.side)
-        Drawer.Enable()
-        self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
-        -- Run a mini-scan each time an addon finishes loading (zero idle cost).
-        self:RegisterEvent("ADDON_LOADED", "OnAddonLoaded")
-    end
+    self:UnregisterEvent("PLAYER_LOGIN")
+    if self:IsOn() then Drawer.Activate() end
 end
 
 function Drawer:OnAddonLoaded()
@@ -898,6 +912,29 @@ end
 
 
 function Drawer.Refresh()
+    -- This is BOTH the settings restyle (14 GUI call sites) and the enable
+    -- toggle, so it has to reconcile the lifecycle before restyling -- the
+    -- early-return below would otherwise leave the drawer inactive forever
+    -- after the user switches it on.
+    --
+    -- Enable() routes through OnEnable -> OnLogin -> Activate, so Activate is
+    -- not called directly on that branch; doing both would activate twice.
+    local _db = SP.GetDB().drawer
+    if _db and _db.enabled then
+        if Drawer.IsEnabled and not Drawer:IsEnabled() then
+            Drawer:Enable()
+        elseif not enabled then
+            Drawer.Activate()
+        end
+    else
+        if Drawer.IsEnabled and Drawer:IsEnabled() then
+            Drawer:Disable()      -- -> OnDisable -> Deactivate
+        elseif enabled then
+            Drawer.Deactivate()
+        end
+        return
+    end
+
     if not enabled or not tab then return end
     InvalidateTabColorCache()  -- settings may have changed color source
     local db = SP.GetDB().drawer

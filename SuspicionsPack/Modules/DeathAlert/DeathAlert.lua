@@ -2,7 +2,7 @@
 -- Affiche un texte à l'écran quand un membre du groupe meurt.
 local SP = SuspicionsPack
 
-local DeathAlert = SP:NewModule("DeathAlert", "AceEvent-3.0")
+local DeathAlert = SP:NewSPModule("DeathAlert", "deathAlert")
 SP.DeathAlert = DeathAlert
 
 local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
@@ -42,6 +42,10 @@ end
 
 -- ============================================================
 -- DB helper
+--
+-- Kept as a file-local rather than folded into ModuleMixin:GetDB(): EnsureFrame,
+-- RefreshFrameStyle, RefreshFramePosition and ProcessDeath below are plain local
+-- functions with no `self` to reach the module through.
 -- ============================================================
 local function GetDB()
     return SP.GetDB().deathAlert
@@ -243,7 +247,23 @@ end
 
 -- ============================================================
 -- Module lifecycle
+--
+-- OnEnable/OnLogin are kept instead of ModuleMixin's: the sound list and the
+-- LibSharedMedia font registration have to happen at login whether or not the
+-- feature is switched on, because the GUI dropdown reads DeathAlert.Sounds even
+-- while the module is off. Refresh and OnDisable come from ModuleMixin --
+-- see Core/Module.lua.
 -- ============================================================
+-- Media registration must happen whether or not the feature is switched on:
+-- the GUI reads DeathAlert.Sounds for its dropdown, and "Expressway" is the
+-- pack's default font for EVERY module. Both used to sit in OnEnable, which the
+-- login sweep skips for a disabled module.
+do
+    BuildSoundList()
+    local lsm = LibStub and LibStub("LibSharedMedia-3.0", true)
+    if lsm then lsm:Register("font", "Expressway", DEFAULT_FONT_PATH) end
+end
+
 function DeathAlert:OnEnable()
     if IsLoggedIn() then
         self:OnLogin()
@@ -253,73 +273,37 @@ function DeathAlert:OnEnable()
 end
 
 function DeathAlert:OnLogin()
+    self:UnregisterEvent("PLAYER_LOGIN")
     BuildSoundList()
     if LSM then
         LSM:Register("font", "Expressway", DEFAULT_FONT_PATH)
     end
     local db = GetDB()
-    EnsureByRole(db)
-    if db and db.enabled then
-        EnsureFrame()
-        RefreshFramePosition()
-        self:RegisterEvent("UNIT_DIED", "OnUnitDied")
-    end
+    if db then EnsureByRole(db) end
+    self:Refresh()
 end
 
-function DeathAlert:OnDisable()
-    self:UnregisterAllEvents()
+-- ============================================================
+-- Activate / Deactivate
+-- ============================================================
+function DeathAlert:Activate()
+    local db = GetDB()
+    if not (db and db.enabled) then return end
+
+    EnsureByRole(db)
+    EnsureFrame()
+    RefreshFramePosition()
+    RefreshFrameStyle()
+    self:RegisterEvent("UNIT_DIED", "OnUnitDied")
+end
+
+function DeathAlert:Deactivate()
+    if displayFrame then displayFrame:Hide() end
+    self:UnregisterEvent("UNIT_DIED")
     if displayFrame then
         displayFrame.animGroup:Stop()
         displayFrame.fs:SetText("")
+        displayFrame.fs:SetAlpha(0)
     end
-end
-
--- ============================================================
--- Preview
--- ============================================================
-function DeathAlert:Preview()
-    local db = GetDB()
-    if not db then return end
-    EnsureFrame()
-    RefreshFrameStyle()
-    RefreshFramePosition()
-
-    local name       = UnitName("player") or "Player"
-    local _, clsTok  = UnitClass("player")
-    local classColor = clsTok and C_ClassColor.GetClassColor(clsTok)
-    local nameText   = classColor and classColor:WrapTextInColorCode(name) or name
-    local msgText    = "|cffffffff" .. (db.displayText or "died") .. "|r"
-
-    displayFrame.fs:SetText(nameText .. " " .. msgText)
-    displayFrame.fs:SetAlpha(0)
-    displayFrame.animGroup:Stop()
-    displayFrame.animGroup:Play()
-end
-
--- ============================================================
--- StopPreview
--- ============================================================
-function DeathAlert:StopPreview()
-    if not displayFrame then return end
-    displayFrame.animGroup:Stop()
-    displayFrame.fs:SetText("")
-    displayFrame.fs:SetAlpha(0)
-end
-
-function DeathAlert:Refresh()
-    local db = GetDB()
-    if db then EnsureByRole(db) end
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-        EnsureFrame()
-        RefreshFramePosition()
-        RefreshFrameStyle()
-        self:RegisterEvent("UNIT_DIED", "OnUnitDied")
-    else
-        self:UnregisterEvent("UNIT_DIED")
-        if displayFrame then
-            displayFrame.animGroup:Stop()
-            displayFrame.fs:SetText("")
-        end
-    end
+    lastSoundPlayedAt = nil
 end

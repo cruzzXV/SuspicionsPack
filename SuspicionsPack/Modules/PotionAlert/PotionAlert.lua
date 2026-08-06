@@ -3,7 +3,7 @@
 
 local SP = SuspicionsPack
 
-local PotionAlert = SP:NewModule("PotionAlert", "AceEvent-3.0")
+local PotionAlert = SP:NewSPModule("PotionAlert", "potionAlert")
 SP.PotionAlert = PotionAlert
 
 -- ============================================================
@@ -21,21 +21,16 @@ local POTION_IDS = {
 
 local DEFAULT_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 
-local FONT_FACES = {
-    ["Expressway"]    = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf",
-    ["Friz Quadrata"] = "Fonts\\FRIZQT__.TTF",
-    ["Arial Narrow"]  = "Fonts\\ARIALN.TTF",
-    ["Morpheus"]      = "Fonts\\MORPHEUS.TTF",
-    ["Skurri"]        = "Fonts\\SKURRI.TTF",
-    ["Damage"]        = "Fonts\\DAMAGE.TTF",
-    ["Ambiguity"]     = "Fonts\\2002.TTF",
-    ["Nimrod MT"]     = "Fonts\\NIMROD.TTF",
-}
+-- Localised with a fallback, matching BloodlustAlert/ReapPredict.
+local _issecretvalue = issecretvalue or function() return false end
 
+
+-- Font names now resolve through Core: SP.FONT_FACES is the single
+-- source of truth and SP.ResolveFont falls back to the pack default.
+-- The private table this used to carry SHADOWED LibSharedMedia, so any
+-- font the user added via another addon silently became Expressway here.
 local function GetFontPath(name)
-    return FONT_FACES[name]
-        or (SP.GetFontPath and SP.GetFontPath(name))
-        or DEFAULT_FONT
+    return SP.ResolveFont(name)
 end
 
 -- ============================================================
@@ -49,6 +44,10 @@ local cdTimer       = nil     -- fallback timer for CD expiry
 
 -- ============================================================
 -- Helpers
+--
+-- GetDB stays a file-local rather than folding into ModuleMixin:GetDB():
+-- CheckCooldown is a plain local function with no `self` to reach the module
+-- through, and it is also the body of a C_Timer callback.
 -- ============================================================
 local function GetDB()
     return SP.GetDB().potionAlert
@@ -78,12 +77,28 @@ local function CancelCDTimer()
     end
 end
 
+-- Picks the potion the player actually carries.
+--
+-- This used to test GetItemCooldown's `enable` return, which is truthy for
+-- every item id (and 0 would be truthy in Lua anyway), so it always returned
+-- POTION_IDS[1]. For an item the player doesn't own GetItemCooldown reports
+-- start=0, i.e. "ready", so the alert showed permanently in any dungeon.
 local function FindTrackedPotion()
+    local firstOwned
     for _, id in ipairs(POTION_IDS) do
-        local _, _, enabled = C_Item.GetItemCooldown(id)
-        if enabled then return id end
+        if (C_Item.GetItemCount(id) or 0) > 0 then
+            firstOwned = firstOwned or id
+            -- Prefer one that is currently on cooldown: that's the potion the
+            -- player is actually using this fight.
+            -- Guard before the truthiness test, not after: `start and ...`
+            -- already branches on the value.
+            local start = C_Item.GetItemCooldown(id)
+            if not _issecretvalue(start) and start and start > 0 then
+                return id
+            end
+        end
     end
-    return nil
+    return firstOwned
 end
 
 -- ============================================================
@@ -185,11 +200,18 @@ local function CheckCooldown()
 
     local potion = FindTrackedPotion()
     if not potion then
+        -- Player carries none. Clear the tracked state too, otherwise drinking
+        -- your last potion leaves onCD stuck true and restocking later fires a
+        -- spurious "potion ready" announcement.
+        onCD = false
+        CancelDisplayTimer()
         if frame then frame:Hide() end
         return
     end
 
     local start, duration = C_Item.GetItemCooldown(potion)
+    -- Item cooldown fields can be secret values; comparing one taints execution.
+    if _issecretvalue(start) or _issecretvalue(duration) then return end
     if start == 0 then
         if onCD then
             if db.playTTS and db.ttsText and db.ttsText ~= "" then
@@ -231,25 +253,16 @@ local function CheckCooldown()
 end
 
 -- ============================================================
--- AceAddon lifecycle
+-- Activate / Deactivate
+--
+-- Refresh, OnEnable and OnDisable all come from ModuleMixin -- see
+-- Core/Module.lua. Every event registration lives in Activate, so a module the
+-- user has switched off subscribes to nothing at all.
 -- ============================================================
-function PotionAlert:OnEnable()
+function PotionAlert:Activate()
     local db = GetDB()
     if not (db and db.enabled) then return end
-    self:_RegisterEvents()
-    self:ApplySettings()
-end
 
-function PotionAlert:OnDisable()
-    self:UnregisterAllEvents()
-    CancelDisplayTimer()
-    CancelCDTimer()
-    onCD      = false
-    isPreview = false
-    if frame then frame:Hide() end
-end
-
-function PotionAlert:_RegisterEvents()
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnCooldownEvent")
     self:RegisterEvent("BAG_UPDATE_COOLDOWN",   "OnBagCooldown")
     self:RegisterEvent("PLAYER_REGEN_ENABLED",  "OnCooldownEvent")
@@ -257,6 +270,19 @@ function PotionAlert:_RegisterEvents()
     self:RegisterEvent("CHALLENGE_MODE_START",  "OnCooldownEvent")
     self:RegisterEvent("ENCOUNTER_START",        "OnEncounterStart")
     self:RegisterEvent("ENCOUNTER_END",          "OnEncounterEnd")
+
+    self:ApplySettings()
+end
+
+function PotionAlert:Deactivate()
+    self:UnregisterAllEvents()
+    CancelDisplayTimer()
+    CancelCDTimer()
+    onCD = false
+    -- Left alone while the GUI preview owns the frame: the old Refresh()
+    -- deliberately kept the preview on screen when the module was switched off,
+    -- and PreviewManager:Stop() -> HidePreview() is what clears it.
+    if frame and not isPreview then frame:Hide() end
 end
 
 function PotionAlert:OnCooldownEvent()
@@ -280,23 +306,4 @@ end
 function PotionAlert:OnEncounterEnd()
     -- Re-check after boss kill or wipe — potion may now be ready.
     CheckCooldown()
-end
-
--- ============================================================
--- Refresh
--- ============================================================
-function PotionAlert:Refresh()
-    local db = GetDB()
-    if not db then return end
-
-    if db.enabled then
-        if not self:IsEnabled() then self:Enable(); return end
-        self:UnregisterAllEvents()
-        self:_RegisterEvents()
-        self:ApplySettings()
-    else
-        self:UnregisterAllEvents()
-        onCD = false
-        if frame and not isPreview then frame:Hide() end
-    end
 end

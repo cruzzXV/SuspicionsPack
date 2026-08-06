@@ -517,6 +517,61 @@ Reskin du micromenu Blizzard dans le style ElvUI. **Skin visuel uniquement** —
 
 ---
 
+## 2.0.0 — Reconstruction de l'architecture
+
+Réécriture complète des fondations de l'addon. Aucune fonctionnalité retirée : ce qui
+change, c'est ce qui tourne en dessous.
+
+### Ce qui a été reconstruit
+
+**Un seul cycle de vie pour les 30 modules.** Trois conventions d'activation
+coexistaient et se contredisaient. Un module « désactivé » pouvait continuer à
+travailler, un autre restait mort jusqu'au `/reload`. Tous partagent désormais le même
+contrat : ton réglage est la seule vérité, et un module éteint n'enregistre plus rien
+au démarrage.
+
+**Une horloge partagée.** Chaque module qui animait quelque chose faisait tourner sa
+propre boucle, armée à l'activation et jamais arrêtée. Elles passent maintenant par un
+pilote commun qui se coupe complètement quand plus personne n'en a besoin.
+
+**Fenêtre d'options à la demande.** Elle représentait 43 % du code lu à chaque
+connexion alors qu'elle ne sert qu'à l'ouverture. Elle est devenue un addon compagnon
+chargé au moment où tu l'ouvres.
+
+**Migration des réglages.** L'addon n'avait aucun mécanisme de mise à jour de ses
+données : chaque réglage jamais introduit restait dans ton fichier à vie, y compris
+ceux de fonctionnalités supprimées depuis longtemps. Un système de migration versionné
+nettoie ça au premier lancement, et l'import de profil ne peut plus réinjecter de
+réglages morts.
+
+**Factorisation.** Les polices, les ancrages, les cadres d'alerte et les textures
+partagées étaient recopiés dans chaque module et avaient divergé — certaines polices ne
+se résolvaient plus correctement. Une seule source pour chacun.
+
+### Gain de performance
+
+Au repos, l'addon ne consomme plus rien. Les trois boucles permanentes qui tournaient
+toute la session — même en ville, hors combat, sans rien à afficher — s'arrêtent
+maintenant dès qu'elles n'ont plus de travail.
+
+- **ReapPredict** n'enregistre plus ses huit événements de combat, dont les deux plus
+  bruyants du jeu, sur les personnages qui ne sont pas Chasseur de démons Dévoreur.
+- **Combat Timer** ne tournait qu'en apparence 4 fois par seconde : il était appelé 60
+  fois et en jetait 56. Il ne tourne plus qu'en combat.
+- **Movement Alert** scannait les temps de recharge 10 fois par seconde en permanence.
+  Il ne s'active plus que quand un décompte est affiché.
+- Le sondage de **ReapPredict** ne coûte plus aucun temps machine entre deux mesures.
+- Les modules désactivés ne coûtent plus le moindre traitement au démarrage.
+
+### Corrections
+
+Plusieurs dizaines, dont : des réglages qui ne s'appliquaient qu'après un `/reload`,
+des pages d'options qui se superposaient, des modules qui écrasaient des paramètres
+Blizzard sans les restaurer, et des fuites de mémoire à l'ouverture répétée de la
+fenêtre.
+
+---
+
 ## À venir / connu
 
 - Rien de connu pour l'instant.

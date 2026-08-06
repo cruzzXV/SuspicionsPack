@@ -6,7 +6,7 @@ local function StripRealm(name)
     return name and (name:match("^([^%-]+)")) or name
 end
 
-local Automation = SP:NewModule("Automation", "AceEvent-3.0")
+local Automation = SP:NewSPModule("Automation", "automation")
 SP.Automation = Automation
 
 -- ============================================================
@@ -32,6 +32,11 @@ local function SetupAutoFillDelete()
     if not (StaticPopupDialogs and StaticPopupDialogs["DELETE_GOOD_ITEM"]) then return end
     deleteHooked = true
     hooksecurefunc(StaticPopupDialogs["DELETE_GOOD_ITEM"], "OnShow", function(self)
+        -- hooksecurefunc cannot be undone, so the body has to re-read the
+        -- settings every time. Without this, turning the module (or just this
+        -- option) off kept filling the box in until the next /reload.
+        local db = SP.GetDB().automation
+        if not (db and db.enabled and db.autoFillDelete) then return end
         local eb = self.EditBox or self.editBox
         if eb then eb:SetText(_G["DELETE"] or "DELETE") end
     end)
@@ -70,18 +75,26 @@ local function HideAndAccept(frame)
     end)
 end
 
+-- HookScript cannot be undone, so the hook body has to re-read the setting
+-- every time. Without this, turning auto role check off (or turning the whole
+-- module off) kept auto-accepting until the next /reload.
+local function RoleCheckWanted()
+    local db = SP.GetDB().automation
+    return db and db.enabled and db.autoRoleCheck
+end
+
 local function SetupAutoRoleCheck()
     if LFDRoleCheckPopup and not lfdHooked then
         lfdHooked = true
         LFDRoleCheckPopup:HookScript("OnShow", function()
-            HideAndAccept(LFDRoleCheckPopup)
+            if RoleCheckWanted() then HideAndAccept(LFDRoleCheckPopup) end
         end)
     end
 
     if LFGInvitePopup and not lfgHooked then
         lfgHooked = true
         LFGInvitePopup:HookScript("OnShow", function()
-            HideAndAccept(LFGInvitePopup)
+            if RoleCheckWanted() then HideAndAccept(LFGInvitePopup) end
         end)
     end
 end
@@ -97,12 +110,15 @@ local function SetupHideTalkingHead()
 
     local function HideHead(frame)
         local db = SP.GetDB().automation
-        if db and db.hideTalkingHead and frame then frame:Hide() end
+        if db and db.enabled and db.hideTalkingHead and frame then frame:Hide() end
     end
 
     if _G.TalkingHeadFrame then
         hooksecurefunc(_G.TalkingHeadFrame, "PlayCurrent", HideHead)
-    else
+    elseif type(_G.TalkingHead_LoadUI) == "function" then
+        -- Guarded: hooksecurefunc on a missing global throws, and this runs
+        -- inside Refresh -- so it would abort every setup step after it.
+        -- Blizzard has been moving the TalkingHead loader around.
         hooksecurefunc("TalkingHead_LoadUI", function()
             if _G.TalkingHeadFrame then
                 hooksecurefunc(_G.TalkingHeadFrame, "PlayCurrent", HideHead)
@@ -129,7 +145,7 @@ local function SetupAutoDecorVendor()
 
     hooksecurefunc("StaticPopup_Show", function(which)
         local db = SP.GetDB().automation
-        if not (db and db.autoDecorVendor) then return end
+        if not (db and db.enabled and db.autoDecorVendor) then return end
         if not DECOR_POPUPS[which] then return end
 
         local popupFrame = StaticPopup_FindVisible(which)
@@ -172,8 +188,11 @@ local flightFormLastCancel = 0
 local flightFormTimer      = nil
 
 local function EvaluateFlightForm()
+    -- Re-reads db.enabled because OnFlightFormRegenEnabled defers through
+    -- C_Timer.After, which cannot be cancelled: the module can be switched off
+    -- inside that window.
     local db = SP.GetDB().automation
-    if not (db and db.autoSwitchFlight) then return end
+    if not (db and db.enabled and db.autoSwitchFlight) then return end
 
     local _, cls = UnitClass("player")
     if cls ~= "DRUID" then return end
@@ -287,9 +306,12 @@ local function GetExpandToggleFrame()
     return _G.BagsBarExpandToggle or _G.BagBarExpandToggle
 end
 
+-- Read by the four un-removable hooks in EnsureHooks, so it has to answer for
+-- the master toggle too: with db.enabled off the bar must come back, and the
+-- Show/SetParent hooks must stop forcing it hidden again.
 function BagsBar:IsEnabled()
     local db = SP.GetDB().automation
-    return db and db.hideBagsBar
+    return db and db.enabled and db.hideBagsBar
 end
 
 function BagsBar:StoreOriginalParents()
@@ -328,6 +350,9 @@ function BagsBar:ApplyHidden()
 end
 
 function BagsBar:Restore()
+    -- Nothing to restore and nothing to wait for: without this the disable path
+    -- falls through to ScheduleRetry and spins a 1 Hz timer for the session.
+    if not GetBagsBarFrame() then return end
     if InCombatLockdown() then
         self.pending = true
         self:RegisterCombatWatcher()
@@ -402,7 +427,11 @@ function BagsBar:Update()
         self:RegisterCombatWatcher()
         return
     end
-    if not bagsBarHooked then self:EnsureHooks() end
+    -- Only install the hooks when the feature is actually wanted. EnsureHooks
+    -- calls ScheduleRetry when the bar frame does not exist, and Restore()
+    -- returns early in that same case -- so calling it while switched off spun
+    -- a 1 Hz retry timer for the rest of the session with nothing to do.
+    if self:IsEnabled() and not bagsBarHooked then self:EnsureHooks() end
     if self:IsEnabled() then
         self:ApplyHidden()
     else
@@ -411,18 +440,20 @@ function BagsBar:Update()
 end
 
 -- ============================================================
--- OnEnable: register event handlers
+-- Activate / Deactivate
+--
+-- Refresh (dispatch on db.enabled), OnEnable (deferred to PLAYER_LOGIN) and
+-- OnDisable (UnregisterAllEvents + Deactivate) all come from SP.ModuleMixin --
+-- see Core/Module.lua. The GUI's SP.Automation:Refresh() lands on the mixin's.
+--
+-- The master toggle used to be a lie: the old Refresh never read it, so seven
+-- of the nine features kept running after the user switched Automation off.
+-- Everything here is gated behind it, and the nine hooksecurefunc/HookScript
+-- hooks -- which genuinely cannot be removed -- each re-read it as well.
 -- ============================================================
-function Automation:OnEnable()
-    self:Refresh()
-end
-
--- ============================================================
--- Refresh: apply settings from DB
--- ============================================================
-function Automation:Refresh()
+function Automation:Activate()
     local db = SP.GetDB().automation
-    if not db then return end
+    if not (db and db.enabled) then return end
 
     -- Hooks are one-time setup (hooksecurefunc cannot be reversed)
     if db.autoFillDelete then
@@ -478,6 +509,26 @@ function Automation:Refresh()
         self:UnregisterEvent("PLAYER_REGEN_ENABLED")
         self:UnregisterEvent("PLAYER_ENTERING_WORLD")
         if flightFormTimer then flightFormTimer:Cancel(); flightFormTimer = nil end
+    end
+end
+
+function Automation:Deactivate()
+    self:UnregisterAllEvents()
+
+    -- EvaluateFlightForm reschedules itself while its 5 s cooldown is running.
+    if flightFormTimer then flightFormTimer:Cancel(); flightFormTimer = nil end
+
+    -- Restore first: when it has to defer past combat lockdown it arms
+    -- BagsBar.combatFrame, which is exactly how the bar comes back afterwards,
+    -- so that watcher is deliberately left registered.
+    BagsBar:Restore()
+
+    -- BagsBar:Update() -> EnsureHooks() arms a 1 Hz retry while the bags bar
+    -- frame does not exist yet; without this the module keeps a timer running
+    -- for the rest of the session after being switched off.
+    if BagsBar.retryTimer then
+        BagsBar.retryTimer:Cancel()
+        BagsBar.retryTimer = nil
     end
 end
 

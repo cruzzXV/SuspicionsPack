@@ -4,15 +4,8 @@
 --   • The Crafting Orders browser opens (ProfessionsCustomerOrdersFrame FilterDropdown)
 local SP = SuspicionsPack
 
-local FEO = SP:NewModule("FilterExpansionOnly", "AceEvent-3.0")
+local FEO = SP:NewSPModule("FilterExpansionOnly", "filterExpansionOnly")
 SP.FilterExpansionOnly = FEO
-
--- ============================================================
--- Helpers
--- ============================================================
-local function GetDB()
-    return SP.GetDB().filterExpansionOnly
-end
 
 -- ============================================================
 -- Filter application
@@ -47,34 +40,25 @@ end
 -- Event handlers
 -- ============================================================
 function FEO:AUCTION_HOUSE_SHOW()
-    local db = GetDB()
-    if not db or not db.enabled then return end
+    if not self:IsOn() then return end
     ApplyAHFilter()
 end
 
 function FEO:CRAFTINGORDERS_SHOW_CUSTOMER()
-    local db = GetDB()
-    if not db or not db.enabled then return end
+    if not self:IsOn() then return end
     ApplyCraftOrdersFilter()
 end
 
 -- ============================================================
 -- Module lifecycle
+-- OnEnable / OnDisable / Refresh come from SP.ModuleMixin.
 -- ============================================================
-function FEO:OnEnable()
+function FEO:Activate()
     self:RegisterEvent("AUCTION_HOUSE_SHOW")
     self:RegisterEvent("CRAFTINGORDERS_SHOW_CUSTOMER")
 end
 
-function FEO:OnDisable()
-    self:UnregisterAllEvents()
-end
-
-function FEO:Refresh()
-    local db = GetDB()
-    if db and db.enabled then
-        if not self:IsEnabled() then self:Enable() end
-    else
-        if self:IsEnabled() then self:Disable() end
-    end
+function FEO:Deactivate()
+    self:UnregisterEvent("AUCTION_HOUSE_SHOW")
+    self:UnregisterEvent("CRAFTINGORDERS_SHOW_CUSTOMER")
 end
