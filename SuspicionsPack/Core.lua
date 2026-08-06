@@ -1268,28 +1268,28 @@ SP.Changelog = {
         { type = "fix", text = "CraftShopper: cancelling an AH purchase could throw a Lua error." },
     },
     ["1.9.0"] = {
-        { type = "new", text = "Micro Menu Skin: nouveau module — reskin ElvUI-like du micromenu (backdrop, bordure, accent au survol, icônes croppées, taille + écart réglables)." },
+        { type = "new", text = "Micro Menu Skin: new module \226\128\148 flat reskin of the micro menu, with adjustable size and spacing." },
     },
     ["1.8.15"] = {
-        { type = "fix", text = "ReapPredict: revert lerp custom — retour SetValue ExponentialEaseOut natif (plus de trous)." },
+        { type = "fix", text = "ReapPredict: reverted to the native bar interpolation \226\128\148 no more gaps." },
     },
     ["1.8.14"] = {
-        { type = "fix", text = "ReapPredict: SmoothBars — comparaison _smoothTarget secret value protégée (taint fix)." },
+        { type = "fix", text = "ReapPredict: fixed a taint error in the bar smoothing." },
     },
     ["1.8.13"] = {
-        { type = "fix", text = "ReapPredict: SmoothBars — goto/label remplacé (Lua 5.1 compat)." },
+        { type = "fix", text = "ReapPredict: fixed a compatibility issue in the bar smoothing." },
     },
     ["1.8.12"] = {
-        { type = "fix", text = "ReapPredict: bouton Match Ellesmere width ajouté aussi dans la Fury Bar." },
+        { type = "fix", text = "ReapPredict: Match Ellesmere width button added to the Fury Bar too." },
     },
     ["1.8.11"] = {
-        { type = "new", text = "ReapPredict: smooth bar (lerp Ellesmere-style) + bouton Match Ellesmere width." },
+        { type = "new", text = "ReapPredict: smooth bar fill, plus a Match Ellesmere width button." },
     },
     ["1.8.10"] = {
-        { type = "fix", text = "BloodlustAlert: fin du fichier tronquée par le PR de valdum, corrigée." },
+        { type = "fix", text = "BloodlustAlert: fixed a truncated file from an earlier merge." },
     },
     ["1.8.9"] = {
-        { type = "fix", text = "BloodlustAlert: OIIA Psytrance manquait du zip v1.8.8, corrigé." },
+        { type = "fix", text = "BloodlustAlert: the OIIA Psytrance sound was missing from the v1.8.8 zip." },
     },
     ["1.8.8"] = {
         { type = "new", text = "pull request de valdum (ntm)" },
