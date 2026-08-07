@@ -4,9 +4,7 @@
 
 ---
 
-## Non publié
-
-> La 2.1.1 est en ligne ; ce qui suit attend une décision de version.
+## 2026-08-07 — v2.2.0
 
 ### Release and rez — nouveau module
 

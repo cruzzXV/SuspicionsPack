@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.1.1"
+SP.VERSION = "2.2.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1139,6 +1139,16 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["2.2.0"] = {
+        { type = "new", text = "Release and rez: a new page for what happens when you die." },
+        { type = "new", text = "Resurrections can be accepted for you. Battle rezzes are left alone, so mid-fight you still pick your own moment." },
+        { type = "new", text = "Your spirit can be released automatically in battlegrounds and arenas, and on the raid bosses you add to a list." },
+        { type = "new", text = "The page reads the spot you are standing on and adds it to that list in one click. /spack debug zoneid prints the same thing without opening the window." },
+        { type = "new", text = "The micro menu has an opacity slider, and can go back to full opacity while the cursor is over it." },
+        { type = "new", text = "The micro menu can be wrapped onto several rows: set how many icons you want per row." },
+        { type = "new", text = "Pages are listed alphabetically inside each sidebar category." },
+        { type = "fix", text = "Switching a module on or off announces itself on screen again." },
+    },
     ["2.1.1"] = {
         { type = "new", text = "The options window has been rebuilt from scratch: rounded panels, a quieter palette, and visible card edges." },
         { type = "new", text = "You can now search across every setting, not just the page names." },
