@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-08-07 — v2.4.0
+
+### Traînée indépendante de la fréquence d'images
+
+Le fondu était sur l'horloge mais **l'échantillonnage était par image** : un
+point maximum par tick, quel que soit le chemin parcouru. À 144 fps le curseur
+avance de 2 px entre deux ticks et on pose un point tous les 2,4 px ; à 30 fps il
+avance de 10 px et on pose toujours un seul point. La traînée perdait quatre
+cinquièmes de ses points exactement quand le jeu ramait déjà.
+
+Les points sont maintenant posés **le long du segment**, un par espacement, avec
+des horodatages étalés pour qu'ils expirent dans l'ordre ; le reste est reporté
+au tick suivant, ce qui garde l'espacement régulier. Au-delà d'une longueur de
+traînée complète, le curseur est considéré comme téléporté et l'interpolation est
+sautée — sans quoi un retour d'alt-tab peindrait une traînée en travers de
+l'écran.
+
+NaowhQOL a le même défaut d'échantillonnage. Il le masque en plafonnant sa propre
+cadence à 40 Hz : la traînée est déjà maigre à 144 fps, donc elle maigrit moins
+en tombant à 30. Le plafond est repris ici, mais il n'est sans danger **que**
+parce que l'échantillonnage suit le chemin : un tick plus lent devient un segment
+plus long à parcourir, pas un point de moins. Les positions sont aussi arrondies
+au pixel entier — arrondies à l'écriture et non sur la source, pour que la
+quantification ne se propage pas à l'espacement.
+
+### Libellés et contrôles sur la même ligne
+
+Le libellé pendait du haut de la ligne à un décalage fixe pendant que le contrôle
+était centré dans la bande de 32 px. La hauteur d'une `FontString` dépend de sa
+police, donc les deux centres tombaient à quelques pixels d'écart et chaque
+interrupteur était visiblement bas par rapport à son propre texte. Un seul nombre
+est calculé et les deux s'y ancrent — le libellé par son point `LEFT`, qui est son
+milieu vertical — ce qui rend le décalage impossible à représenter plutôt que
+simplement corrigé. Même correction sur les deux libellés des lignes de couleur.
+
+---
+
 ## 2026-08-07 — v2.3.0
 
 ### Cursor circle — traînée

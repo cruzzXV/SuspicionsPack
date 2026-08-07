@@ -142,11 +142,22 @@ local function NewRow(parent, spec, ctrlW, ctrlH)
     ctrlH = ctrlH or CTRL_H
     local h = ROW_H
 
-    -- The control column, right-aligned and centred on the first line so a row
-    -- with a description keeps its control level with the label above it.
+    -- BOTH ANCHORED TO THE SAME CENTRE LINE.
+    --
+    -- The label used to hang from the row's top at a fixed -6 while the control
+    -- was centred in the ROW_H band. A FontString's height depends on its font,
+    -- so the two centres landed a few pixels apart and every switch sat visibly
+    -- low against its own text. Deriving one number and anchoring both to it
+    -- makes the misalignment unrepresentable rather than merely corrected.
+    --
+    -- The label takes its LEFT point, which IS its vertical middle.
+    local ctrlTop = math.floor((ROW_H - ctrlH) / 2)
+    local midY    = -(ctrlTop + ctrlH / 2)
+    row.midY      = midY
+
     -- The label first: its measured width decides where the control goes.
     row.label = Text(row, 12, "textPrimary")
-    row.label:SetPoint("TOPLEFT", row, "TOPLEFT", PAD, -6)
+    row.label:SetPoint("LEFT", row, "TOPLEFT", PAD, midY)
     row.label:SetText(spec.label or "")
     row.label:SetJustifyH("LEFT")
     row.label:SetWordWrap(false)
@@ -164,11 +175,11 @@ local function NewRow(parent, spec, ctrlW, ctrlH)
 
     row.ctrl = CreateFrame("Frame", nil, row)
     row.ctrl:SetSize(ctrlW, ctrlH)
-    row.ctrl:SetPoint("TOPLEFT", row, "TOPLEFT", col, -math.floor((ROW_H - ctrlH) / 2))
+    row.ctrl:SetPoint("TOPLEFT", row, "TOPLEFT", col, -ctrlTop)
     -- A stretchy control (the slider) also pins its right edge; a fixed-width
     -- one keeps the width it was given.
     if spec.stretch then
-        row.ctrl:SetPoint("TOPRIGHT", row, "TOPRIGHT", -PAD_R, -math.floor((ROW_H - ctrlH) / 2))
+        row.ctrl:SetPoint("TOPRIGHT", row, "TOPRIGHT", -PAD_R, -ctrlTop)
     end
 
     if spec.desc then

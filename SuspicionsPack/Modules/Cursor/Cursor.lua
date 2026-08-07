@@ -158,6 +158,24 @@ end
 -- ============================================================
 local TRAIL_MAX = 60
 
+-- 40 Hz. Above that we are moving textures nobody can tell apart, and the
+-- redraw is the expensive half of this module.
+--
+-- SAFE ONLY BECAUSE SAMPLING WALKS THE PATH. Capping the tick rate on a
+-- one-sample-per-tick trail is what makes it thin out -- it is exactly the bug
+-- this module had. Now a slower tick just means a longer segment to step along,
+-- so the same movement leaves the same trail whether we look 40 times a second
+-- or 400. (NaowhQOL caps at the same rate but does not interpolate, which is
+-- why theirs also thins out when the frame rate drops -- less visibly, because
+-- the cap already held it low.)
+local TRAIL_HZ = 1 / 40
+local trailClock = 0
+
+-- Half a texel, for the 128px source. Trimmed off each edge because CLAMP
+-- smears the outermost row of pixels outwards when the texture is scaled, which
+-- leaves a faint square halo around what is supposed to be a round dot.
+local TRAIL_TEXEL = 0.5 / 128
+
 local trailFrame
 local trailPts   = {}
 local trailHead  = 0
@@ -187,6 +205,14 @@ local function EnsureTrail(db)
     for i = 1, TRAIL_MAX do
         local t = trailFrame:CreateTexture(nil, "BACKGROUND")
         t:SetBlendMode("ADD")
+        t:SetTexCoord(TRAIL_TEXEL, 1 - TRAIL_TEXEL, TRAIL_TEXEL, 1 - TRAIL_TEXEL)
+        -- Filtering is not decoration here. A 64px source drawn at 24 and
+        -- shrinking to nothing is resampled every single frame; on the default
+        -- filter that reads as a hard, crunchy blob instead of a soft one.
+        if t.SetSnapToPixelGrid then
+            t:SetSnapToPixelGrid(false)
+            t:SetTexelSnappingBias(0)
+        end
         t:Hide()
         trailPts[i] = { tex = t, x = 0, y = 0, time = 0, active = false }
     end
@@ -200,7 +226,13 @@ local function ApplyTrailTexture(db)
     if shape == trailTexApplied then return end
     trailTexApplied = shape
     local path = Cursor.TrailTextures[shape] or Cursor.TrailTextures["Dot"]
-    for i = 1, #trailPts do trailPts[i].tex:SetTexture(path) end
+    for i = 1, #trailPts do
+        -- CLAMP twice then TRILINEAR: the filter argument only exists on this
+        -- call, so re-setting the texture without it silently drops back to the
+        -- default filter and the dot goes crunchy again.
+        trailPts[i].tex:SetTexture(path, "CLAMP", "CLAMP", "TRILINEAR")
+        trailPts[i].tex:SetTexCoord(TRAIL_TEXEL, 1 - TRAIL_TEXEL, TRAIL_TEXEL, 1 - TRAIL_TEXEL)
+    end
 end
 
 local function ClearTrail()
@@ -226,11 +258,17 @@ Cursor.ApplyOpacity = ApplyOpacity
 
 -- Called on EVERY tick, not only when the cursor moves: expiring the old
 -- samples is half the job.
-local function UpdateTrail(db)
+local function UpdateTrail(db, elapsed)
     if not db.trail then
         if trailActive > 0 or (trailFrame and trailFrame:IsShown()) then ClearTrail() end
         return
     end
+
+    -- No `elapsed` means a caller that wants a pass now: the debug command and
+    -- the test harness both drive this directly.
+    trailClock = trailClock + (elapsed or TRAIL_HZ)
+    if trailClock < TRAIL_HZ then return end
+    trailClock = 0
 
     EnsureTrail(db)
     ApplyTrailTexture(db)
@@ -247,16 +285,79 @@ local function UpdateTrail(db)
     local x, y = GetCursorPosition()
     x, y = x / scale, y / scale
 
-    -- New sample only once the cursor has actually gone somewhere.
-    local spacing = size * 0.10
+    -- SAMPLED ALONG THE PATH, NOT ONCE PER TICK.
+    --
+    -- One sample per frame ties the trail to the frame rate: at 30 fps the
+    -- cursor covers several spacings between two ticks, so the trail thins out
+    -- to a few scattered dots exactly when the game is already struggling --
+    -- alt-tab and it visibly falls apart. Stepping along the segment makes what
+    -- you see a function of the path and the clock, which is what it should
+    -- have been from the start.
+    -- SPACING IS A SETTING, NOT A CONSTANT.
+    --
+    -- Walking the path fixed the frame-rate dependence but pinned the density at
+    -- its maximum: a dot every tenth of the dot's own width, all the way along,
+    -- however fast you flick. NaowhQOL drops samples when the cursor moves fast
+    -- -- an accident of sampling once per tick -- and the result reads lighter.
+    -- Rather than reproduce the accident, the gap between dots is now the
+    -- player's to set, and it stays even at any frame rate.
+    local spacing = size * ((db.trailSpacing or 50) / 100)
     if spacing < 2 then spacing = 2 end
+
     local dx, dy = x - trailLastX, y - trailLastY
-    if dx * dx + dy * dy >= spacing * spacing then
-        trailLastX, trailLastY = x, y
-        trailHead = (trailHead % n) + 1
-        local pt = trailPts[trailHead]
-        if not pt.active then trailActive = trailActive + 1 end
-        pt.x, pt.y, pt.time, pt.active = x, y, now, true
+    local dist   = math.sqrt(dx * dx + dy * dy)
+
+    if dist >= spacing then
+        local steps = math.floor(dist / spacing)
+
+        -- A JUMP IS NOT A PATH. Coming back from alt-tab, a screen-edge warp or
+        -- a UI-scale change moves the cursor without it having travelled, and
+        -- filling that in paints a streak across the screen.
+        --
+        -- Measured against the SCREEN, not against the trail's own length: with
+        -- spacing under the player's control a full trail can be 40px or 900px
+        -- long, and a threshold derived from it would call an ordinary flick a
+        -- teleport at one setting and miss a real one at another.
+        local warp = (UIParent:GetHeight() or 800) * 0.5
+        if dist > warp then
+            steps = 1
+            trailLastX, trailLastY = x, y
+            trailHead = (trailHead % n) + 1
+            local pt = trailPts[trailHead]
+            if not pt.active then trailActive = trailActive + 1 end
+            pt.x, pt.y, pt.time, pt.active =
+                math.floor(x + 0.5), math.floor(y + 0.5), now, true
+        else
+            -- More steps than slots would just overwrite the ring several times
+            -- over for nothing; the last n are the only ones that survive.
+            if steps > n then steps = n end
+            local ux, uy = dx / dist, dy / dist
+            for i = 1, steps do
+                -- Rounded to whole pixels so a dot is not drawn straddling
+                -- two of them, which reads as a blurred smear. Rounded HERE and
+                -- not on the cursor position: quantising the source would
+                -- quantise the spacing too and the trail would clump.
+                local px = math.floor(trailLastX + ux * spacing * i + 0.5)
+                local py = math.floor(trailLastY + uy * spacing * i + 0.5)
+                trailHead = (trailHead % n) + 1
+                local pt = trailPts[trailHead]
+                if not pt.active then trailActive = trailActive + 1 end
+                -- Timestamps spread across the step so they expire in the order
+                -- they were laid down rather than all at once.
+                pt.x, pt.y, pt.active = px, py, true
+                pt.time = now - (steps - i) * 0.008
+            end
+            -- The remainder stays for the next tick, which is what keeps the
+            -- spacing even instead of resetting the phase every frame.
+            -- Snapped forward to the cursor when the ring was saturated,
+            -- otherwise the leftover distance would be replayed next tick.
+            if steps * spacing >= dist - spacing then
+                trailLastX = trailLastX + ux * spacing * steps
+                trailLastY = trailLastY + uy * spacing * steps
+            else
+                trailLastX, trailLastY = x, y
+            end
+        end
     end
 
     if trailActive == 0 then return end
@@ -438,7 +539,7 @@ local function CreateCursorFrame()
         -- Outside the moved-check: samples expire on a clock, so the trail has
         -- to keep being drawn while the cursor sits still or it freezes on
         -- screen at full opacity.
-        UpdateTrail(cdb0)
+        UpdateTrail(cdb0, elapsed)
         ApplyOpacity()
 
         if x ~= _lastCX or y ~= _lastCY then

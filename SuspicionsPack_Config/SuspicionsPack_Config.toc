@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r Options
 ## Notes: Options UI for Suspicion's Pack. Loaded on demand.
 ## Author: Cruzz
-## Version: 2.3.0
+## Version: 2.4.0
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## Dependencies: SuspicionsPack
 ## LoadOnDemand: 1

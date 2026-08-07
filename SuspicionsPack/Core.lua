@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.3.0"
+SP.VERSION = "2.4.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -423,6 +423,7 @@ local DEFAULTS = {
             trailShape    = "Dot",
             trailLength   = 20,
             trailSize     = 24,
+            trailSpacing  = 50,
             trailAlpha    = 80,
             trailDuration = 2.0,
             enabled          = false,
@@ -1152,6 +1153,13 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["2.4.0"] = {
+        { type = "fix", text = "The cursor trail no longer thins out when your frame rate drops. Copies are laid along the path travelled instead of one per frame, so alt-tabbing no longer wrecks it." },
+        { type = "fix", text = "The trail is a soft dot by default instead of the cursor ring, which was all but invisible once it shrank and faded." },
+        { type = "new", text = "Trail spacing is yours to set: tight for a solid smear, wide for a light trail." },
+        { type = "new", text = "Trail shape: dot, circle or ring." },
+        { type = "fix", text = "Switches and their labels sit on the same line again. Every control was a few pixels low against its own text." },
+    },
     ["2.3.0"] = {
         { type = "new", text = "The cursor circle can leave a trail behind it: shape, length, size, fade time and opacity." },
         { type = "new", text = "Separate cursor opacity in and out of combat. Dungeons and raids count as combat throughout, so it holds steady between pulls instead of flicking on every one." },

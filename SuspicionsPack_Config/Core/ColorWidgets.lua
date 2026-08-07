@@ -196,7 +196,9 @@ function W.Color(parent, spec)
     local h = g.ROW_H
 
     local label = Text(row, 12, "textPrimary")
-    label:SetPoint("TOPLEFT", row, "TOPLEFT", g.PAD, -6)
+    -- LEFT, not TOPLEFT: a FontString's LEFT point is its vertical middle, so
+    -- this lands the text on the same centre line as the swatch beside it.
+    label:SetPoint("LEFT", row, "TOPLEFT", g.PAD, -(g.ROW_H / 2))
     label:SetText(spec.label or "")
     label:SetJustifyH("LEFT"); label:SetWordWrap(false)
     row.label = label
@@ -331,7 +333,9 @@ function W.ColorSource(parent, spec)
         onSelect = function() row:UpdateSwatchState(); row:Sync() end,
     })
     local label = Text(row, 12, "textPrimary")
-    label:SetPoint("TOPLEFT", row, "TOPLEFT", g.PAD, -6)
+    -- LEFT, not TOPLEFT: a FontString's LEFT point is its vertical middle, so
+    -- this lands the text on the same centre line as the swatch beside it.
+    label:SetPoint("LEFT", row, "TOPLEFT", g.PAD, -(g.ROW_H / 2))
     label:SetText(spec.label or "")
     label:SetJustifyH("LEFT"); label:SetWordWrap(false)
     row.label = label

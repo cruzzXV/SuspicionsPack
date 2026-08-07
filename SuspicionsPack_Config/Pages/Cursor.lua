@@ -293,6 +293,10 @@ GUI.RegisterPage{
         cT:Slider{ key = "trailSize", label = "Size",
                    desc = "In pixels, independent of the ring's own size.",
                    min = 8, max = 64, step = 2 }
+        cT:Slider{ key = "trailSpacing", label = "Spacing",
+                   desc = "Gap between copies, as a share of their size. Lower packs them " ..
+                          "into a solid smear, higher spreads them into a lighter trail.",
+                   min = 10, max = 150, step = 5, suffix = "%" }
         cT:Slider{ key = "trailDuration", label = "Fade time",
                    desc = "How long a copy takes to disappear. The trail fades on a clock, " ..
                           "so it clears itself when the cursor stops.",
