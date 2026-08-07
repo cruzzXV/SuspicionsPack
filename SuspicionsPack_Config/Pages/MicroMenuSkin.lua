@@ -105,6 +105,18 @@ GUI.RegisterPage{
         c4:Slider{ key = "buttonSpacing", label = "Spacing",
                    desc = "0 puts the backdrops edge to edge. Blizzard's native value is -5.",
                    min = -8, max = 20, step = 1 }
+        c4:Slider{ key = "iconsPerRow", label = "Icons per row",
+                   desc = "Wraps the bar onto as many rows as it needs — 6 gives you the " ..
+                          "two-row block. 0 leaves the layout to Blizzard, which is what the " ..
+                          "vehicle and pet battle bars expect.",
+                   min = 0, max = 12, step = 1 }
+
+        local c45 = page:Card("Opacity")
+        c45:Slider{ key = "alpha", label = "Bar opacity",
+                    desc = "Applies to the whole bar, backdrops and borders included.",
+                    min = 0, max = 100, step = 5, suffix = "%" }
+        c45:Toggle{ key = "fadeOnHover", label = "Full opacity on mouseover",
+                    desc = "Returns to 100% while the cursor is over the bar." }
 
         local c5 = page:Card("Extras")
         c5:Toggle{ key = "desaturate", label = "Desaturate icons",

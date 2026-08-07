@@ -62,8 +62,24 @@ end
 function GUI.RegisterPage(spec)
     GUI.Pages[spec.id] = spec
     GUI.PageOrder[#GUI.PageOrder + 1] = spec.id
+
     local cat = FindCategory(spec.category)
-    if cat then cat.items[#cat.items + 1] = spec end
+    if not cat then return end
+
+    -- Inserted in name order, not load order. The sidebar reads this list
+    -- straight through, and load order is whatever the TOC happens to say --
+    -- which is a build detail, not a menu. Sorted on the way in rather than on
+    -- every refresh, since it only changes when a page is registered.
+    --
+    -- Compared lowercased: byte order puts every capital ahead of every
+    -- lowercase letter, which would scatter the list on any name that is not
+    -- capitalised the same way as its neighbours.
+    local key = string.lower(spec.name or "")
+    local at  = #cat.items + 1
+    for i, other in ipairs(cat.items) do
+        if key < string.lower(other.name or "") then at = i; break end
+    end
+    table.insert(cat.items, at, spec)
 end
 
 -- The on/off dot. Reads the module's own `enabled` flag through the dbKey the
@@ -372,6 +388,28 @@ function GUI:RefreshContent()
     end
 
     self:UpdateFooter()
+end
+
+-- Throws a page's cached container away and builds it again.
+--
+-- THE HIDE IS THE WHOLE POINT, and it is why this is an API instead of three
+-- lines a page writes itself. RefreshContent hides every container it can find
+-- in PageCache; one removed from the cache while still on screen is one nothing
+-- will ever hide again, and it stays painted over every page opened afterwards.
+-- That is the "pages superposees" regression in lessons.md [2026-03-29], and it
+-- came straight back the first time a page did this by hand.
+--
+-- For pages whose SHAPE depends on data -- a list you can add rows to -- where
+-- Refresh only re-reads values into rows that already exist.
+function GUI:RebuildPage(id)
+    self.PageCache = self.PageCache or {}
+    local old = self.PageCache[id]
+    if old then
+        old:Hide()
+        self.PageCache[id] = nil
+        if self._activePage == old then self._activePage = nil end
+    end
+    self:SelectItem(id)
 end
 
 function GUI:UpdateFooter()

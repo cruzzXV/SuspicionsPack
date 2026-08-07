@@ -237,9 +237,33 @@ end
 -- Hooked once per button. They read the DB live so colour changes in the GUI
 -- apply on the next hover without a full re-skin pass.
 -- ============================================================
+-- ============================================================
+-- Bar opacity
+--
+-- Set on MicroMenu rather than on each button, so it covers the backdrops and
+-- the borders too and stays correct when Blizzard adds a button.
+--
+-- The hover half needs the deferred re-check below: sliding from one button to
+-- the next fires OnLeave BEFORE the next OnEnter, so acting on OnLeave alone
+-- makes the bar blink at every boundary.
+-- ============================================================
+local function ApplyAlpha(hovering)
+    local db = GetDB()
+    local mm = _G.MicroMenu
+    if not (mm and db and db.enabled) then return end
+
+    local a = Num(db.alpha, 100) / 100
+    if a < 0 then a = 0 elseif a > 1 then a = 1 end
+    if hovering and db.fadeOnHover then a = 1 end
+    mm:SetAlpha(a)
+end
+MMS.ApplyAlpha = ApplyAlpha
+
 local function OnEnterButton(button)
     local db = GetDB()
     if not (db and db.enabled) then return end
+
+    ApplyAlpha(true)
 
     -- ElvUI: once skinned, the normal texture is no longer baked into the
     -- highlight, so it has to be re-shown explicitly on hover.
@@ -257,6 +281,16 @@ end
 local function OnLeaveButton(button)
     local db = GetDB()
     if not (db and db.enabled) then return end
+
+    -- Deferred by a frame, then asked again: the cursor moving between two
+    -- buttons leaves one before entering the next, and dimming in that gap is
+    -- a visible flicker all the way along the bar.
+    if db.fadeOnHover then
+        C_Timer.After(0, function()
+            local mm = _G.MicroMenu
+            ApplyAlpha(mm and mm.IsMouseOver and mm:IsMouseOver())
+        end)
+    end
 
     if db.desaturate then
         local normal = button.GetNormalTexture and button:GetNormalTexture()
@@ -525,6 +559,10 @@ end
 -- native value round-trips correctly.
 local nativePad
 
+-- Same trick for the grid's stride: MicroMenu's native value can legitimately
+-- be nil, and `nativeStride or default` would never give it back.
+local nativeStride
+
 local function RelayoutMicroMenu(mm)
     mm.oldGridSettings = nil   -- forces ShouldUpdateLayout() to return true
     local container = _G.MicroMenuContainer
@@ -581,12 +619,41 @@ local function LayoutButtons(db)
         changed = true
     end
 
+    -- Icons per row.
+    --
+    -- MicroMenu is a GridLayoutFrame, and a grid's `stride` IS its number of
+    -- children per row -- so wrapping the bar onto two or three rows is one
+    -- assignment plus the same relayout the padding already triggers. No
+    -- re-anchoring, which is what keeps the Edit Mode box, QueueStatusButton
+    -- and the GM ticket button attached.
+    --
+    -- 0 means "leave it to Blizzard". That matters more than it looks: the
+    -- vehicle, override and pet battle bars set a stride of their own
+    -- (numButtons/2) when they take over, and forcing ours would flatten those
+    -- back out. We re-apply on every UpdateMicroButtons, so an override that
+    -- reclaims the stride mid-session gets ours back on its next pass.
+    local perRow = math.floor(Num(db.iconsPerRow, 0) + 0.5)
+    if perRow > 0 then
+        if nativeStride == nil then nativeStride = { v = mm.stride } end
+        if mm.stride ~= perRow then
+            mm.stride = perRow
+            changed = true
+        end
+    elseif nativeStride ~= nil and mm.stride ~= nativeStride.v then
+        mm.stride = nativeStride.v
+        changed = true
+    end
+
     if changed then RelayoutMicroMenu(mm) end
     MMS.layoutApplied = true
 end
 
 -- Real implementation of the forward-declared local.
 RestoreLayout = function()
+    -- Opacity is ours, so hand it back before anything else.
+    local restore = _G.MicroMenu
+    if restore then restore:SetAlpha(1) end
+
     for _, name in ipairs(MICRO_BUTTONS) do
         local b = _G[name]
         if b and b._spOrigW then
@@ -598,6 +665,7 @@ RestoreLayout = function()
     if mm and nativePad then
         mm.childXPadding = nativePad.x
         mm.childYPadding = nativePad.y
+        if nativeStride ~= nil then mm.stride = nativeStride.v end
         RelayoutMicroMenu(mm)
     end
 end
@@ -617,6 +685,7 @@ ApplySkin = function()
     end
     HidePerformanceBar()
     LayoutButtons(db)
+    ApplyAlpha(false)
 
     applying = false
 end

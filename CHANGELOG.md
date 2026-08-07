@@ -4,6 +4,91 @@
 
 ---
 
+## Non publié
+
+> La 2.1.1 est en ligne ; ce qui suit attend une décision de version.
+
+### Release and rez — nouveau module
+
+Une seule page pour la question « qu'est-ce qui se passe quand je meurs ».
+
+**Auto accept resurrection — jamais un battle rez**, et le test tient en une
+ligne parce que le jeu encode déjà la réponse : une résurrection utilisable hors
+combat est **incastable en combat**. Donc un lanceur qui est en combat lance un
+battle rez, et un lanceur qui ne l'est pas, non. `RESURRECT_REQUEST` passe le nom
+du lanceur, et un nom de joueur est un token d'unité valide — `UnitAffectingCombat`
+répond directement.
+
+Deux détails repris de Leatrix Plus, qui expédie ça depuis des années et qu'il
+aurait fallu lire avant d'inventer : `AcceptResurrect()` ne ferme pas la boîte de
+dialogue, il faut `StaticPopup_Hide("RESURRECT_NO_TIMER")` derrière ; et les rez
+d'objets (Pylône de détection des échecs, Brasero de l'Éveil) sont des battle rez
+qu'il faut exclure. Leatrix les liste par nom dans dix langues ; `UnitExists` sur
+le lanceur donne la même réponse dans toutes, parce qu'un objet n'est pas une
+unité.
+
+Une première version lisait le journal de combat et comparait des IDs de sorts.
+Plus de code, plus de façons d'être fausse, et elle ne marchait pas.
+
+**Auto release, boss par boss.** Pas un interrupteur global : la plupart des
+rencontres attendent un brez, quelques-unes se courent. La liste est composée de
+paires zone/sous-zone que l'utilisateur remplit lui-même. Elle est livrée
+**vide** volontairement — un ID subtilement faux ne lève aucune erreur, il ne
+correspond simplement jamais, et la fonctionnalité paraît cassée sans moyen de le
+voir. Une liste vide avec un bouton qui marche est honnête ; un ID deviné ne
+l'est pas.
+
+**Le lecteur de zone.** C'est ce qui rend la liste maintenable : une carte qui
+affiche l'endroit exact où on se tient avec ses deux IDs, et un bouton qui
+l'ajoute. Sans ça, remplir la liste veut dire chercher sur un site externe, et
+une liste comme ça ne se remplit jamais. Doublé de `/spack debug zoneid` pour le
+cas que la carte ne peut pas couvrir : être devant le boss sans ouvrir une
+fenêtre d'options par-dessus la rencontre.
+
+**Le délai n'est pas cosmétique.** Un battle rez qui arrive pendant qu'on est au
+sol est précisément ce qu'on veut garder, donc le release est différé puis
+re-vérifié : si une résurrection est en attente à l'échéance, il est annulé.
+
+### Barre latérale triée
+
+Les pages étaient listées dans l'ordre du TOC, c'est-à-dire dans l'ordre de
+chargement — un détail de build, pas un menu. Elles sont maintenant insérées par
+ordre alphabétique dans leur catégorie, en minuscules pour la comparaison :
+l'ordre des octets place toutes les majuscules avant toutes les minuscules, ce
+qui éparpillerait la liste au premier nom capitalisé différemment.
+
+### Micro menu — opacité
+
+Un curseur d'opacité pour la barre, et une option qui la ramène à 100 % au
+survol. L'alpha est posé sur `MicroMenu` plutôt que sur chaque bouton, donc il
+couvre aussi les fonds et les bordures et reste correct quand Blizzard ajoute un
+bouton. Le survol est ré-évalué avec une frame de décalage : passer d'un bouton
+au suivant déclenche le `OnLeave` **avant** le `OnEnter` du suivant, et agir sur
+le seul `OnLeave` fait clignoter la barre à chaque intervalle.
+
+### Micro menu — icônes par ligne
+
+`MicroMenu` est une `GridLayoutFrame`, et le `stride` d'une grille **est** son
+nombre d'enfants par ligne : envelopper la barre sur deux ou trois lignes tient
+en une affectation plus le même relayout que l'espacement déclenche déjà. Aucun
+ré-ancrage, ce qui garde la boîte de sélection d'Edit Mode, le QueueStatusButton
+et le bouton de ticket MJ attachés. 0 rend la main à Blizzard, ce qui compte :
+les barres de véhicule, de contrôle et de combat de mascottes posent leur propre
+stride quand elles prennent le relais.
+
+### Tests
+
+116 assertions. `SuspicionsPack/Modules/AutoRelease/AutoRelease.lua` est chargé
+pour de vrai par la suite — le stub d'API gagne un état de monde réglable
+(instance, zone, sous-zone, rencontre en cours, combat du groupe) et
+`NewSPModule` devient un vrai constructeur, donc la logique d'un module peut
+enfin être testée au lieu d'être seulement analysée syntaxiquement. Les cinq
+nouveaux cas de `tests/counter.py` remettent chacun leur bug en place pour
+prouver que l'assertion le rattrape, dont celle qui compte le plus : une entrée
+de release qui ne déclare rien ne doit correspondre **nulle part**.
+
+---
+
 ## 2026-08-07 — v2.1.1
 
 ### Options UI rebuilt

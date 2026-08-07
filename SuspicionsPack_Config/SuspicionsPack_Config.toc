@@ -27,6 +27,7 @@ Pages\Categories.lua
 # Pages — one file each. Order within a category is the order in the sidebar.
 Pages\Home.lua
 Pages\Automation.lua
+Pages\AutoRelease.lua
 Pages\TankMD.lua
 Pages\BloodlustAlert.lua
 Pages\CombatCross.lua

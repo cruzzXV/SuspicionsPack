@@ -39,6 +39,7 @@ Modules\CombatTimer\CombatTimer.lua
 Modules\BloodlustAlert\BloodlustAlert.lua
 Modules\PotionAlert\PotionAlert.lua
 Modules\AutoInvite\AutoInvite.lua
+Modules\AutoRelease\AutoRelease.lua
 Modules\TankMD\TankMD.lua
 Modules\FocusTargetMarker\FocusTargetMarker.lua
 Modules\DeathAlert\DeathAlert.lua

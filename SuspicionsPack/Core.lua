@@ -449,6 +449,21 @@ local DEFAULTS = {
             autoDecorVendor  = false,
             autoSwitchFlight = false,
         },
+        -- Releasing is boss by boss, so `zones` ships EMPTY on purpose. An ID
+        -- that is subtly wrong never matches and the feature just looks broken;
+        -- the options page reads your current spot and adds it in one click.
+        autoRelease = {
+            enabled = false,
+            inPvP   = true,
+            delay   = 2,
+            zones   = {},
+            -- Hard rezzes only, and onlyWhenFightOver is what makes that true:
+            -- a resurrection castable out of combat CANNOT be cast in combat,
+            -- so a caster who is in combat is casting a battle rez. Turning it
+            -- off accepts those too, which is not a thing to do by accident.
+            acceptRez         = false,
+            onlyWhenFightOver = true,
+        },
         autoInvite = {
             enabled       = false,
             inviteAll     = true,
@@ -474,6 +489,9 @@ local DEFAULTS = {
         },
         microMenuSkin = {
             enabled        = false,
+            iconsPerRow    = 0,
+            alpha          = 100,
+            fadeOnHover    = false,
             showBackdrop   = true,
             showBorder     = true,
             borderSize     = 1,
@@ -1081,7 +1099,37 @@ function SP.EnsureGUI()
     return true
 end
 
-function SP:ToggleGUI()
+-- Prints where you are standing, with the IDs the auto-release list matches on.
+--
+-- The options page has a card that shows the same thing with an Add button, and
+-- that is the one to use normally. This exists for the case the card cannot
+-- cover: you are in a raid, in front of the boss, and opening a settings window
+-- over the encounter to read one number is not going to happen.
+function SP.PrintZoneInfo()
+    local mod = SP.AutoRelease
+    if not (mod and mod.Describe) then
+        print("SuspicionsPack: the auto-release module is not loaded.")
+        return
+    end
+    local h  = mod.Describe()
+    local ac = SP.Theme and SP.Theme.accent or { 1, 0, 0 }
+    local hex = string.format("|cff%02X%02X%02X",
+        math.floor(ac[1] * 255 + 0.5), math.floor(ac[2] * 255 + 0.5), math.floor(ac[3] * 255 + 0.5))
+    print(hex .. "SuspicionsPack|r zone:")
+    print(("  zone       |cffffffff%s|r"):format(h.zone ~= "" and h.zone or "-"))
+    print(("  subzone    |cffffffff%s|r"):format(h.subZone ~= "" and h.subZone or "-"))
+    print(("  instanceID |cffffffff%s|r   uiMapID |cffffffff%s|r   type |cffffffff%s|r")
+        :format(tostring(h.instanceID), tostring(h.uiMapID), h.instanceType))
+end
+
+function SP:ToggleGUI(input)
+    local arg = (input or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    -- Both spellings: `debug zoneid` reads well, `zoneid` is what you actually
+    -- type when you are dead on the floor and the pull is resetting.
+    if arg == "debug zoneid" or arg == "zoneid" or arg == "zone" then
+        SP.PrintZoneInfo()
+        return
+    end
     if not SP.EnsureGUI() then return end
     SP.GUI.Toggle()
 end

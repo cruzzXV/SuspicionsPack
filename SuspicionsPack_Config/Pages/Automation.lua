@@ -54,6 +54,7 @@ GUI.RegisterPage{
             desc  = "Hides the backpack buttons from the main action bar.",
         }
 
+
         -- This one lives in the Performance section, not Automation, so it carries
         -- its own DB table, its own default source and its own apply callback.
         local dbPerf   = SP.GetDB().performance
