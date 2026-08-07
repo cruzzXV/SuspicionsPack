@@ -83,7 +83,8 @@ local function Col(c, dr, dg, db_, da)
     return dr, dg, db_, da
 end
 
--- Numeric fallback that survives a stored 0 (Lua truthiness trap).
+-- Numeric fallback. Guards `false`, which IS falsy in Lua -- a stored 0 is not,
+-- and would survive a plain `or` on its own.
 local function Num(v, default)
     if v == nil then return default end
     return v

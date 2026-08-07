@@ -117,8 +117,9 @@ function AutoRelease:OnPlayerDead()
     local ok = ShouldRelease(db, here)
     if not ok then return end
 
-    -- Explicit nil test: a delay of 0 is a legitimate setting and `or` would
-    -- silently turn it into the default.
+    -- `delay == nil`, spelled out. Not because `or` would eat a 0 -- it would
+    -- not, 0 is true in Lua -- but because "was this ever set" and "is this
+    -- zero" are different questions and the code should ask the one it means.
     local delay = db.delay
     if delay == nil then delay = 2 end
 

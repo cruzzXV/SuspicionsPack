@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.2.0"
+SP.VERSION = "2.3.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -417,6 +417,14 @@ local DEFAULTS = {
             rangeColorRangedEnabled = false,
         },
         cursor = {
+            opacityInCombat    = 100,
+            opacityOutOfCombat = 100,
+            trail         = false,
+            trailShape    = "Dot",
+            trailLength   = 20,
+            trailSize     = 24,
+            trailAlpha    = 80,
+            trailDuration = 2.0,
             enabled          = false,
             size             = 50,
             texture          = "Thick",
@@ -1130,6 +1138,11 @@ function SP:ToggleGUI(input)
         SP.PrintZoneInfo()
         return
     end
+    if arg == "debug trail" or arg == "trail" then
+        if SP.Cursor and SP.Cursor.DebugTrail then SP.Cursor.DebugTrail()
+        else print("SuspicionsPack: the cursor module is not loaded.") end
+        return
+    end
     if not SP.EnsureGUI() then return end
     SP.GUI.Toggle()
 end
@@ -1139,6 +1152,11 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["2.3.0"] = {
+        { type = "new", text = "The cursor circle can leave a trail behind it: shape, length, size, fade time and opacity." },
+        { type = "new", text = "Separate cursor opacity in and out of combat. Dungeons and raids count as combat throughout, so it holds steady between pulls instead of flicking on every one." },
+        { type = "new", text = "/spack debug trail reports what the trail is doing, for when it is not doing it." },
+    },
     ["2.2.0"] = {
         { type = "new", text = "Release and rez: a new page for what happens when you die." },
         { type = "new", text = "Resurrections can be accepted for you. Battle rezzes are left alone, so mid-fight you still pick your own moment." },

@@ -268,6 +268,39 @@ GUI.RegisterPage{
             end,
         }
 
+        -- ── Opacity ──────────────────────────────────────────────
+        local cO = page:Card("Opacity",
+            "Applies to the ring, the click ring and the trail together. Instances count " ..
+            "as combat, so it stays put for a whole dungeon instead of flicking on every pull.")
+        cO:Slider{ key = "opacityInCombat", label = "In combat",
+                   min = 0, max = 100, step = 5, suffix = "%" }
+        cO:Slider{ key = "opacityOutOfCombat", label = "Out of combat",
+                   min = 0, max = 100, step = 5, suffix = "%" }
+
+        -- ── Trail ────────────────────────────────────────────────
+        local cT = page:Card("Trail",
+            "Copies of the ring left behind as the cursor moves, each smaller and " ..
+            "fainter than the one before.")
+        local trailOn = cT:Toggle{ key = "trail", label = "Enable trail" }
+        cT:GateBelow(trailOn)
+        cT:Dropdown{ key = "trailShape", label = "Shape",
+                     desc = "A filled dot reads as a trail; an outline mostly disappears " ..
+                            "once it shrinks and fades.",
+                     options = SP.Cursor and SP.Cursor.TrailOrder or { "Dot" } }
+        cT:Slider{ key = "trailLength", label = "Length",
+                   desc = "How many copies follow the cursor.",
+                   min = 5, max = 60, step = 1 }
+        cT:Slider{ key = "trailSize", label = "Size",
+                   desc = "In pixels, independent of the ring's own size.",
+                   min = 8, max = 64, step = 2 }
+        cT:Slider{ key = "trailDuration", label = "Fade time",
+                   desc = "How long a copy takes to disappear. The trail fades on a clock, " ..
+                          "so it clears itself when the cursor stops.",
+                   min = 0.5, max = 10, step = 0.5, suffix = "s" }
+        cT:Slider{ key = "trailAlpha", label = "Opacity",
+                   min = 0, max = 100, step = 5, suffix = "%" }
+        cT:EndGate()
+
         -- ── Click circle ─────────────────────────────────────────
         local c2 = page:Card("Click circle",
             "A ring shown while a mouse button is held down.")

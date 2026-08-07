@@ -21,6 +21,20 @@ Cursor.Textures = {
 }
 Cursor.TextureOrder = { "Thin", "Medium", "Thick", "Aura 1", "Aura 2", "Circle" }
 
+-- THE TRAIL NEEDS A FILLED SHAPE, NOT A RING.
+--
+-- The first version reused the cursor's own ring art, and it was effectively
+-- invisible: a thin outline, shrunk as it fades, at half opacity, in additive
+-- blend, leaves almost nothing to see. A trail reads as a trail when each
+-- sample is a soft dot -- which is what NaowhQOL defaults to, and why theirs
+-- looks like a trail and the first attempt here did not.
+Cursor.TrailTextures = {
+    ["Dot"]    = MEDIA .. "TrailDot.png",
+    ["Circle"] = MEDIA .. "Circle.tga",
+    ["Ring"]   = MEDIA .. "nauraThin.png",
+}
+Cursor.TrailOrder = { "Dot", "Circle", "Ring" }
+
 -- ============================================================
 -- DB helpers
 -- ============================================================
@@ -83,6 +97,276 @@ end
 -- ============================================================
 -- Frame creation
 -- ============================================================
+-- ============================================================
+-- Opacity, in and out of combat
+--
+-- One multiplier over the whole cursor display -- ring, click ring and trail --
+-- rather than three separate alphas, so the three cannot drift apart.
+--
+-- BEING IN AN INSTANCE COUNTS AS COMBAT. Copied deliberately from NaowhQOL:
+-- inside a dungeon or a raid you are between pulls far more often than you are
+-- genuinely idle, and a cursor that brightens and dims on every regen event is
+-- worse than one that simply stays put for the whole run.
+-- ============================================================
+local inCombat, inInstance = false, false
+
+local function RefreshCombatState()
+    inCombat = (InCombatLockdown() or UnitAffectingCombat("player")) and true or false
+    local isInst, kind = IsInInstance()
+    inInstance = (isInst and (kind == "party" or kind == "raid"
+                              or kind == "pvp" or kind == "arena")) and true or false
+end
+Cursor.RefreshCombatState = RefreshCombatState
+
+-- `v == nil` rather than `not v` for the sake of saying what is meant, NOT
+-- because 0 needs protecting: in Lua only nil and false are false, so 0 passes
+-- through `or` untouched. (Written down because this file previously claimed
+-- the opposite three separate times.)
+function Cursor.CurrentOpacity()
+    local db = GetDB()
+    local v
+    if inCombat or inInstance then v = db.opacityInCombat else v = db.opacityOutOfCombat end
+    if v == nil then v = 100 end
+    v = v / 100
+    if v < 0 then v = 0 elseif v > 1 then v = 1 end
+    return v
+end
+
+-- ============================================================
+-- Trail
+--
+-- Copies of the ring dropped where the cursor has been, fading out behind it.
+--
+-- Three things here are not obvious and all three came from reading a working
+-- implementation (NaowhQOL's MouseRingDisplay) after a first attempt got them
+-- wrong:
+--
+--   * THE FADE IS ON A CLOCK, not on the segment's position in the ring. A
+--     position-based fade only advances when the cursor moves, so stopping
+--     leaves the whole trail painted on screen until you move again. Each
+--     sample carries the time it was taken and expires on its own.
+--   * SAMPLES ARE SPACED BY DISTANCE. Recording on every pixel of movement
+--     packs the entire ring into a few pixels during a slow drag, and the trail
+--     reads as one smeared blob. A new sample is only taken once the cursor has
+--     travelled a fraction of the segment size.
+--   * ADD BLEND. Flat circles stacked on top of each other look like stacked
+--     circles; additive ones read as a glow, which is the whole point.
+--
+-- The pool is allocated once at TRAIL_MAX and the length setting only decides
+-- how many of those are in play. A texture, like a frame, is never reclaimable,
+-- so growing the pool from a slider would leak on every drag of it.
+-- ============================================================
+local TRAIL_MAX = 60
+
+local trailFrame
+local trailPts   = {}
+local trailHead  = 0
+local trailLastX, trailLastY = 0, 0
+local trailActive = 0
+
+local function TrailLength(db)
+    local n = db.trailLength
+    if n == nil then n = 20 end
+    n = math.floor(n)
+    if n < 2 then n = 2 elseif n > TRAIL_MAX then n = TRAIL_MAX end
+    return n
+end
+
+local function EnsureTrail(db)
+    if trailFrame then return end
+
+    trailFrame = CreateFrame("Frame", "SP_CursorTrail", UIParent)
+    trailFrame:SetPoint("BOTTOMLEFT")
+    trailFrame:SetSize(1, 1)
+    trailFrame:SetFrameStrata("MEDIUM")
+    -- Under the cursor circle (200) and the click ring (199).
+    trailFrame:SetFrameLevel(198)
+    trailFrame:EnableMouse(false)
+    trailFrame:Hide()
+
+    for i = 1, TRAIL_MAX do
+        local t = trailFrame:CreateTexture(nil, "BACKGROUND")
+        t:SetBlendMode("ADD")
+        t:Hide()
+        trailPts[i] = { tex = t, x = 0, y = 0, time = 0, active = false }
+    end
+end
+
+-- Re-applied whenever the shape setting moves, not captured once at creation:
+-- the pool outlives every settings change.
+local trailTexApplied
+local function ApplyTrailTexture(db)
+    local shape = db.trailShape or "Dot"
+    if shape == trailTexApplied then return end
+    trailTexApplied = shape
+    local path = Cursor.TrailTextures[shape] or Cursor.TrailTextures["Dot"]
+    for i = 1, #trailPts do trailPts[i].tex:SetTexture(path) end
+end
+
+local function ClearTrail()
+    for i = 1, #trailPts do
+        trailPts[i].active = false
+        trailPts[i].tex:Hide()
+    end
+    trailHead, trailActive = 0, 0
+    if trailFrame then trailFrame:Hide() end
+end
+Cursor.ClearTrail = ClearTrail
+
+-- Pushes the current opacity onto every piece. Called from the tick and from
+-- the combat events, so a regen change lands immediately rather than waiting
+-- for the next mouse move.
+local function ApplyOpacity()
+    local a = Cursor.CurrentOpacity()
+    if mainFrame  then mainFrame:SetAlpha(a)  end
+    if clickFrame then clickFrame:SetAlpha(a) end
+    if trailFrame then trailFrame:SetAlpha(a) end
+end
+Cursor.ApplyOpacity = ApplyOpacity
+
+-- Called on EVERY tick, not only when the cursor moves: expiring the old
+-- samples is half the job.
+local function UpdateTrail(db)
+    if not db.trail then
+        if trailActive > 0 or (trailFrame and trailFrame:IsShown()) then ClearTrail() end
+        return
+    end
+
+    EnsureTrail(db)
+    ApplyTrailTexture(db)
+    trailFrame:Show()
+
+    local n = TrailLength(db)
+    -- Absolute pixels, not a share of the ring: the two are independent, and a
+    -- percentage of something the user also tunes is impossible to reason about.
+    local size = db.trailSize
+    if size == nil then size = 24 end
+    local now   = GetTime()
+    local scale = UIParent:GetEffectiveScale()
+
+    local x, y = GetCursorPosition()
+    x, y = x / scale, y / scale
+
+    -- New sample only once the cursor has actually gone somewhere.
+    local spacing = size * 0.10
+    if spacing < 2 then spacing = 2 end
+    local dx, dy = x - trailLastX, y - trailLastY
+    if dx * dx + dy * dy >= spacing * spacing then
+        trailLastX, trailLastY = x, y
+        trailHead = (trailHead % n) + 1
+        local pt = trailPts[trailHead]
+        if not pt.active then trailActive = trailActive + 1 end
+        pt.x, pt.y, pt.time, pt.active = x, y, now, true
+    end
+
+    if trailActive == 0 then return end
+
+    -- The nil test on the duration is load-bearing for a different reason than
+    -- the usual one: a stored 0 would divide by zero below, so it is clamped to
+    -- a floor rather than merely defaulted. The alpha needs no such care --
+    -- 0 is true in Lua and survives an `or` perfectly well.
+    local a = db.trailAlpha
+    if a == nil then a = 50 end
+    a = a / 100
+    local dur = db.trailDuration
+    if dur == nil or dur < 0.1 then dur = 0.6 end
+
+    local r, g, b = GetCursorColor()
+
+    for i = 1, TRAIL_MAX do
+        local pt = trailPts[i]
+        if pt.active then
+            local fade = 1 - (now - pt.time) / dur
+            if fade <= 0 then
+                pt.active = false
+                pt.tex:Hide()
+                trailActive = trailActive - 1
+            else
+                pt.tex:ClearAllPoints()
+                pt.tex:SetPoint("CENTER", trailFrame, "BOTTOMLEFT", pt.x, pt.y)
+                pt.tex:SetSize(size * fade, size * fade)
+                pt.tex:SetVertexColor(r, g, b, a * fade)
+                pt.tex:Show()
+            end
+        end
+    end
+end
+
+-- Exposed so the ring and the fade are testable without an OnUpdate. The game
+-- path still goes through the handler below; nothing else calls this.
+Cursor.UpdateTrailForTest = UpdateTrail
+
+-- Reports what the trail is actually doing, because the offline suite can prove
+-- the ring maths and prove nothing about whether a pixel reaches the screen.
+-- Every value below is one that, if wrong, makes the trail invisible while
+-- everything else looks correct.
+-- Plants a burst of samples around the cursor so the state is OBSERVABLE rather
+-- than caught by luck. Reading the live numbers a second after you stopped
+-- moving reports zero actives and tells you nothing: the samples expired, which
+-- is correct behaviour and looks identical to never sampling at all.
+function Cursor.DebugTrail()
+    local db = GetDB()
+    local function say(k, v) print(("  %-16s %s"):format(k, tostring(v))) end
+
+    print("|cffE51039SuspicionsPack|r cursor trail:")
+    say("module enabled", db.enabled)
+    say("trail", db.trail)
+    say("driver shown", mainFrame and mainFrame:IsShown())   -- the OnUpdate lives here
+    say("frame", trailFrame and "created" or "NEVER CREATED")
+    if not trailFrame then return end
+    say("frame shown", trailFrame:IsShown())
+    say("frame alpha", trailFrame:GetAlpha())
+    say("combat/inst", tostring(inCombat) .. " / " .. tostring(inInstance))
+    say("opacity now", Cursor.CurrentOpacity())
+    say("strata/level", trailFrame:GetFrameStrata() .. " / " .. trailFrame:GetFrameLevel())
+    say("pool", #trailPts)
+    say("active", trailActive)
+    say("length", TrailLength(db))
+    say("shape", db.trailShape)
+    say("size", db.trailSize)
+    say("alpha", db.trailAlpha)
+    say("duration", db.trailDuration)
+
+    local shown, sample = 0, nil
+    for i = 1, #trailPts do
+        if trailPts[i].tex:IsShown() then
+            shown = shown + 1
+            sample = sample or trailPts[i]
+        end
+    end
+    say("textures shown", shown)
+    if sample then
+        local w = sample.tex:GetWidth()
+        say("first at", ("%.0f, %.0f  size %.1f"):format(sample.x, sample.y, w or -1))
+        say("texture file", sample.tex:GetTexture())
+    end
+    local x, y = GetCursorPosition()
+    say("cursor raw", ("%.0f, %.0f  scale %.2f"):format(x, y, UIParent:GetEffectiveScale()))
+
+    -- Force a fan of samples so something is definitely on screen, then report
+    -- what came of it. If this shows textures and you still see nothing, the
+    -- fault is visual -- texture, blend or colour -- not the sampling.
+    if not (db.enabled and db.trail and trailFrame) then return end
+    local sc = UIParent:GetEffectiveScale()
+    local cx, cy = x / sc, y / sc
+    for i = 1, 10 do
+        trailLastX, trailLastY = -99999, -99999   -- force the distance test
+        UpdateTrail(db)
+        trailPts[trailHead].x = cx + i * 18
+        trailPts[trailHead].y = cy
+    end
+    UpdateTrail(db)
+
+    local n2 = 0
+    for i = 1, #trailPts do if trailPts[i].tex:IsShown() then n2 = n2 + 1 end end
+    print(("  |cff8AE234forced 10 samples -> %d textures shown, active %d|r"):format(n2, trailActive))
+    local t = trailPts[trailHead].tex
+    print(("  |cff8AE234first: %s  %.0fx%.0f  rgba %.2f %.2f %.2f %.2f|r"):format(
+        tostring(t:GetTexture()), t:GetWidth() or -1, t:GetHeight() or -1,
+        select(1, t:GetVertexColor()), select(2, t:GetVertexColor()),
+        select(3, t:GetVertexColor()), select(4, t:GetVertexColor())))
+end
+
 local function CreateCursorFrame()
     if mainFrame then return end
 
@@ -150,6 +434,12 @@ local function CreateCursorFrame()
         end
 
         local x, y = GetCursorPosition()
+
+        -- Outside the moved-check: samples expire on a clock, so the trail has
+        -- to keep being drawn while the cursor sits still or it freezes on
+        -- screen at full opacity.
+        UpdateTrail(cdb0)
+        ApplyOpacity()
 
         if x ~= _lastCX or y ~= _lastCY then
             _lastCX, _lastCY = x, y
@@ -257,6 +547,17 @@ function Cursor.Activate()
     if not db.enabled then return end
     if not mainFrame then CreateCursorFrame() end
     mainFrame:Show()
+
+    RefreshCombatState()
+    ApplyOpacity()
+    Cursor:RegisterEvent("PLAYER_REGEN_DISABLED",  "OnCombatState")
+    Cursor:RegisterEvent("PLAYER_REGEN_ENABLED",   "OnCombatState")
+    Cursor:RegisterEvent("PLAYER_ENTERING_WORLD",  "OnCombatState")
+end
+
+function Cursor:OnCombatState()
+    RefreshCombatState()
+    ApplyOpacity()
 end
 
 function Cursor.Deactivate()
@@ -264,6 +565,13 @@ function Cursor.Deactivate()
     -- UIParent: hiding it is what actually stops the driver.
     if mainFrame   then mainFrame:Hide()  end
     if clickFrame  then clickFrame:Hide() end
+    -- The trail lives on its own UIParent-parented frame, so hiding mainFrame
+    -- does not take it with them: it would sit there frozen at the last spot
+    -- the cursor happened to be.
+    ClearTrail()
+    Cursor:UnregisterEvent("PLAYER_REGEN_DISABLED")
+    Cursor:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    Cursor:UnregisterEvent("PLAYER_ENTERING_WORLD")
     if _previewClickTimer then
         _previewClickTimer:Cancel()
         _previewClickTimer = nil

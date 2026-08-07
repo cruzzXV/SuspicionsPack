@@ -1,24 +1,27 @@
-# Le dépôt ne contient que l'addon.
+# LISTE BLANCHE, PAS LISTE NOIRE.
+#
+# Tout est ignoré à la racine, et seuls nos dossiers sont réintégrés. Ce dossier
+# de travail contient aussi les addons des autres — on y dépose une copie pour
+# lire leur code, et une liste noire oblige à ajouter une règle à chaque fois.
+# On l'oublie : NaowhQOL, NaowhUI et NaowhUI_Data ont bien failli partir dans un
+# push, 454 fichiers dont des polices et des sons qui ne sont pas à nous.
+#
+# Avec une liste blanche, un dossier déposé ici demain est ignoré sans que
+# personne ait à y penser. Pour publier quelque chose de nouveau il faut une
+# ligne explicite ci-dessous, ce qui est exactement le bon sens de la décision.
+/*
 
-# Notes de travail à la racine — seuls le changelog et le readme sont publiés.
-/*.md
+!/.gitignore
+!/.github/
 !/CHANGELOG.md
 !/README.md
 
-# Outillage local
-/tests/
+!/SuspicionsPack/
+!/SuspicionsPack_Config/
+!/SuspicionsPackClassIcons/
+!/SuspicionsPackNudgeTool/
 
-# Addons tiers qui partagent ce dossier
-EllesmereUI*/
-NorskenUI/
-Leatrix_Plus/
-
-# Artefacts
-*.zip
-*.bundle
-_backup_pre-gui-rework/
-
-# Bruit système / éditeur
+# Bruit système / éditeur, y compris dans nos dossiers.
 .DS_Store
 Thumbs.db
 desktop.ini

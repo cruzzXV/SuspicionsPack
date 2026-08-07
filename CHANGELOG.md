@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-08-07 — v2.3.0
+
+### Cursor circle — traînée
+
+Des copies de l'anneau laissées derrière le curseur, qui s'effacent.
+
+Trois points ne sont pas devinables et viennent tous de la lecture d'une
+implémentation qui tourne (NaowhQOL, `MouseRingDisplay`), après une première
+version qui les avait ratés :
+
+- **Le fondu est sur une horloge, pas sur la position dans l'anneau.** Un fondu
+  indexé n'avance que quand le curseur bouge : s'arrêter laisse toute la traînée
+  peinte à l'écran jusqu'au mouvement suivant. Chaque échantillon porte l'heure
+  à laquelle il a été pris et expire tout seul.
+- **Les échantillons sont espacés par la distance.** Enregistrer à chaque pixel
+  tasse l'anneau entier sur quelques pixels pendant un déplacement lent, et la
+  traînée devient une tache. Un nouvel échantillon n'est pris qu'une fois le
+  curseur déplacé d'une fraction de la taille du segment.
+- **Fusion additive.** Des cercles plats empilés ressemblent à des cercles
+  empilés ; en additif ils font une lueur, ce qui est tout l'intérêt.
+
+Le pool est alloué une fois à 60 textures et le curseur de longueur décide
+seulement combien sont en jeu — une texture n'est pas plus récupérable qu'un
+cadre, donc l'agrandir depuis un réglage fuirait à chaque glissement.
+
+---
+
 ## 2026-08-07 — v2.2.0
 
 ### Release and rez — nouveau module
