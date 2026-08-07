@@ -4,6 +4,208 @@
 
 ---
 
+## 2026-08-07 — v2.1.1
+
+### Options UI rebuilt
+
+The options window was one 9286-line file, 43% of the addon's source. It is now a
+widget layer, a layout engine, a window shell and 33 one-page files — 7845 lines
+across 39 files, with four structural faults fixed along the way.
+
+#### Switching theme no longer leaks the window
+`SP.RefreshTheme` used to call `GUI:Rebuild()`, which detached the whole window
+and dropped the page cache. WoW cannot free a frame, so every preset click
+abandoned between 120 and 1800 frames depending on how many pages had been
+opened, grew a duplicate `SP_GUIMainFrame` entry in `UISpecialFrames`, and left
+the anchor picker and the profile dialog painted in the old colours forever.
+Every frame now registers a painter (`Core/Theme.lua`) and a preset change walks
+that registry: **verified at zero frames created across fifteen consecutive
+switches with all 33 pages built.** The window also stops blinking shut and
+reopening.
+
+#### Controls re-read their settings
+No widget used to re-read the database. After a profile import or a colour reset
+the window kept showing the old values until it was closed and reopened. Every
+widget now binds to `db` + `key` and re-reads on demand, so a page is current
+whenever it is shown.
+
+#### Disabled now means disabled
+The old cascade fell back to a 40% fade for any row that did not implement its
+own disable, and `EnableMouse` does not cascade to child buttons in WoW. Greyed
+buttons, anchor grids and item rows all still fired. Every widget now blocks
+input, and a card whose settings are all off gets a mouse blocker over it.
+
+#### New in the window
+- **Search** across every setting on every page, not just page names — typing
+  "threshold" finds Repair warning.
+- **Change tracking**: "N settings changed" and "Reset page" in the footer,
+  updated live as you edit.
+- **State dots** in the sidebar showing which modules are on.
+- **Descriptions** under the labels instead of hover-only tooltips.
+- Breadcrumb in the header, profile name in the footer, window position and size
+  now persist across reloads.
+
+#### Module bugs fixed along the way
+- **Micro menu skin** had a master switch and 13 sub-settings with no cascade at
+  all — nothing greyed, nothing disabled.
+- **Death alert**'s master switch re-enabled the text-to-speech rows its own
+  sub-switch had just disabled.
+- **Potion alert** leaked a permanently registered voice-list listener on every
+  theme change, and applied its sub-state before its master state.
+- **Auto buy**: 15 of the 25 shipped item defaults were stored under the wrong
+  item ID and could never be read. Rekeyed.
+- **ReapPredict** settings were silently discarded by profile import, because
+  `SP.DEFAULTS` — which import filters against — held only `enabled` for it. All
+  50 layout and colour keys added.
+- **Copy anything** and **Auto buy** wrote to your saved settings merely by
+  having their page opened.
+- **Enhanced objective text**'s Preview fired while the module was off, leaving
+  Blizzard's error frame permanently resized.
+- **Repair warning**, **Combat timer**, **Gateway alert**, **Bloodlust alert**,
+  **Movement alert**, **Combat cross** and **Cursor** were missing defaults for
+  settings their modules read, so those settings could not be reset and were
+  dropped on profile import.
+
+#### Visual pass
+
+Reworked against the approved design after three rounds of side-by-side review:
+
+- **Rows are one line** — label and description on the left, control on the
+  right. They were stacked full-width, which doubled the height of every card
+  and made the rest of the spacing meaningless.
+- **Page header** — each module page opens with its name, a one-line
+  explanation, and its master switch on the right, outside the cards. Card
+  titles are quiet uppercase group labels rather than accent headings.
+- **Rounded corners** — `SetBackdrop` cannot draw a radius, so the window and
+  the cards use nine-sliced textures. Buttons, fields and dropdowns are square
+  with a visible frame.
+- **Palette** — `border` was pure black against a near-black background, so no
+  card edge or hairline was ever visible. The whole Suspicion palette is
+  realigned; it is now the only theme, and the theme picker is gone.
+- **Disabled means recoloured, not faded.** A 40% alpha let the card show
+  through a disabled slider and read as a rendering fault.
+- Dropdowns regained their chevron and its open/close animation; the close
+  button is a drawn X; the accent bar across the top of the window is gone;
+  per-row modified pips and revert arrows are gone (the footer counts changes
+  and offers "Reset page").
+- **Spell effect alpha** packed four sliders onto one line, which left ~150px
+  each once rows became label-left/control-right — the labels vanished
+  entirely. It is one card per class now.
+
+#### Changelog popup
+
+Rebuilt. It looked up `SP.Changelog[SP.VERSION]` and rendered an empty box when
+the running version had no entry — which is what every fresh release looks like
+— and it only ever showed one version, leaving the other 34 unread in the table.
+It now lists every release newest-first in a scrollable panel, with the `NEW` /
+`FIX` badge each entry already carried but never displayed.
+
+The rounded-surface primitives moved to `SuspicionsPack/Core/Skin.lua` so the
+popup and the options window share one implementation: the popup is shown at
+login, when the load-on-demand options addon is not loaded.
+
+#### Parent addon (`SuspicionsPack/`)
+
+- **The popup above could never appear.** Only its BODY was rewritten;
+  `SP.CheckChangelog` still returned early unless `SP.Changelog[SP.VERSION]`
+  existed, and 2.1.1 had no entry. The guard is gone — `lastSeenVersion` is the
+  correct gate, and gating on "does this exact version have notes" reintroduces
+  the bug on every release whose notes lag the toc bump. `SP.Changelog["2.1.1"]`
+  written.
+- **`change` and `remove` entries wore a FIX badge.** The popup tested
+  `e.type == "new"` and fell through to `"FIX"`, so "Removed AutoPI and
+  AutoInnervate modules" read as a fix. `TAG_LABEL` / `TAG_COLOR` — already in
+  the file, orphaned — now drive all four types.
+- **15 dead AutoBuy tables per character.** `DEFAULTS.char.autoBuy.items` was
+  rekeyed from Quality-2 to Quality-1 item IDs, but AceDB had already rawset the
+  Q2 tables into every character's saved data and `SP.RunMigrations` had no
+  `char` scope at all. Scope added; migration registered. No user data is
+  affected — every write has always landed on the Q1 key.
+- **A profile naming a removed theme preset** ("Dracula") kept that string
+  forever with no UI left to clear it. Normalised by migration.
+- **Minimap button border** is hardcoded black again. It is the one element in
+  the pack drawn against the game world rather than a dark panel, so the theme's
+  `#25252C` hairline — right everywhere else — is wrong here.
+- **The slice audit** retained a table per skinned surface for the session
+  (1415 after building every page) to serve one debug helper, in the file
+  deliberately on the login path. Now behind `Skin.audit`, off by default, on in
+  the tests.
+- Dead code removed from the login path (`SP_CL_*`, `CL_AnimateBorderFocus`,
+  `SP.ThemePresetOrder`); `%\d` → `%d` in the version sort; `SP.ShowChangelogPopup`
+  guards `SP.Skin`; the `Cursor` and `Drawer` fallbacks that disagreed with
+  `SP.DEFAULTS` aligned to it, now that the options UI resets against `DEFAULTS`.
+
+#### Found by independent review, after the suite was already green
+
+Three reviewers went over the core layer, all 32 pages against the old builders,
+and the parent addon. **No DB key was renamed anywhere** and the 76 added
+defaults all match the fallback their module actually uses — but the suite's 47
+assertions had missed four things that stop the window doing its job. Each of the
+fixes below now carries an assertion, and each assertion was counter-tested by
+putting the bug back once.
+
+- **Lists longer than ten entries could not be scrolled.** The popup clips to ten
+  rows and had no wheel handler, so a font list — 20 to 100 entries with ElvUI or
+  WeakAuras installed — simply had no eleventh entry. It is a real `ScrollFrame`
+  now, the same primitive the sidebar and the page canvas use, with a scrollbar
+  on the right so it is visible that the list continues, and it opens on the
+  current value rather than at the top.
+- **The on/off toast is back.** 32 module switches announced themselves in the
+  middle of the screen before the rebuild; the migration dropped it in favour of
+  the sidebar dot, which only helps if you are looking at the sidebar — and you
+  are looking at the switch you just clicked. It reads the accent live, so it
+  follows the theme.
+- **The bottom of a page could not be reached** whenever a description wrapped to
+  two lines. `Page:Restack` resizes the container; the scroll range comes from the
+  scroll child, which was only ever set at build time. It corrected itself if you
+  left the page and came back, which is why it survived testing.
+- **A repaint un-greyed the whole window.** Painters write the enabled colour
+  unconditionally, so after a profile import every disabled control read as
+  enabled while still refusing clicks. A profile change also never re-evaluated
+  the master switches. Both paths re-apply the gates now.
+- **Combat timer's Format list stored values the module does not understand**, so
+  the milliseconds format was unreachable and two of three options did nothing.
+- Custom rows (the Auto buy grid, the cursor texture pickers, the macro rows)
+  left their child buttons clickable while greyed — `EnableMouse` does not
+  cascade, and the card's blocker only appears once every row in the card is off.
+- Gates were resolved in one pass over registration order, so a nested gate's
+  outcome depended on which toggle the page happened to declare first.
+- Auto buy reported all 25 rows as modified on an untouched profile, and "Reset
+  page" then wrote 25 records that were not the defaults.
+- The colour picker dropped the stored opacity on any swatch without an opacity
+  slider, so that row counted as changed for ever after.
+- Two rows on Group invitations were invisible to both the change count and
+  "Reset page"; the Random-sound lock on Bloodlust alert came undone on every
+  return to the page; "Test voice" spoke the previous text; Combat timer left a
+  stale time on screen; the Getting-started text pointed at the deleted Themes
+  page. TankMD's copy-a-macro rows and Performance's two cleanup buttons, both
+  usable with the module off before, are usable again.
+- Typing a value into a slider suffixed `s` silently reverted, because the suffix
+  was interpolated into a Lua pattern and `%s` is the whitespace class.
+- The slice audit was skipping 632 of 1409 surfaces in silence and measuring
+  textures against their parent frame. It now reports what it could not judge,
+  and the suite holds a ceiling on that number.
+
+#### Tests
+
+`tests/` runs the whole options UI against a stubbed WoW API in real Lua 5.1:
+89 assertions, a Lua 5.1 parse gate over all 75 files, and a texture gate that
+checks the nine-slice margins against the shipped PNGs. The changelog popup, its
+caller and the migration runner are sliced out of the parent addon and run for
+real rather than stubbed. The stub now models `SetAllPoints` and fires
+`OnSizeChanged`, without which a third of the surfaces the audit checks were
+unmeasurable and the scroll-range bug above was invisible.
+
+#### Files
+- Added `SuspicionsPack_Config/Core/{Theme,Widgets,ColorWidgets,AnchorWidgets,Layout,Shell}.lua`
+- Added `SuspicionsPack_Config/Pages/` — 33 pages plus `Categories.lua`
+- Added `SuspicionsPack_Config/README.md` — the page-authoring contract
+- Removed `SuspicionsPack_Config/GUI.lua`
+- `SuspicionsPack/Core.lua` — `SP.RefreshTheme` repaints instead of rebuilding;
+  `DEFAULTS` completed for eight modules
+
+---
+
 ## 2026-05-27 — v1.8.4
 
 ### Nettoyage global — suppression des attributions et corrections de style
@@ -210,7 +412,7 @@
 ### Modules/AutoPlaystyle/AutoPlaystyle.lua — Auto-select Mythic+ group
 - Added `SelectDefaultMythicPlusGroup`: when the listing creation dialog opens, automatically selects the Mythic+ group (instead of defaulting to Mythic). Uses `C_LFGList.GetAvailableActivityGroups` / `GetAvailableActivities` to locate the M+ groupID in the dialog's category, then calls `LFGListEntryCreation_Select` deferred by one frame to let the dialog finish initialising.
 - Updated `LFGListEntryCreation_Show` hook to pass `activityID` arg for category derivation.
-- Includes CLAUDE.md-required debug prints for arg/field verification.
+- Includes the debug prints required for arg/field verification.
 
 ### Core.lua — New DB field
 - Added `autoPlaystyle.defaultMythicPlus = false` to default DB.

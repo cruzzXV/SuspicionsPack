@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.0.0"
+SP.VERSION = "2.1.1"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -212,249 +212,35 @@ end
 -- Theme presets
 -- ============================================================
 SP.ThemePresets = {
+    -- Values taken from the approved options mockup. Two things mattered:
+    -- `border` was pure black, so every card edge and hairline was invisible
+    -- against a near-black background; and the three greys sat within 0.09 of
+    -- each other, so chrome, page and card read as one flat surface.
     ["Suspicion"] = {
-        bgDark        = { 0.0235, 0.0235, 0.0235, 0.97 },
-        bgMedium      = { 0.0431, 0.0431, 0.0431, 1    },
-        bgLight       = { 0.1176, 0.1176, 0.1176, 1    },
-        bgHover       = { 0.22,   0.22,   0.24,   1    },
-        border        = { 0,      0,      0,      1    },
+        bgDark        = { 0.0667, 0.0667, 0.0784, 1    },  -- page canvas   #111114
+        bgMedium      = { 0.0902, 0.0902, 0.1098, 1    },  -- window chrome #17171C
+        bgLight       = { 0.0863, 0.0863, 0.1059, 1    },  -- cards         #16161B
+        bgHover       = { 0.1176, 0.1176, 0.1451, 1    },  --               #1E1E25
+        border        = { 0.1451, 0.1451, 0.1725, 1    },  -- visible hairline #25252C
         accent        = { 0.8980, 0.0627, 0.2235, 1    },
         accentHover   = { 0.8980, 0.0627, 0.2235, 0.25 },
         accentDim     = { 0.8980, 0.0627, 0.2235, 1    },
-        textPrimary   = { 0.95,   0.95,   0.95,   1    },
-        textSecondary = { 0.70,   0.70,   0.70,   1    },
-        textMuted     = { 0.50,   0.50,   0.50,   1    },
+        textPrimary   = { 0.9020, 0.9020, 0.9176, 1    },  --               #E6E6EA
+        textSecondary = { 0.6588, 0.6588, 0.7059, 1    },  --               #A8A8B4
+        textMuted     = { 0.4314, 0.4314, 0.4706, 1    },  --               #6E6E78
         selectedBg    = { 0.8980, 0.0627, 0.2235, 0.25 },
         selectedText  = { 0.8980, 0.0627, 0.2235, 1    },
         error         = { 0.90,   0.30,   0.30,   1    },
         success       = { 0.30,   0.80,   0.40,   1    },
         warning       = { 0.90,   0.75,   0.30,   1    },
     },
-    ["Warpaint"] = {
-        bgDark        = { 0.0745, 0.0588, 0.0510, 0.97 },
-        bgMedium      = { 0.0745, 0.0588, 0.0510, 1    },
-        bgLight       = { 0.1176, 0.1176, 0.1176, 1    },
-        bgHover       = { 0.22,   0.22,   0.24,   1    },
-        border        = { 0,      0,      0,      1    },
-        accent        = { 0.7098, 0.2000, 0.1412, 1    },
-        accentHover   = { 0.7098, 0.2000, 0.1412, 0.25 },
-        accentDim     = { 0.7098, 0.2000, 0.1412, 1    },
-        textPrimary   = { 0.95,   0.95,   0.95,   1    },
-        textSecondary = { 0.70,   0.70,   0.70,   1    },
-        textMuted     = { 0.50,   0.50,   0.50,   1    },
-        selectedBg    = { 0.7098, 0.2000, 0.1412, 0.25 },
-        selectedText  = { 0.7098, 0.2000, 0.1412, 1    },
-        error         = { 0.90,   0.30,   0.30,   1    },
-        success       = { 0.30,   0.80,   0.40,   1    },
-        warning       = { 0.90,   0.75,   0.30,   1    },
-    },
-    ["Greenwake"] = {
-        bgDark        = { 0.031, 0.106, 0.106, 0.97 },
-        bgMedium      = { 0.031, 0.106, 0.106, 1    },
-        bgLight       = { 0.125, 0.231, 0.216, 1    },
-        bgHover       = { 0.22,  0.22,  0.24,  1    },
-        border        = { 0,     0,     0,     1    },
-        accent        = { 0.933, 0.910, 0.698, 1    },
-        accentHover   = { 0.933, 0.910, 0.698, 0.25 },
-        accentDim     = { 0.933, 0.910, 0.698, 1    },
-        textPrimary   = { 0.95,  0.95,  0.95,  1    },
-        textSecondary = { 0.70,  0.70,  0.70,  1    },
-        textMuted     = { 0.50,  0.50,  0.50,  1    },
-        selectedBg    = { 0.933, 0.910, 0.698, 0.25 },
-        selectedText  = { 0.933, 0.910, 0.698, 1    },
-        error         = { 0.90,  0.30,  0.30,  1    },
-        success       = { 0.30,  0.80,  0.40,  1    },
-        warning       = { 0.90,  0.75,  0.30,  1    },
-    },
-    ["Timberfall"] = {
-        bgDark        = { 0.092, 0.069, 0.018, 0.97 },
-        bgMedium      = { 0.092, 0.069, 0.018, 1    },
-        bgLight       = { 0.1176, 0.1176, 0.1176, 1    },
-        bgHover       = { 0.22,  0.22,  0.24,  1    },
-        border        = { 0,     0,     0,     1    },
-        accent        = { 0.988, 0.361, 0.008, 1    },
-        accentHover   = { 0.988, 0.361, 0.008, 0.25 },
-        accentDim     = { 0.988, 0.361, 0.008, 1    },
-        textPrimary   = { 0.95,  0.95,  0.95,  1    },
-        textSecondary = { 0.70,  0.70,  0.70,  1    },
-        textMuted     = { 0.50,  0.50,  0.50,  1    },
-        selectedBg    = { 0.988, 0.361, 0.008, 0.25 },
-        selectedText  = { 0.988, 0.361, 0.008, 1    },
-        error         = { 0.90,  0.30,  0.30,  1    },
-        success       = { 0.30,  0.80,  0.40,  1    },
-        warning       = { 0.90,  0.75,  0.30,  1    },
-    },
-    ["Obsidian"] = {
-        bgDark        = { 0.014, 0.047, 0.063, 0.97 },
-        bgMedium      = { 0.014, 0.047, 0.063, 1    },
-        bgLight       = { 0.114, 0.147, 0.163, 1    },
-        bgHover       = { 0.22,  0.22,  0.24,  1    },
-        border        = { 0,     0,     0,     1    },
-        accent        = { 0.900, 0.467, 0.976, 1    },
-        accentHover   = { 0.900, 0.467, 0.976, 0.25 },
-        accentDim     = { 0.900, 0.467, 0.976, 1    },
-        textPrimary   = { 0.95,  0.95,  0.95,  1    },
-        textSecondary = { 0.70,  0.70,  0.70,  1    },
-        textMuted     = { 0.50,  0.50,  0.50,  1    },
-        selectedBg    = { 0.900, 0.467, 0.976, 0.15 },
-        selectedText  = { 0.900, 0.467, 0.976, 1    },
-        error         = { 0.90,  0.30,  0.30,  1    },
-        success       = { 0.30,  0.80,  0.40,  1    },
-        warning       = { 0.90,  0.75,  0.30,  1    },
-    },
-    ["Blorb"] = {
-        bgDark        = { 0.0588, 0.0559, 0.0294, 0.97 },
-        bgMedium      = { 0.0588, 0.0559, 0.0294, 1    },
-        bgLight       = { 0.1019, 0.0969, 0.0510, 1    },
-        bgHover       = { 0.22,   0.22,   0.24,   1    },
-        border        = { 0,      0,      0,      1    },
-        accent        = { 0.7451, 0.9412, 0.0000, 1    },
-        accentHover   = { 0.7451, 0.9412, 0.0000, 0.25 },
-        accentDim     = { 0.7451, 0.9412, 0.0000, 1    },
-        textPrimary   = { 0.95,   0.95,   0.95,   1    },
-        textSecondary = { 0.70,   0.70,   0.70,   1    },
-        textMuted     = { 0.50,   0.50,   0.50,   1    },
-        selectedBg    = { 0.7451, 0.9412, 0.0000, 0.25 },
-        selectedText  = { 0.7451, 0.9412, 0.0000, 1    },
-        error         = { 0.90,   0.30,   0.30,   1    },
-        success       = { 0.30,   0.80,   0.40,   1    },
-        warning       = { 0.90,   0.75,   0.30,   1    },
-    },
-    ["Frost"] = {
-        bgDark        = { 0.024, 0.078, 0.106, 0.97 },
-        bgMedium      = { 0.024, 0.078, 0.106, 1    },
-        bgLight       = { 0.067, 0.129, 0.176, 1    },
-        bgHover       = { 0.22,  0.22,  0.24,  1    },
-        border        = { 0,     0,     0,     1    },
-        accent        = { 0.790, 0.857, 0.872, 1    },
-        accentHover   = { 0.790, 0.857, 0.872, 0.25 },
-        accentDim     = { 0.790, 0.857, 0.872, 1    },
-        textPrimary   = { 0.95,  0.95,  0.95,  1    },
-        textSecondary = { 0.70,  0.70,  0.70,  1    },
-        textMuted     = { 0.50,  0.50,  0.50,  1    },
-        selectedBg    = { 0.790, 0.857, 0.872, 0.25 },
-        selectedText  = { 0.790, 0.857, 0.872, 1    },
-        error         = { 0.90,  0.30,  0.30,  1    },
-        success       = { 0.30,  0.80,  0.40,  1    },
-        warning       = { 0.90,  0.75,  0.30,  1    },
-    },
-    -- Catppuccin Mocha: #11111b bg / #313244 surface / #89b4fa blue accent
-    ["Catppuccin"] = {
-        bgDark        = { 0.067, 0.067, 0.106, 0.97 },
-        bgMedium      = { 0.067, 0.067, 0.106, 1    },
-        bgLight       = { 0.192, 0.196, 0.267, 1    },
-        bgHover       = { 0.22,  0.22,  0.28,  1    },
-        border        = { 0,     0,     0,     1    },
-        accent        = { 0.537, 0.706, 0.980, 1    },
-        accentHover   = { 0.537, 0.706, 0.980, 0.25 },
-        accentDim     = { 0.537, 0.706, 0.980, 1    },
-        textPrimary   = { 0.95,  0.95,  0.95,  1    },
-        textSecondary = { 0.70,  0.70,  0.70,  1    },
-        textMuted     = { 0.50,  0.50,  0.50,  1    },
-        selectedBg    = { 0.537, 0.706, 0.980, 0.20 },
-        selectedText  = { 0.537, 0.706, 0.980, 1    },
-        error         = { 0.90,  0.30,  0.30,  1    },
-        success       = { 0.30,  0.80,  0.40,  1    },
-        warning       = { 0.90,  0.75,  0.30,  1    },
-    },
-    -- Rosé Pine: #191724 bg / #1f1d2e surface / #eb6f92 rose accent
-    ["Rosé Pine"] = {
-        bgDark        = { 0.098, 0.090, 0.141, 0.97 },
-        bgMedium      = { 0.098, 0.090, 0.141, 1    },
-        bgLight       = { 0.122, 0.114, 0.180, 1    },
-        bgHover       = { 0.22,  0.20,  0.26,  1    },
-        border        = { 0,     0,     0,     1    },
-        accent        = { 0.922, 0.435, 0.573, 1    },
-        accentHover   = { 0.922, 0.435, 0.573, 0.25 },
-        accentDim     = { 0.922, 0.435, 0.573, 1    },
-        textPrimary   = { 0.95,  0.95,  0.95,  1    },
-        textSecondary = { 0.70,  0.70,  0.70,  1    },
-        textMuted     = { 0.50,  0.50,  0.50,  1    },
-        selectedBg    = { 0.922, 0.435, 0.573, 0.20 },
-        selectedText  = { 0.922, 0.435, 0.573, 1    },
-        error         = { 0.90,  0.30,  0.30,  1    },
-        success       = { 0.30,  0.80,  0.40,  1    },
-        warning       = { 0.90,  0.75,  0.30,  1    },
-    },
-    -- Tokyo Night: #1a1b26 bg / #24283b surface / #bb9af7 purple accent
-    ["Tokyo Night"] = {
-        bgDark        = { 0.102, 0.106, 0.149, 0.97 },
-        bgMedium      = { 0.102, 0.106, 0.149, 1    },
-        bgLight       = { 0.141, 0.157, 0.231, 1    },
-        bgHover       = { 0.22,  0.22,  0.28,  1    },
-        border        = { 0,     0,     0,     1    },
-        accent        = { 0.733, 0.604, 0.969, 1    },
-        accentHover   = { 0.733, 0.604, 0.969, 0.25 },
-        accentDim     = { 0.733, 0.604, 0.969, 1    },
-        textPrimary   = { 0.95,  0.95,  0.95,  1    },
-        textSecondary = { 0.70,  0.70,  0.70,  1    },
-        textMuted     = { 0.50,  0.50,  0.50,  1    },
-        selectedBg    = { 0.733, 0.604, 0.969, 0.20 },
-        selectedText  = { 0.733, 0.604, 0.969, 1    },
-        error         = { 0.90,  0.30,  0.30,  1    },
-        success       = { 0.30,  0.80,  0.40,  1    },
-        warning       = { 0.90,  0.75,  0.30,  1    },
-    },
-    -- Nord: #2e3440 bg / #3b4252 surface / #88c0d0 arctic cyan accent
-    ["Nord"] = {
-        bgDark        = { 0.180, 0.204, 0.251, 0.97 },
-        bgMedium      = { 0.180, 0.204, 0.251, 1    },
-        bgLight       = { 0.231, 0.259, 0.322, 1    },
-        bgHover       = { 0.27,  0.29,  0.36,  1    },
-        border        = { 0,     0,     0,     1    },
-        accent        = { 0.533, 0.753, 0.816, 1    },
-        accentHover   = { 0.533, 0.753, 0.816, 0.25 },
-        accentDim     = { 0.533, 0.753, 0.816, 1    },
-        textPrimary   = { 0.95,  0.95,  0.95,  1    },
-        textSecondary = { 0.70,  0.70,  0.70,  1    },
-        textMuted     = { 0.50,  0.50,  0.50,  1    },
-        selectedBg    = { 0.533, 0.753, 0.816, 0.20 },
-        selectedText  = { 0.533, 0.753, 0.816, 1    },
-        error         = { 0.90,  0.30,  0.30,  1    },
-        success       = { 0.30,  0.80,  0.40,  1    },
-        warning       = { 0.90,  0.75,  0.30,  1    },
-    },
-    -- Dracula: #282a36 bg / #44475a surface / #bd93f9 purple accent
-    ["Dracula"] = {
-        bgDark        = { 0.157, 0.165, 0.212, 0.97 },
-        bgMedium      = { 0.157, 0.165, 0.212, 1    },
-        bgLight       = { 0.267, 0.278, 0.353, 1    },
-        bgHover       = { 0.30,  0.30,  0.38,  1    },
-        border        = { 0,     0,     0,     1    },
-        accent        = { 0.741, 0.576, 0.976, 1    },
-        accentHover   = { 0.741, 0.576, 0.976, 0.25 },
-        accentDim     = { 0.741, 0.576, 0.976, 1    },
-        textPrimary   = { 0.95,  0.95,  0.95,  1    },
-        textSecondary = { 0.70,  0.70,  0.70,  1    },
-        textMuted     = { 0.50,  0.50,  0.50,  1    },
-        selectedBg    = { 0.741, 0.576, 0.976, 0.20 },
-        selectedText  = { 0.741, 0.576, 0.976, 1    },
-        error         = { 0.90,  0.30,  0.30,  1    },
-        success       = { 0.30,  0.80,  0.40,  1    },
-        warning       = { 0.90,  0.75,  0.30,  1    },
-    },
-    -- Gruvbox: #282828 bg / #3c3836 surface / #fabd2f warm yellow accent
-    ["Gruvbox"] = {
-        bgDark        = { 0.157, 0.157, 0.157, 0.97 },
-        bgMedium      = { 0.157, 0.157, 0.157, 1    },
-        bgLight       = { 0.235, 0.220, 0.212, 1    },
-        bgHover       = { 0.28,  0.26,  0.24,  1    },
-        border        = { 0,     0,     0,     1    },
-        accent        = { 0.980, 0.741, 0.184, 1    },
-        accentHover   = { 0.980, 0.741, 0.184, 0.25 },
-        accentDim     = { 0.980, 0.741, 0.184, 1    },
-        textPrimary   = { 0.95,  0.95,  0.95,  1    },
-        textSecondary = { 0.70,  0.70,  0.70,  1    },
-        textMuted     = { 0.50,  0.50,  0.50,  1    },
-        selectedBg    = { 0.980, 0.741, 0.184, 0.20 },
-        selectedText  = { 0.980, 0.741, 0.184, 1    },
-        error         = { 0.90,  0.30,  0.30,  1    },
-        success       = { 0.30,  0.80,  0.40,  1    },
-        warning       = { 0.90,  0.75,  0.30,  1    },
-    },
 }
 
-SP.ThemePresetOrder = { "Suspicion", "Warpaint", "Greenwake", "Timberfall", "Obsidian", "Blorb", "Frost", "Catppuccin", "Rosé Pine", "Tokyo Night", "Nord", "Dracula", "Gruvbox" }
+-- One theme. The picker and the other twelve presets are gone: the addon has
+-- a single visual identity and thirteen palettes to maintain was not one.
+-- SP.ThemePresetOrder went with them -- it existed only to order the picker's
+-- dropdown, and a one-entry ordering table with no reader is just a claim that
+-- a picker still exists somewhere.
 
 -- ============================================================
 -- SP.Theme — live table referenced by the GUI
@@ -526,12 +312,15 @@ function SP.RefreshTheme()
         if LDBIcon and LDBIcon.Refresh then LDBIcon:Refresh("SuspicionsPack") end
     end
 
-    -- Rebuild the GUI window so new colors take effect
-    if SP.GUI then
-        local wasOpen = SP.GUI.mainFrame and SP.GUI.mainFrame:IsShown()
-        SP.GUI:Rebuild()
-        if wasOpen then SP.GUI.Show() end
-    end
+    -- Repaint the options window in place.
+    --
+    -- This used to destroy and rebuild the whole window (SetParent(nil) on the
+    -- frame, wipe the pools, drop the page cache). WoW cannot free a frame, so
+    -- every preset click abandoned the entire tree -- on the order of 1800
+    -- frames once a few pages had been visited -- and the window visibly blinked
+    -- shut and reopened. Every widget now registers a painter instead, so this
+    -- walks that registry and creates nothing.
+    if SP.GUI and SP.GUI.OnThemeChanged then SP.GUI.OnThemeChanged() end
 
     -- Repaint the drawer tab — it won't update on its own after a theme switch
     if SP.Drawer then SP.Drawer.Refresh() end
@@ -585,10 +374,23 @@ local DEFAULTS = {
             format            = "MM:SS",
             x                = 0,
             y                = 250,
+            anchorFrom       = "CENTER",
+            anchorTo         = "CENTER",
+            anchorFrame      = "UIParent",
+            frameStrata      = "TOOLTIP",
+            fontFace         = "Expressway",
             fontSize         = 18,
             outline          = "SOFTOUTLINE",
             colorInCombat    = { 1, 0.2, 0.2, 1 },
             colorOutOfCombat = { 1, 1, 1, 0.7 },
+            colorInCombatSource    = "custom",   -- "theme" | "class" | "custom"
+            colorOutOfCombatSource = "custom",   -- "theme" | "class" | "custom"
+            -- Font shadow (only read when shadowEnabled is true)
+            shadowEnabled     = false,
+            shadowColorSource = "custom",   -- "theme" | "class" | "custom"
+            shadowColor       = { 0, 0, 0 },
+            shadowX           = 1,
+            shadowY           = -1,
             backdrop = {
                 enabled     = false,
                 color       = { 0, 0, 0, 0.6 },
@@ -602,6 +404,9 @@ local DEFAULTS = {
             enabled                = false,
             x                      = 0,
             y                      = 0,
+            anchorFrom             = "CENTER",
+            anchorTo               = "CENTER",
+            anchorFrame            = "UIParent",
             frameStrata            = "HIGH",
             thickness              = 14,       -- font size = thickness * 2
             outline                = true,
@@ -621,6 +426,7 @@ local DEFAULTS = {
             dotSize          = 6,
             -- Click circle (second ring, visible while mouse button held ≥ 150 ms)
             showClickCircle  = false,
+            clickMode        = "overlay",     -- "overlay" = extra ring | "replace" = morph the main ring
             clickSize        = 70,
             clickTexture     = "Thin",
             clickColorSource = "theme",       -- "theme" | "class" | "custom"
@@ -693,6 +499,72 @@ local DEFAULTS = {
         },
         reapMeter = {
             enabled = false,
+            -- Every key below is also written by LoadSizesFromDB() in
+            -- Modules/ReapPredict/ReapPredict.lua the first time the module
+            -- enables. Restated here so the options UI can show a modified dot,
+            -- revert a row, and let a profile import through -- the values MUST
+            -- stay identical to the module's own fallbacks.
+            -- layout.barTexture is deliberately absent: it has no default and
+            -- nil legitimately means "Solid".
+            layout = {
+                -- Soul bar
+                width          = 360,
+                height         = 22,
+                font           = 13,
+                fontKey        = "Arial Narrow",   -- LSM font name
+                locked         = false,
+                showSoulBar    = true,
+                showMocPreview = true,
+                showCsCounter  = true,
+                cellMode       = false,
+                mocRailOffsetX = 0,
+                mocRailOffsetY = 0,
+                -- Fury bar
+                showFuryBar        = true,
+                showFuryMocPreview = false,
+                furyWidth          = 360,
+                furyHeight         = 14,
+                furyFont           = 13,
+                furyLocked         = false,
+                furyOffsetX        = 0,
+                furyOffsetY        = 0,
+                furyPreviewAlpha   = 0.18,   -- stored 0-1; the slider works in percent
+                -- Snap to an external bar (defaults live in Snap.Wanted / Snap.Name)
+                snapToBar   = false,
+                snapBarName = "ERB_PrimaryBar",   -- EllesmereUI's primary (power) bar
+                -- Cooldown Manager sync
+                syncToCDM  = false,
+                cdmOffsetX = 0,
+                cdmOffsetY = -4,
+                -- Fading
+                fadingEnabled         = false,
+                fadingOpacity         = 0,
+                fadingTriggerNoTarget = true,
+                fadingTriggerOOC      = false,
+                fadingTriggerMounted  = false,
+            },
+            colors = {   -- { r, g, b, a }; mirrors DEFAULT_COLORS in ReapPredict.lua
+                bg             = { 0.05, 0.04, 0.08, 0.90 },
+                edge           = { 0.02, 0.02, 0.04, 1.00 },
+                growthBuild    = { 0.30, 0.46, 0.88, 1.00 },
+                beyondBuild    = { 0.05, 0.04, 0.08, 0.90 },
+                growthVM       = { 0.18, 0.30, 0.62, 1.00 },
+                beyondVM       = { 0.05, 0.04, 0.08, 0.90 },
+                sfBase         = { 0.92, 0.62, 0.22, 1.00 },
+                sfMoc          = { 1.00, 0.76, 0.32, 1.00 },
+                mocRailFill    = { 1.00, 0.88, 0.55, 1.00 },
+                mocRailTrack   = { 0.28, 0.16, 0.06, 0.80 },
+                numberLabel    = { 0.98, 0.95, 0.88, 1.00 },
+                sfNumberLabel  = { 1.00, 0.86, 0.52, 1.00 },
+                thresholdBuild = { 0.96, 0.92, 0.78, 0.90 },
+                thresholdVM    = { 0.96, 0.92, 0.78, 0.90 },
+                furyTick       = { 0.96, 0.92, 0.78, 0.90 },
+                furyFill       = { 0.32, 0.28, 0.62, 1.00 },
+                furyConsume    = { 0.45, 0.38, 0.78, 1.00 },
+                furyFlat       = { 0.58, 0.50, 0.82, 1.00 },
+                furySoul       = { 0.68, 0.62, 0.90, 1.00 },
+                furyLabel      = { 0.98, 0.95, 0.88, 1.00 },
+            },
         },
         deathAlert = {
             enabled         = false,
@@ -738,6 +610,7 @@ local DEFAULTS = {
             fontSize         = 14,
             outline          = "OUTLINE",
             justify          = "CENTER",
+            colorSource      = "custom",   -- "theme" | "class" | "custom"
             color            = { 1, 1, 1, 1 },
             shadowX          = 1,
             shadowY          = -1,
@@ -779,7 +652,10 @@ local DEFAULTS = {
         gatewayAlert = {
             enabled     = false,
             fontSize    = 16,
+            fontFace    = "Expressway",
             fontOutline = "OUTLINE",
+            frameStrata = "HIGH",
+            colorSource = "custom",   -- "theme" | "class" | "custom"
             color       = { 0.3, 1.0, 0.4, 1 },   -- bright green
             x           = 0,
             y           = -100,
@@ -795,6 +671,7 @@ local DEFAULTS = {
             fontFace    = "Expressway",
             fontOutline = "OUTLINE",
             frameStrata = "HIGH",
+            colorSource = "custom",   -- "theme" | "class" | "custom"
             color       = { 1, 0.537, 0.2, 1 },
             x           = 0,
             y           = -200,
@@ -843,9 +720,14 @@ local DEFAULTS = {
             timerAnchorFrom   = "CENTER",
             timerAnchorTo     = "CENTER",
             timerAnchorFrame  = "UIParent",
+            frameStrata       = "HIGH",   -- strata of the timer frame (the only frame this module draws)
             timerNumColor     = { 1, 1, 1, 1 },
             timerBarColor     = { 0.93, 0.27, 0.27, 1 },
+            timerNumColorSource = "custom",   -- "theme" | "class" | "custom"
+            timerBarColorSource = "custom",   -- "theme" | "class" | "custom"
+            timerFontFace     = "Expressway",
             timerFontSize     = 22,
+            timerOutline      = "OUTLINE",
             timerShowLabel    = true,
             timerShowBar      = true,
             timerBgOpacity    = 0.85,
@@ -880,23 +762,23 @@ local DEFAULTS = {
                 -- buyQty:   BUY QTY — how many to purchase each time (0 = use preset default)
                 -- quality:  1 = buy Q1 variant, 2 = buy Q2 variant (default for items with q2)
                 -- ── Flasks ────────────────────────────────────────────
-                [241322] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Flask of the Magisters
-                [241324] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Flask of the Blood Knights
-                [241326] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Flask of the Shattered Sun
-                [241320] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Flask of Thalassian Resistance
+                [241323] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Flask of the Magisters
+                [241325] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Flask of the Blood Knights
+                [241327] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Flask of the Shattered Sun
+                [241321] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Flask of Thalassian Resistance
                 -- ── Health/Mana Potions ───────────────────────────────
-                [241304] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Silvermoon Health Potion
-                [241300] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Lightfused Mana Potion
-                [241298] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Amani Extract
-                [241286] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Light's Preservation
+                [241305] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Silvermoon Health Potion
+                [241301] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Lightfused Mana Potion
+                [241299] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Amani Extract
+                [241287] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Light's Preservation
                 -- ── Combat Potions ────────────────────────────────────
-                [241308] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Light's Potential
-                [241302] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Void-Shrouded Tincture
-                [241288] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Potion of Recklessness
-                [241292] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Draught of Rampant Abandon
-                [241294] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Potion of Devoured Dreams
-                [241296] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Potion of Zealotry
-                [241338] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Enlightenment Tonic
+                [241309] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Light's Potential
+                [241303] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Void-Shrouded Tincture
+                [241289] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Potion of Recklessness
+                [241293] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Draught of Rampant Abandon
+                [241295] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Potion of Devoured Dreams
+                [241297] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Potion of Zealotry
+                [241339] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Enlightenment Tonic
                 -- ── Augment Runes ─────────────────────────────────────
                 [259085] = { enabled = false, quantity = 0, buyQty = 0, quality = 1 }, -- Void-Touched Augment Rune (no Q2)
                 -- ── Weapon Oils ───────────────────────────────────────
@@ -1166,9 +1048,10 @@ end
 -- "/spack" → toggle the Settings GUI
 -- Loads the options UI on demand.
 --
--- GUI.lua is ~9000 lines / 43% of the pack's source and nothing needs it until
--- the user actually opens the window, so it lives in a LoadOnDemand companion
--- addon and is kept off the login path entirely.
+-- The options UI is 39 files -- a widget layer, a layout engine, a window shell
+-- and one file per page -- and nothing needs any of it until the user actually
+-- opens the window, so it lives in a LoadOnDemand companion addon and is kept
+-- off the login path entirely.
 --
 -- Returns true once SP.GUI exists. Safe to call repeatedly: LoadAddOn is a
 -- no-op on an already-loaded addon.
@@ -1186,10 +1069,10 @@ function SP.EnsureGUI()
         return false
     end
     if not SP.GUI then
-        -- LoadAddOn reported success but the file did not define SP.GUI: a Lua
-        -- error at load, or a truncated GUI.lua (which has shipped twice
-        -- before). Without this the button silently does nothing forever and
-        -- re-calls LoadAddOn on every click.
+        -- LoadAddOn reported success but nothing defined SP.GUI: a Lua error in
+        -- one of the 39 files, or an incomplete install (a truncated file has
+        -- shipped before). Without this the button silently does nothing forever
+        -- and re-calls LoadAddOn on every click.
         print("|cffff4444[SuspicionsPack]|r The options UI loaded but failed to "
               .. "initialise. Check your Lua error frame and reinstall the "
               .. "options addon.")
@@ -1208,11 +1091,31 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["2.1.1"] = {
+        { type = "new", text = "The options window has been rebuilt from scratch: rounded panels, a quieter palette, and visible card edges." },
+        { type = "new", text = "You can now search across every setting, not just the page names." },
+        { type = "new", text = "Each setting is one line now: its name and a short explanation on the left, its control on the right." },
+        { type = "new", text = "The footer counts how many settings you have changed on a page, and Reset page puts them all back." },
+        { type = "new", text = "Dots in the sidebar show at a glance which modules are switched on." },
+        { type = "new", text = "Every page opens with the module's name, what it does, and its on/off switch." },
+        { type = "new", text = "The window remembers its position and size between sessions." },
+        { type = "new", text = "Long dropdown lists have a scrollbar now, and open on the value you already have rather than at the top." },
+        { type = "fix", text = "Settings now update on screen after a profile import or a colour reset, instead of showing old values until you close and reopen the window." },
+        { type = "fix", text = "Switching a module on or off announces itself on screen again, as it did before the rebuild." },
+        { type = "fix", text = "Greyed-out buttons, anchor grids and item rows no longer respond to clicks." },
+        { type = "fix", text = "Auto Buy: 15 of the 25 preset items were stored under the wrong item ID and could never be read." },
+        { type = "fix", text = "Reap Predict settings were silently discarded when you imported a profile." },
+        { type = "fix", text = "Copy Anything and Auto Buy wrote to your saved settings just from having their page opened." },
+        { type = "fix", text = "Micro Menu Skin's master switch left its 13 sub-settings active, and Death Alert's re-enabled the speech rows its own switch had just turned off." },
+        { type = "fix", text = "Enhanced Objective Text's Preview ran while the module was off and left Blizzard's error frame resized." },
+        { type = "fix", text = "Repair Warning, Combat Timer, Gateway Alert, Bloodlust Alert, Movement Alert, Combat Cross and Cursor settings can now be reset, and survive a profile import." },
+        { type = "fix", text = "This what's-new window used to show an empty box on a fresh release, and only ever listed one version." },
+    },
     ["2.0.0"] = {
         { type = "new", text = "Full architecture rebuild. Every module was rewritten onto a shared foundation." },
         { type = "new", text = "A module you turn off now costs nothing at all \226\128\148 it registers no events and runs no code." },
         { type = "new", text = "Animations and timers stop completely when idle instead of running all session." },
-        { type = "new", text = "The options window is loaded only when you open it: 43%% less code read at login." },
+        { type = "new", text = "The options window is loaded only when you open it: 43% less code read at login." },
         { type = "new", text = "Your settings are migrated and cleaned up on upgrade." },
         { type = "fix", text = "Dozens of fixes across the pack, including settings that only applied after a /reload." },
     },
@@ -1357,14 +1260,14 @@ SP.Changelog = {
 
 -- ============================================================
 -- SP.ShowChangelogPopup()
--- Displays a themed popup with the changelog for the current version.
+-- Displays a themed popup listing every release, newest first.
 -- Called automatically on login when the version has changed.
+--
+-- TAG_COLOR / TAG_LABEL cover all four entry types SP.Changelog uses. They are
+-- immediately above the function on purpose: tests/test_gui.lua slices this
+-- region out of the file verbatim and runs it, so anything the popup reads must
+-- live inside the slice.
 -- ============================================================
-local SP_CL_FONT    = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
-local SP_CL_LOGO    = "Interface\\AddOns\\SuspicionsPack\\Media\\Icons\\icon.png"
-local SP_CL_W       = 420
-local SP_CL_PADDING = 18
-
 local TAG_COLOR = {
     new    = { 0.20, 0.85, 0.45 },
     fix    = { 0.40, 0.70, 1.00 },
@@ -1378,188 +1281,202 @@ local TAG_LABEL = {
     change = "CHANGE",
 }
 
--- Mirrors GUI.lua's AnimateBorderFocus — 0.15 s ease-out accent ↔ border transition.
-local function CL_AnimateBorderFocus(frame, focused)
-    if frame._clBorderTicker then frame._clBorderTicker:Cancel(); frame._clBorderTicker = nil end
-    local T  = SP.Theme
-    local startTime = GetTime()
-    local DUR = 0.15
-    local sr, sg, sb = frame:GetBackdropBorderColor()
-    if not sr then
-        sr = focused and T.border[1] or T.accent[1]
-        sg = focused and T.border[2] or T.accent[2]
-        sb = focused and T.border[3] or T.accent[3]
-    end
-    local tr = focused and T.accent[1] or T.border[1]
-    local tg = focused and T.accent[2] or T.border[2]
-    local tb = focused and T.accent[3] or T.border[3]
-    frame._clBorderTicker = C_Timer.NewTicker(0.016, function()
-        local p = math.min((GetTime() - startTime) / DUR, 1)
-        p = 1 - (1 - p) * (1 - p)
-        frame:SetBackdropBorderColor(sr+(tr-sr)*p, sg+(tg-sg)*p, sb+(tb-sb)*p, 1)
-        if p >= 1 then frame._clBorderTicker:Cancel(); frame._clBorderTicker = nil end
-    end)
-end
-
 function SP.ShowChangelogPopup()
-    if SP._changelogFrame then
-        SP._changelogFrame:Show()
-        return
+    if SP._changelogFrame then SP._changelogFrame:Show(); return end
+
+    local T    = SP.Theme
+    local Skin = SP.Skin
+    -- Core\Skin.lua is second in the toc, so this is satisfied today. It is
+    -- guarded anyway because the failure is a hard error three seconds after
+    -- login, on a timer, with no recovery: reordering the toc or shipping a
+    -- Skin.lua that fails to parse would break the client's UI rather than
+    -- merely skipping a popup nobody asked for.
+    if not (Skin and Skin.Round) then return end
+    local W, H = 520, 470
+    local PAD  = 16
+
+    -- Every version, newest first. The old popup looked up SP.Changelog[VERSION]
+    -- and showed nothing at all when the running version had no entry -- which is
+    -- exactly what a fresh release looks like before its notes are written. It
+    -- also hid the other 34 releases, which were sitting in the table unread.
+    local versions = {}
+    for v in pairs(SP.Changelog) do versions[#versions + 1] = v end
+    local function Parts(v)
+        local a, b, c = v:match("^(%d+)%.(%d+)%.(%d+)$")
+        return tonumber(a) or 0, tonumber(b) or 0, tonumber(c) or 0
+    end
+    table.sort(versions, function(x, y)
+        local x1, x2, x3 = Parts(x)
+        local y1, y2, y3 = Parts(y)
+        if x1 ~= y1 then return x1 > y1 end
+        if x2 ~= y2 then return x2 > y2 end
+        return x3 > y3
+    end)
+
+    local function Font(fs, size)
+        fs:SetFont(SP.ResolveFont("Expressway"), size, "")
+        fs:SetShadowColor(0, 0, 0, 0.9)
+        fs:SetShadowOffset(1, -1)
     end
 
-    local T       = SP.Theme
-    local ac      = T.accent
-    local version = SP.VERSION
-    local entries = SP.Changelog[version] or {}
-
-    -- ── dimensions ───────────────────────────────────────────
-    local lineH   = 18
-    local tagW    = 62
-    local headerH = 28
-    local footerH = 36
-    local bodyH   = math.max(60, #entries * (lineH + 8) + SP_CL_PADDING * 2)
-    local totalH  = headerH + bodyH + footerH
-
-    -- ── root frame (no outer border — flat bg only) ───────────
-    local f = CreateFrame("Frame", "SP_ChangelogPopup", UIParent, "BackdropTemplate")
-    f:SetSize(SP_CL_W, totalH)
-    f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
-    f:SetFrameStrata("DIALOG")
-    f:SetFrameLevel(200)
-    f:SetMovable(true)
+    -- ---- frame ----
+    local f = CreateFrame("Frame", "SP_ChangelogPopup", UIParent)
+    f:SetSize(W, H)
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    f:SetFrameLevel(20)
     f:EnableMouse(true)
+    f:SetMovable(true)
     f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop",  f.StopMovingOrSizing)
-    f:SetToplevel(true)
-    f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
-    f:SetBackdropColor(T.bgDark[1], T.bgDark[2], T.bgDark[3], T.bgDark[4])
+    f:SetScript("OnDragStart", function(s) s:StartMoving() end)
+    f:SetScript("OnDragStop",  function(s) s:StopMovingOrSizing() end)
+    local bg, br = Skin.Round(f, "rr10")
+    bg:SetVertexColor(T.bgDark[1], T.bgDark[2], T.bgDark[3], 1)
+    br:SetVertexColor(T.border[1], T.border[2], T.border[3], 1)
 
-    -- ── header (1px accent border only here) ─────────────────
-    local header = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    header:SetPoint("TOPLEFT",  f, "TOPLEFT",  0, 0)
-    header:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
-    header:SetHeight(headerH)
-    header:SetBackdrop({ bgFile   = "Interface\\Buttons\\WHITE8X8",
-                         edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    header:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-    header:SetBackdropBorderColor(ac[1], ac[2], ac[3], 0.25)
-
-    -- left accent stripe
-    local stripe = header:CreateTexture(nil, "OVERLAY")
-    stripe:SetPoint("TOPLEFT",    header, "TOPLEFT",    1, -1)
-    stripe:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 1,  1)
-    stripe:SetWidth(3)
-    stripe:SetColorTexture(ac[1], ac[2], ac[3], 1)
-
-    -- logo icon — 56×56, parented to root frame, overflows header top-left
-    -- (mirrors main GUI: logo bigger than header, floats above it)
-    local logoFrame = CreateFrame("Frame", nil, f)
-    logoFrame:SetSize(56, 56)
-    logoFrame:SetPoint("TOPLEFT", f, "TOPLEFT", -10, 16)
-    logoFrame:SetFrameLevel(header:GetFrameLevel() + 10)
-
-    local logo = logoFrame:CreateTexture(nil, "ARTWORK")
-    logo:SetAllPoints(logoFrame)
-    logo:SetTexture(SP_CL_LOGO)
-    logo:SetVertexColor(ac[1], ac[2], ac[3], 0.9)
+    -- ---- header ----
+    local HEAD = 44
+    local logo = f:CreateTexture(nil, "ARTWORK")
+    logo:SetSize(26, 26)
+    logo:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -9)
+    logo:SetTexture("Interface\\AddOns\\SuspicionsPack\\Media\\Icons\\icon128x128.png")
+    logo:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1)
     logo:SetTexelSnappingBias(0)
     logo:SetSnapToPixelGrid(false)
 
-    -- version label — positioned after the logo footprint inside the header
-    local verFS = header:CreateFontString(nil, "OVERLAY")
-    verFS:SetPoint("LEFT", header, "LEFT", 38, 0)
-    verFS:SetFont(SP_CL_FONT, 12, "")
-    verFS:SetTextColor(0.9, 0.9, 0.9, 1)
-    verFS:SetText("v" .. version)
+    local title = f:CreateFontString(nil, "OVERLAY")
+    Font(title, 14)
+    title:SetPoint("LEFT", logo, "RIGHT", 10, 0)
+    title:SetText("What's new")
+    title:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
 
-    -- "What's New" label on the right
-    local subFS = header:CreateFontString(nil, "OVERLAY")
-    subFS:SetPoint("RIGHT", header, "RIGHT", -14, 0)
-    subFS:SetFont(SP_CL_FONT, 10, "")
-    subFS:SetTextColor(ac[1], ac[2], ac[3], 0.85)
-    subFS:SetText("What's New")
+    local close = CreateFrame("Button", nil, f)
+    close:SetSize(24, 24)
+    close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -10)
+    local xTex = close:CreateTexture(nil, "ARTWORK")
+    xTex:SetSize(13, 13)
+    xTex:SetPoint("CENTER")
+    xTex:SetTexture("Interface\\AddOns\\SuspicionsPack\\Media\\GUITextures\\close.png")
+    xTex:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
+    close:SetScript("OnEnter", function() xTex:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1) end)
+    close:SetScript("OnLeave", function() xTex:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1) end)
+    close:SetScript("OnClick", function() f:Hide() end)
 
-    -- ── body ─────────────────────────────────────────────────
-    local body = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    body:SetPoint("TOPLEFT",     f, "TOPLEFT",  0, -headerH)
-    body:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, footerH)
-    body:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
-    body:SetBackdropColor(T.bgDark[1], T.bgDark[2], T.bgDark[3], 1)
+    local ver = f:CreateFontString(nil, "OVERLAY")
+    Font(ver, 11)
+    ver:SetPoint("RIGHT", close, "LEFT", -6, 0)
+    ver:SetText("v" .. (SP.VERSION or "?"))
+    ver:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
 
-    -- thin separator under header
-    local sepTop = body:CreateTexture(nil, "ARTWORK")
-    sepTop:SetPoint("TOPLEFT",  body, "TOPLEFT",  0, 0)
-    sepTop:SetPoint("TOPRIGHT", body, "TOPRIGHT", 0, 0)
-    sepTop:SetHeight(1)
-    sepTop:SetColorTexture(ac[1], ac[2], ac[3], 0.20)
+    local headRule = f:CreateTexture(nil, "ARTWORK")
+    headRule:SetHeight(1)
+    headRule:SetPoint("TOPLEFT",  f, "TOPLEFT",  0, -HEAD)
+    headRule:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -HEAD)
+    headRule:SetColorTexture(T.border[1], T.border[2], T.border[3], 1)
 
-    local yOff = -SP_CL_PADDING
-    for _, entry in ipairs(entries) do
-        local tc = TAG_COLOR[entry.type] or TAG_COLOR.change
-        local tl = TAG_LABEL[entry.type] or string.upper(entry.type)
+    -- ---- footer ----
+    local FOOT = 46
+    local footRule = f:CreateTexture(nil, "ARTWORK")
+    footRule:SetHeight(1)
+    footRule:SetPoint("BOTTOMLEFT",  f, "BOTTOMLEFT",  0, FOOT)
+    footRule:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOT)
+    footRule:SetColorTexture(T.border[1], T.border[2], T.border[3], 1)
 
-        -- badge background
-        local badge = body:CreateTexture(nil, "ARTWORK")
-        badge:SetPoint("TOPLEFT", body, "TOPLEFT", SP_CL_PADDING, yOff)
-        badge:SetSize(tagW, lineH)
-        badge:SetColorTexture(tc[1], tc[2], tc[3], 0.12)
+    local count = f:CreateFontString(nil, "OVERLAY")
+    Font(count, 11)
+    count:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, 18)
+    count:SetText(#versions .. (#versions == 1 and " release" or " releases"))
+    count:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
 
-        local badgeFS = body:CreateFontString(nil, "OVERLAY")
-        badgeFS:SetPoint("CENTER", badge, "CENTER", 0, 0)
-        badgeFS:SetFont(SP_CL_FONT, 8, "")
-        badgeFS:SetTextColor(tc[1], tc[2], tc[3], 1)
-        badgeFS:SetText(tl)
+    local okBtn = CreateFrame("Button", nil, f)
+    okBtn:SetSize(96, 24)
+    okBtn:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 12)
+    local obg, obr = Skin.Round(okBtn, "rr4")
+    obg:SetVertexColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+    obr:SetVertexColor(T.border[1], T.border[2], T.border[3], 1)
+    local okLbl = okBtn:CreateFontString(nil, "OVERLAY")
+    Font(okLbl, 12)
+    okLbl:SetAllPoints()
+    okLbl:SetText("Got it")
+    okLbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+    okBtn:SetScript("OnEnter", function() obr:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1) end)
+    okBtn:SetScript("OnLeave", function() obr:SetVertexColor(T.border[1], T.border[2], T.border[3], 1) end)
+    okBtn:SetScript("OnClick", function() f:Hide() end)
 
-        local entryFS = body:CreateFontString(nil, "OVERLAY")
-        entryFS:SetPoint("LEFT",  body, "LEFT",  SP_CL_PADDING + tagW + 10, 0)
-        entryFS:SetPoint("RIGHT", body, "RIGHT", -SP_CL_PADDING, 0)
-        entryFS:SetPoint("TOP",   body, "TOP",   0, yOff - math.floor((lineH - 12) / 2))
-        entryFS:SetFont(SP_CL_FONT, 11, "")
-        entryFS:SetTextColor(T.textPrimary[1] or 0.85, T.textPrimary[2] or 0.85, T.textPrimary[3] or 0.85, 1)
-        entryFS:SetJustifyH("LEFT")
-        entryFS:SetWordWrap(true)
-        entryFS:SetText(entry.text)
+    -- ---- scrolling body ----
+    local scroll = CreateFrame("ScrollFrame", nil, f)
+    scroll:SetPoint("TOPLEFT",     f, "TOPLEFT",      PAD, -(HEAD + 4))
+    scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(PAD + 6), FOOT + 6)
+    local body = CreateFrame("Frame", nil, scroll)
+    body:SetWidth(W - PAD * 2 - 6)
+    body:SetHeight(1)
+    scroll:SetScrollChild(body)
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(s, d)
+        local range = s:GetVerticalScrollRange() or 0
+        local v = s:GetVerticalScroll() - d * 40
+        if v < 0 then v = 0 elseif v > range then v = range end
+        s:SetVerticalScroll(v)
+    end)
 
-        yOff = yOff - lineH - 8
+    -- Newest version in accent, the rest muted: the eye needs to land on what
+    -- changed just now, not on the whole history at equal weight.
+    -- 46px, not 34: the column has to hold "REMOVE" and "CHANGE" on one line.
+    local BADGE_W, y = 46, 4
+    for i, v in ipairs(versions) do
+        local head = body:CreateFontString(nil, "OVERLAY")
+        Font(head, 13)
+        head:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
+        head:SetText(v)
+        if i == 1 then head:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
+        else head:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1) end
+
+        local rule = body:CreateTexture(nil, "ARTWORK")
+        rule:SetHeight(1)
+        rule:SetPoint("LEFT",  head, "RIGHT", 10, 0)
+        rule:SetPoint("RIGHT", body, "RIGHT", 0, 0)
+        rule:SetColorTexture(T.border[1], T.border[2], T.border[3], 1)
+        y = y + 22
+
+        for _, e in ipairs(SP.Changelog[v]) do
+            -- Four entry types ship in SP.Changelog, not two. Collapsing them to
+            -- new/fix put a FIX badge on "Removed AutoPI and AutoInnervate
+            -- modules". TAG_LABEL / TAG_COLOR carry all four; anything with an
+            -- unrecognised type falls back to FIX rather than rendering blank.
+            local tag = TAG_LABEL[e.type] and e.type or "fix"
+            local col = TAG_COLOR[tag]
+            local badge = body:CreateFontString(nil, "OVERLAY")
+            Font(badge, 9)
+            badge:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -(y + 2))
+            badge:SetWidth(BADGE_W)
+            badge:SetJustifyH("CENTER")
+            badge:SetWordWrap(false)
+            badge:SetText(TAG_LABEL[tag])
+            badge:SetTextColor(col[1], col[2], col[3], 1)
+
+            local txt = body:CreateFontString(nil, "OVERLAY")
+            Font(txt, 12)
+            txt:SetPoint("TOPLEFT",  body, "TOPLEFT", BADGE_W + 10, -y)
+            txt:SetPoint("RIGHT",    body, "RIGHT", 0, 0)
+            txt:SetJustifyH("LEFT")
+            txt:SetWordWrap(true)
+            txt:SetText(e.text)
+            txt:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+
+            -- Wrapped text only reports its height once it has a width, which it
+            -- has here because the body's width is explicit.
+            y = y + math.max(18, math.ceil(txt:GetStringHeight()) + 6)
+        end
+        y = y + 10
     end
+    body:SetHeight(math.max(1, y))
 
-    -- ── footer ────────────────────────────────────────────────
-    local footer = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    footer:SetPoint("BOTTOMLEFT",  f, "BOTTOMLEFT",  0, 0)
-    footer:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
-    footer:SetHeight(footerH)
-    footer:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
-    footer:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-
-    local sepBot = footer:CreateTexture(nil, "ARTWORK")
-    sepBot:SetPoint("TOPLEFT",  footer, "TOPLEFT",  0, 0)
-    sepBot:SetPoint("TOPRIGHT", footer, "TOPRIGHT", 0, 0)
-    sepBot:SetHeight(1)
-    sepBot:SetColorTexture(ac[1], ac[2], ac[3], 0.20)
-
-    -- ── close button — mirrors GUI:CreateButton style ─────────
-    local closeBtn = CreateFrame("Button", nil, footer, "BackdropTemplate")
-    closeBtn:SetSize(120, 26)
-    closeBtn:SetPoint("CENTER", footer, "CENTER", 0, 0)
-    closeBtn:SetBackdrop({ bgFile   = "Interface\\Buttons\\WHITE8X8",
-                           edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    closeBtn:SetBackdropColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-    closeBtn:SetBackdropBorderColor(T.border[1], T.border[2], T.border[3], 1)
-
-    local closeLbl = closeBtn:CreateFontString(nil, "OVERLAY")
-    closeLbl:SetAllPoints()
-    closeLbl:SetFont(SP_CL_FONT, 12, "")
-    closeLbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-    closeLbl:SetJustifyH("CENTER")
-    closeLbl:SetText("Got it!")
-
-    closeBtn:SetScript("OnEnter", function(btn) CL_AnimateBorderFocus(btn, true)  end)
-    closeBtn:SetScript("OnLeave", function(btn) CL_AnimateBorderFocus(btn, false) end)
-    closeBtn:SetScript("OnClick", function() f:Hide() end)
-
-    -- ESC closes the popup
-    tinsert(UISpecialFrames, "SP_ChangelogPopup")
+    -- ESC closes it. Guarded: this function can only build once, but the guard
+    -- costs nothing and a duplicate entry in UISpecialFrames is forever.
+    if not SP._changelogEsc then
+        tinsert(UISpecialFrames, "SP_ChangelogPopup")
+        SP._changelogEsc = true
+    end
 
     SP._changelogFrame = f
     f:Show()
@@ -1636,8 +1553,11 @@ function SP.CheckChangelog()
     local db = SP.GetDB()
     if not db or not db.settings then return end
     if db.settings.lastSeenVersion == SP.VERSION then return end
-    -- Only show if there's actually changelog data for this version
-    if not SP.Changelog[SP.VERSION] then return end
+    -- No SP.Changelog[SP.VERSION] check. The popup lists EVERY release, so it
+    -- has something to show whatever the running version is -- and gating on
+    -- "does this exact version have notes" made the popup unreachable on every
+    -- release whose notes lag the toc bump, which is how 2.1.1 shipped with a
+    -- popup that could never appear. lastSeenVersion above is the real gate.
 
     db.settings.lastSeenVersion = SP.VERSION
 

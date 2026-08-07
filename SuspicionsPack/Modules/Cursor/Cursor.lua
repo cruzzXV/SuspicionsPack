@@ -140,7 +140,12 @@ local function CreateCursorFrame()
         local cdb0 = GetDB()
         if cdb0.limitUpdateRate then
             updateElapsed = updateElapsed + elapsed
-            if updateElapsed < (cdb0.updateInterval or 0.016) then return end
+            -- 0.02 is DEFAULTS.cursor.updateInterval, not a second opinion.
+            -- AceDB materialises the default, so this fallback is only ever
+            -- reached on a table the DB has not filled -- and the options UI now
+            -- treats DEFAULTS as the authoritative value for Reset and for
+            -- "N settings changed". A disagreeing fallback makes both lie.
+            if updateElapsed < (cdb0.updateInterval or 0.02) then return end
             updateElapsed = 0
         end
 

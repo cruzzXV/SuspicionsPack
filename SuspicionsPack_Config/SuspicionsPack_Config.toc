@@ -2,14 +2,58 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r Options
 ## Notes: Options UI for Suspicion's Pack. Loaded on demand.
 ## Author: Cruzz
-## Version: 2.0.0
+## Version: 2.1.1
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## Dependencies: SuspicionsPack
 ## LoadOnDemand: 1
 
-# The whole options UI. 9k lines / 43% of the pack's source, and none of it is
-# needed until the user actually opens the window -- so it is a load-on-demand
-# companion rather than part of the login path.
+# The options UI. None of it is needed until the user actually opens the window,
+# so it is a load-on-demand companion rather than part of the login path.
 #
-# Saved variables stay in the parent addon: this file only ever reads SP.db.
-GUI.lua
+# Saved variables stay in the parent addon: these files only ever read SP.db.
+
+# Core — load order matters. Theme defines the paint registry every other file
+# uses; Widgets builds on it; Layout builds on Widgets; Shell needs all of them.
+Core\Theme.lua
+Core\Widgets.lua
+Core\ColorWidgets.lua
+Core\AnchorWidgets.lua
+Core\Layout.lua
+Core\Shell.lua
+
+# Categories must come before the pages that attach themselves to them.
+Pages\Categories.lua
+
+# Pages — one file each. Order within a category is the order in the sidebar.
+Pages\Home.lua
+Pages\Automation.lua
+Pages\TankMD.lua
+Pages\BloodlustAlert.lua
+Pages\CombatCross.lua
+Pages\CombatTimer.lua
+Pages\Cursor.lua
+Pages\DeathAlert.lua
+Pages\GatewayAlert.lua
+Pages\MovementAlert.lua
+Pages\PotionAlert.lua
+Pages\ReapPredict.lua
+Pages\SpellEffectAlpha.lua
+Pages\FocusTargetMarker.lua
+Pages\GroupJoinedReminder.lua
+Pages\AutoPlaystyle.lua
+Pages\FilterExpansionOnly.lua
+Pages\AutoBuy.lua
+Pages\CraftShopper.lua
+Pages\FastLoot.lua
+Pages\Durability.lua
+Pages\GroupInvitations.lua
+Pages\WhisperAlert.lua
+Pages\CleanObjectiveHeader.lua
+Pages\CopyTooltip.lua
+Pages\EnhancedObjectiveText.lua
+Pages\MicroMenuSkin.lua
+Pages\Drawer.lua
+Pages\NudgeTool.lua
+Pages\Performance.lua
+Pages\SilvermoonMapIcon.lua
+Pages\CVars.lua

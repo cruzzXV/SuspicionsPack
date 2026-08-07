@@ -1,7 +1,26 @@
+# Le dépôt ne contient que l'addon.
+
+# Notes de travail à la racine — seuls le changelog et le readme sont publiés.
+/*.md
+!/CHANGELOG.md
+!/README.md
+
+# Outillage local
+/tests/
+
+# Addons tiers qui partagent ce dossier
+EllesmereUI*/
+NorskenUI/
+
+# Artefacts
 *.zip
+*.bundle
+_backup_pre-gui-rework/
+
+# Bruit système / éditeur
 .DS_Store
 Thumbs.db
 desktop.ini
-.vscode/
 *.swp
-_backup_pre-review_*/
+*.bak
+*~

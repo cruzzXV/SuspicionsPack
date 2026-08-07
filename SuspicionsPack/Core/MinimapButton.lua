@@ -82,8 +82,19 @@ function MinimapBtn:RegisterButton()
         -- 4 individual 1px textures at OVERLAY subLevel 7.
         -- Textures on a frame are NOT clipped by the frame bounds, so the
         -- border extends 1px outside the button edges reliably.
-        local bdr = SP.Theme.border
-        local r, g, b = bdr[1], bdr[2], bdr[3]
+        --
+        -- Pure black, deliberately NOT SP.Theme.border. Every other surface in
+        -- the pack sits on a dark panel, where the theme's #25252C hairline is
+        -- the only thing that separates one dark surface from another. This
+        -- button is the single element drawn against the game world and the
+        -- minimap art, which can be any colour at all, and the ElvUI pixel
+        -- border idiom this follows is black by convention precisely because
+        -- black is the one edge that reads against every background.
+        --
+        -- Being theme-independent also makes it correct to paint these once and
+        -- never repaint them, which is what happens: they are created inside a
+        -- one-shot C_Timer.After and no painter is registered for them.
+        local r, g, b = 0, 0, 0
 
         local top = btn:CreateTexture(nil, "OVERLAY", nil, 7)
         top:SetColorTexture(r, g, b, 1)

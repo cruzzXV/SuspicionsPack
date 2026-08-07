@@ -203,7 +203,11 @@ local function GetTabBaseColor()
     if _cachedTabBase then return _cachedTabBase end
 
     local db  = GetDB()
-    local src = db.tabColorSource or "theme"
+    -- "custom" is DEFAULTS.drawer.tabColorSource. AceDB materialises it, so this
+    -- fallback never fires in practice -- but the options UI now resets to and
+    -- diffs against DEFAULTS, so a fallback that disagrees with DEFAULTS is a
+    -- second, invisible default.
+    local src = db.tabColorSource or "custom"
 
     if src == "theme" then
         local T = SP.Theme
