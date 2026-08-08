@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.4.0"
+SP.VERSION = "2.5.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -625,6 +625,11 @@ local DEFAULTS = {
             enabled = false,
         },
         movementAlert = {
+            -- Read by the module since day one; nothing exposed them, so nothing
+            -- could set them either.
+            justify      = "CENTER",
+            shadowAlpha  = 1,
+            frameLevel   = 50,
             enabled          = false,
             anchorFrom       = "CENTER",
             anchorTo         = "CENTER",
@@ -1153,6 +1158,11 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["2.5.0"] = {
+        { type = "new", text = "Movement alert: each tracked spell can be given its own on-screen name. The module always supported it; nothing let you set it." },
+        { type = "new", text = "Movement alert also gained text alignment, shadow strength and frame level." },
+        { type = "new", text = "Copy anything: the shortcut is yours to pick. Ctrl, Shift, Alt, Ctrl+Shift or Ctrl+Alt, with any letter." },
+    },
     ["2.4.0"] = {
         { type = "fix", text = "The cursor trail no longer thins out when your frame rate drops. Copies are laid along the path travelled instead of one per frame, so alt-tabbing no longer wrecks it." },
         { type = "fix", text = "The trail is a soft dot by default instead of the cursor ring, which was all but invisible once it shrank and faded." },

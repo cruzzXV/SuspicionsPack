@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-08-07 — v2.5.0
+
+### Des réglages qui existaient sans être atteignables
+
+Quatre fonctionnalités écrites, fonctionnelles et impossibles à configurer.
+
+`MovementAlert` lisait **`spellOverrides`** depuis toujours — un texte
+personnalisé par sort, avec son repli complet sur le nom du sort — et aucune page
+ne l'écrivait jamais. Il y a maintenant un champ « Shown as » sous chaque sort
+suivi. Vider le champ retire l'enregistrement au lieu d'y stocker une chaîne
+vide, sans quoi le compte à rebours s'afficherait sans nom. Ses trois clés de
+mise en forme — alignement, force de l'ombre, niveau de cadre — sont exposées
+aussi.
+
+`CopyTooltip` gérait cinq combinaisons de modificateurs et n'importe quelle
+lettre. La page n'exposait rien : le raccourci était Ctrl+C pour tout le monde,
+quoi que le module sache faire. La lettre est nettoyée à l'écriture — une seule,
+en majuscule — parce que le module compare aux noms de touches de WoW et qu'un
+chiffre ou deux caractères ne correspondraient jamais.
+
+### Quatrième porte : les réglages orphelins
+
+`tests/run.py --orphans` extrait toutes les clés lues sous la forme `db.xxx` dans
+les 30 modules, toutes celles exposées par les 33 pages, et signale la
+différence. Le module est correct, la page est correcte, et le défaut est *entre
+les deux* — aucune assertion portant sur l'un ou sur l'autre ne pouvait le voir.
+
+La porte était fausse au premier essai : elle dépouille maintenant les
+commentaires avant d'analyser, parce qu'un commentaire mentionnant `db.modifier`
+suffisait à faire passer le réglage pour exposé. Trouvé en contre-testant la
+porte, qui restait verte quand on cassait la vraie ligne.
+
+---
+
 ## 2026-08-07 — v2.4.0
 
 ### Traînée indépendante de la fréquence d'images

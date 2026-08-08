@@ -74,14 +74,21 @@ GUI.RegisterPage{
             table.sort(unique)
 
             if #unique > 0 then
-                db.disabledSpells = db.disabledSpells or {}
+                db.disabledSpells  = db.disabledSpells  or {}
+                -- The module has always read this table; nothing ever wrote to
+                -- it, so the whole per-spell text mechanism was unreachable
+                -- without editing SavedVariables by hand.
+                db.spellOverrides  = db.spellOverrides  or {}
+
                 local cs = page:Card("Tracked spells",
-                    "Which of your class's movement abilities this module watches.")
+                    "Which of your class's movement abilities this module watches, and what " ..
+                    "each one is called on screen. Leave a name empty to use the spell's own.")
                 for _, sid in ipairs(unique) do
                     local info = C_Spell.GetSpellInfo(sid)
                     local name = info and info.name or ("Spell " .. sid)
                     local icon = info and info.iconID
-                    cs:Toggle{
+
+                    local on = cs:Toggle{
                         label   = icon and ("|T" .. icon .. ":16:16|t  " .. name) or name,
                         default = true,
                         get = function() return not db.disabledSpells[sid] end,
@@ -90,6 +97,33 @@ GUI.RegisterPage{
                             else      db.disabledSpells[sid] = true end
                         end,
                     }
+                    cs:GateBelow(on)
+                    cs:EditBox{
+                        label   = "Shown as",
+                        maxLen  = 32,
+                        default = "",
+                        get = function()
+                            local o = db.spellOverrides[sid]
+                            return (o and o.customText) or ""
+                        end,
+                        set = function(v)
+                            v = (v or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                            if v == "" then
+                                -- Cleared means "no override", not "override with
+                                -- an empty string": leaving the record behind
+                                -- would blank the countdown's label.
+                                local o = db.spellOverrides[sid]
+                                if o then
+                                    o.customText = nil
+                                    if o.enabled == nil then db.spellOverrides[sid] = nil end
+                                end
+                            else
+                                db.spellOverrides[sid] = db.spellOverrides[sid] or {}
+                                db.spellOverrides[sid].customText = v
+                            end
+                        end,
+                    }
+                    cs:EndGate()
                 end
             end
         end
@@ -110,6 +144,24 @@ GUI.RegisterPage{
             { kind = "dropdown", key = "outline",  label = "Outline", options = GUI.OUTLINES })
         c3:ColorSource{ label = "Text colour", srcKey = "colorSource", colorKey = "color",
                         alpha = true }
+        c3:Dropdown{ key = "justify", label = "Alignment",
+                     desc = "How the text lines up on its anchor point. Matters when the " ..
+                            "countdown grows and shrinks: centred moves both edges, left " ..
+                            "keeps the start still.",
+                     options = { { key = "LEFT",   label = "Left" },
+                                 { key = "CENTER", label = "Centre" },
+                                 { key = "RIGHT",  label = "Right" } } }
+        -- Stored 0-1 by the module, shown as a percentage like every other
+        -- opacity in the window.
+        c3:Slider{ key = "shadowAlpha", label = "Shadow strength",
+                   desc = "0 removes the drop shadow.",
+                   min = 0, max = 100, step = 5, suffix = "%",
+                   default = math.floor((DEF.shadowAlpha or 1) * 100 + 0.5),
+                   get = function() return math.floor((db.shadowAlpha or 1) * 100 + 0.5) end,
+                   set = function(v) db.shadowAlpha = v / 100 end }
+        c3:Slider{ key = "frameLevel", label = "Frame level",
+                   desc = "Raise it if another addon's frame covers the countdown.",
+                   min = 1, max = 200, step = 1 }
 
         -- ── Time spiral ──────────────────────────────────────
         local c4 = page:Card("Time spiral",
