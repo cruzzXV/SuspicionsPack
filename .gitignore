@@ -21,6 +21,15 @@
 !/SuspicionsPackClassIcons/
 !/SuspicionsPackNudgeTool/
 
+# Rangement de la racine, pour mémoire — tout ceci est ignoré par la règle /*
+# ci-dessus et n'a pas besoin d'entrée propre :
+#
+#   Reference/  les addons des autres, gardés pour lecture
+#   tasks/      lessons.md, todo.md, wow-api-notes.md (chemins cités par CLAUDE.md)
+#   Archive/    zips, bundles et notes qui ne servent plus
+#   tests/      le harnais hors ligne
+#   CLAUDE.md   les instructions du projet
+
 # Bruit système / éditeur, y compris dans nos dossiers.
 .DS_Store
 Thumbs.db
