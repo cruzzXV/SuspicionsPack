@@ -226,7 +226,7 @@ function BLAlert:ApplyTimerSettings()
 
     local fs = db.timerFontSize or 22
     local fontPath = GetFontPath(db.timerFontFace or "Expressway")
-    timerFrame.num:SetFont(fontPath, fs, db.timerOutline or "OUTLINE")
+    SP.SetFontSafe(timerFrame.num, fontPath, fs, db.timerOutline or "OUTLINE")
     local w = math.max(80, math.floor(fs * 3.2))
     local h = fs + 30
     timerFrame:SetSize(w, h)

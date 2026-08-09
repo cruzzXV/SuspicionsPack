@@ -258,7 +258,7 @@ function CC:CreateCrossFrame()
 
     local text = f:CreateFontString(nil, "OVERLAY")
     text:SetPoint("CENTER", f, "CENTER", 0, 0)
-    text:SetFont(SP_FONT, fontSize, fontFlags)
+    SP.SetFontSafe(text, SP_FONT, fontSize, fontFlags)
     text:SetText("+")
 
     local r, g, b, a = GetColor()
@@ -291,7 +291,9 @@ function CC:ApplySettings()
 
     local fontSize  = (db.thickness or 14) * FONT_SIZE_MULTIPLIER
     local fontFlags = (db.outline ~= false) and "SOFTOUTLINE" or ""
-    self.text:SetFont(SP_FONT, fontSize, fontFlags)
+    -- The size IS the setting here: thickness drives it, so a failed SetFont
+    -- leaves the cross at whatever thickness it was created with.
+    SP.SetFontSafe(self.text, SP_FONT, fontSize, fontFlags)
 
     local r, g, b, a = GetColor()
     self.text:SetTextColor(r, g, b, a)

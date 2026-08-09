@@ -76,7 +76,7 @@ function CT:CreateTimerFrame()
     local fontPath = GetFontPath(db.fontFace or "Expressway")
     local text = f:CreateFontString("SP_CombatTimerText", "OVERLAY")
     text:SetPoint("CENTER", f, "CENTER", 0, 0)
-    text:SetFont(fontPath, db.fontSize or 18, db.outline or "SOFTOUTLINE")
+    SP.SetFontSafe(text, fontPath, db.fontSize or 18, db.outline or "SOFTOUTLINE")
     text:SetText("00:00")
     text:SetJustifyH("CENTER")
 
@@ -94,7 +94,7 @@ function CT:ApplySettings()
     self._cachedRate = GetRefreshRate(db.format or "MM:SS")
 
     local fontPath = GetFontPath(db.fontFace or "Expressway")
-    self.text:SetFont(fontPath, db.fontSize or 18, db.outline or "SOFTOUTLINE")
+    SP.SetFontSafe(self.text, fontPath, db.fontSize or 18, db.outline or "SOFTOUTLINE")
 
     -- Font shadow
     if db.shadowEnabled then

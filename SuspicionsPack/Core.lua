@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.5.0"
+SP.VERSION = "2.5.1"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -66,14 +66,54 @@ local _fontValidCache = {}
 function SP.IsFontPathValid(path)
     if type(path) ~= "string" or path == "" then return false end
 
-    local cached = _fontValidCache[path]
-    if cached ~= nil then return cached end
+    -- ONLY successes are cached. A failure early in the login sequence is not
+    -- necessarily a missing file: an addon's own .ttf can briefly refuse to load
+    -- while the client is still coming up, and memoising that `false` turned a
+    -- transient miss into a permanent one for the rest of the session. Every
+    -- later lookup then fell through to the default font, and -- because a
+    -- failed SetFont leaves a FontString completely untouched, size included --
+    -- the text kept whatever size it was created with.
+    if _fontValidCache[path] then return true end
 
     local probe = GetFontProbe()
     local ok, res = pcall(probe.SetFont, probe, path, 12, "")
     local valid = ok and res ~= false
-    _fontValidCache[path] = valid
+    if valid then _fontValidCache[path] = true end
     return valid
+end
+
+-- Sets a font and CHECKS THAT IT TOOK.
+--
+-- SetFont is all-or-nothing: when the asset cannot be loaded it returns false
+-- and changes nothing at all -- not the face, and not the size. A FontString
+-- created at 14 and then told to be 28 therefore stays at 14, silently, with no
+-- error to notice. That is the whole bug behind "my font size resets at login,
+-- and fixes itself the moment I open the options" -- opening the options runs
+-- the same call again, later, when the file loads fine.
+--
+-- On failure this falls back to a face the client is guaranteed to ship, so the
+-- SIZE is right even when the chosen face is not yet available, then puts the
+-- intended face back once it loads. A correct size in the wrong font is a far
+-- smaller problem than half-size text.
+function SP.SetFontSafe(fs, path, size, flags)
+    if not (fs and fs.SetFont and path and size) then return false end
+    flags = flags or ""
+
+    if fs:SetFont(path, size, flags) then return true end
+
+    fs:SetFont("Fonts\\FRIZQT__.TTF", size, flags)
+
+    -- One retry, and only if nothing has changed the font in the meantime --
+    -- without that check a settings change made inside the delay would be
+    -- overwritten by these captured values.
+    C_Timer.After(1, function()
+        if not (fs and fs.GetFont and fs.SetFont) then return end
+        local cur, curSize = fs:GetFont()
+        if cur == "Fonts\\FRIZQT__.TTF" and curSize and math.abs(curSize - size) < 0.5 then
+            fs:SetFont(path, size, flags)
+        end
+    end)
+    return false
 end
 
 local _fontListCache = nil
@@ -913,7 +953,7 @@ end
 
 function Px.ApplyFont(fs, size, fontPath)
     if not fs then return end
-    fs:SetFont(fontPath or "Fonts\\FRIZQT__.TTF", size, "")
+    SP.SetFontSafe(fs, fontPath or "Fonts\\FRIZQT__.TTF", size, "")
     fs:SetShadowColor(0, 0, 0, 1)
     fs:SetShadowOffset(1, -1)
 end
@@ -1158,6 +1198,10 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["2.5.1"] = {
+        { type = "fix", text = "Text sizes no longer come up wrong at login. The setting was never lost -- it simply was not being applied when the font file was slow to load, and opening the options quietly fixed it by running the same code again." },
+        { type = "fix", text = "Affects the movement alert, combat timer, death alert, durability warning, gateway alert, potion alert, bloodlust timer and combat cross." },
+    },
     ["2.5.0"] = {
         { type = "new", text = "Movement alert: each tracked spell can be given its own on-screen name. The module always supported it; nothing let you set it." },
         { type = "new", text = "Movement alert also gained text alignment, shadow strength and frame level." },
@@ -1408,7 +1452,7 @@ function SP.ShowChangelogPopup()
     end)
 
     local function Font(fs, size)
-        fs:SetFont(SP.ResolveFont("Expressway"), size, "")
+        SP.SetFontSafe(fs, SP.ResolveFont("Expressway"), size, "")
         fs:SetShadowColor(0, 0, 0, 0.9)
         fs:SetShadowOffset(1, -1)
     end

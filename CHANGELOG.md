@@ -4,6 +4,57 @@
 
 ---
 
+## 2026-08-09 — v2.5.1
+
+### La taille de police qui « saute » au login
+
+Signalé sur MovementAlert : le texte sort minuscule à la connexion et reprend sa
+taille à la seconde où la fenêtre d'options est ouverte. Intermittent — un login
+à chaud passe, un démarrage à froid échoue.
+
+Le réglage n'est jamais perdu : mesuré en jeu, il vaut 28 avant comme après.
+C'est l'application qui rate. `SetFont` est tout ou rien — quand l'asset n'est
+pas chargeable il renvoie `false` et **ne change rien du tout**, pas même la
+taille. Le FontString reste donc sur le `SetFont(SP_FONT, 14, "OUTLINE")` posé à
+sa création. Ouvrir les options ne « répare » rien : ça rejoue simplement le même
+appel plus tard, quand le fichier se charge.
+
+Deux correctifs, dans `Core.lua` :
+
+- **`SP.SetFontSafe`** vérifie ce que `SetFont` renvoie au lieu de le supposer.
+  En cas d'échec il applique une police que le client fournit toujours **à la
+  bonne taille**, puis remet la police voulue dès qu'elle se charge. Une taille
+  juste dans la mauvaise police est un problème bien plus petit qu'un texte à
+  moitié taille. Le réessai est gardé : il ne s'applique que si rien n'a changé
+  entre-temps, sinon un réglage modifié pendant le délai serait écrasé.
+- **`IsFontPathValid` ne mémorise plus que les succès.** Un échec tôt au login
+  n'est pas la preuve d'un fichier manquant, et mettre ce `false` en cache
+  transformait un raté passager en panne définitive pour toute la session.
+
+Cinquième porte : `tests/run.py --fonts`, 14 assertions. Le stub sait maintenant
+faire échouer `SetFont` — sans quoi le bug n'était pas modélisable. Toutes
+contre-testées ; le contre-test a d'ailleurs montré que chacune des deux moitiés
+du correctif de cache suffit seule à empêcher le bug.
+
+Propagé à tous les appels qui posent une taille réglée par l'utilisateur. Le
+plus utile tient en une ligne : `SP.CreateAlertFrame`, la fabrique partagée par
+huit modules. Puis CombatTimer, DeathAlert, Durability, GatewayAlert,
+PotionAlert, BloodlustAlert, et CombatCross — dont l'épaisseur EST la taille de
+police, donc la croix sortait à la mauvaise taille pour la même raison.
+
+Les onze libellés de CraftShopper gardent un `SetFont` direct : leurs tailles
+sont fixes et décoratives, un raté ne se voit pas. Ils sont exclus par fichier
+dans la porte, pas oubliés.
+
+Sixième porte : `tests/run.py --setfont` échoue si un `SetFont` direct
+réapparaît sur une police d'addon. C'est exactement le correctif qu'on défait
+sans y penser, parce que `fs:SetFont(path, size, flags)` a l'air juste.
+Contre-testée dans les deux sens : rouge sur une vraie régression, et
+insensible à une mention en commentaire — le piège qui avait rendu la porte
+« orphelins » fausse au premier essai.
+
+---
+
 ## 2026-08-07 — v2.5.0
 
 ### Des réglages qui existaient sans être atteignables

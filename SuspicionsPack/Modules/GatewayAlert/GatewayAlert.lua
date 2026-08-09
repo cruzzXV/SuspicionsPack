@@ -59,7 +59,7 @@ function GA:ApplySettings()
     if self.frame.label then
         local fontPath = (db.fontFace and SP.GetFontPath and SP.GetFontPath(db.fontFace)) or SP_FONT
         local outlineFlag = (db.fontOutline ~= "NONE" and db.fontOutline) or "OUTLINE"
-        self.frame.label:SetFont(fontPath, db.fontSize or 16, outlineFlag)
+        SP.SetFontSafe(self.frame.label, fontPath, db.fontSize or 16, outlineFlag)
         local cr, cg2, cb = SP.GetColorFromSource(db.colorSource or "custom",
             db.color or { 0.3, 1.0, 0.4 })
         self.frame.label:SetTextColor(cr, cg2, cb, 1)

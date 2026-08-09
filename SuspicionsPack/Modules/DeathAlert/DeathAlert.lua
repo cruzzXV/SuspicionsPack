@@ -83,7 +83,7 @@ local function EnsureFrame()
 
     local fs = f:CreateFontString(nil, "OVERLAY")
     fs:SetPoint("CENTER")
-    fs:SetFont(GetFontPath(db.fontName), db.fontSize or 28, "OUTLINE")
+    SP.SetFontSafe(fs, GetFontPath(db.fontName), db.fontSize or 28, "OUTLINE")
     fs:SetShadowOffset(0, 0)
     fs:SetShadowColor(0, 0, 0, 0)
     fs:SetJustifyH("CENTER")
@@ -117,7 +117,7 @@ end
 local function RefreshFrameStyle()
     if not displayFrame then return end
     local db = GetDB()
-    displayFrame.fs:SetFont(GetFontPath(db.fontName), db.fontSize or 28, "OUTLINE")
+    SP.SetFontSafe(displayFrame.fs, GetFontPath(db.fontName), db.fontSize or 28, "OUTLINE")
     displayFrame.fs:SetShadowOffset(0, 0)
     displayFrame.fs:SetShadowColor(0, 0, 0, 0)
     displayFrame.fadeOut:SetStartDelay(db.messageDuration or 4)

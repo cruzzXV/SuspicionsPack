@@ -156,7 +156,12 @@ function SP.CreateAlertFrame(globalName, db, opts)
     if outline == nil or outline == "NONE" then
         outline = opts.defaultOutline or ""
     end
-    txt:SetFont(SP.ResolveFont(db.fontFace), db.fontSize or opts.defaultSize or 20, outline)
+    -- SetFontSafe, not SetFont: at login an addon's own .ttf is sometimes not
+    -- loadable yet, and a failed SetFont changes NOTHING -- the FontString keeps
+    -- the size it was created with, silently and without an error. This factory
+    -- is shared by eight modules, so the one line covers all of them.
+    SP.SetFontSafe(txt, SP.ResolveFont(db.fontFace),
+                   db.fontSize or opts.defaultSize or 20, outline)
 
     local c = db.color or opts.defaultColor or { 1, 1, 1, 1 }
     txt:SetTextColor(c[1], c[2], c[3], c[4] or 1)

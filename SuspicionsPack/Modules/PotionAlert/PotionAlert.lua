@@ -137,7 +137,7 @@ function PotionAlert:ApplySettings()
     local fontPath  = GetFontPath(db.fontFace or "Expressway")
     local fontSize  = db.fontSize or 20
     local outline   = db.fontOutline ~= "NONE" and (db.fontOutline or "OUTLINE") or ""
-    frame.lbl:SetFont(fontPath, fontSize, outline)
+    SP.SetFontSafe(frame.lbl, fontPath, fontSize, outline)
     frame.lbl:SetText(db.displayText or "Potion ready")
 
     local cr, cg, cb = SP.GetColorFromSource(db.colorSource or "custom",

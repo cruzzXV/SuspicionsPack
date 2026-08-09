@@ -418,7 +418,11 @@ MA.isPreview = false
 local function ApplyStyles()
     local db = GetDB()
     local fontPath = GetFontPath(db.fontFace or "Expressway")
-    fsText:SetFont(fontPath, db.fontSize or 14, db.outline or "OUTLINE")
+    -- Not fsText:SetFont directly: at login the .ttf is sometimes not loadable
+    -- yet, SetFont then returns false and changes NOTHING -- leaving the size at
+    -- the 14 this FontString was created with. SP.SetFontSafe keeps the size
+    -- right and restores the face when it becomes available.
+    SP.SetFontSafe(fsText, fontPath, db.fontSize or 14, db.outline or "OUTLINE")
     local cr, cg, cb = SP.GetColorFromSource(db.colorSource or "custom", db.color or {1,1,1})
     fsText:SetTextColor(cr, cg, cb, (db.colorSource == "custom" and db.color and db.color[4]) or 1)
     fsText:SetJustifyH(db.justify or "CENTER")

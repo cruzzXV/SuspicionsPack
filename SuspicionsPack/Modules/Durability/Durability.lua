@@ -86,7 +86,7 @@ function DUR:ApplySettings()
 
     local fontPath    = GetFontPath(db.fontFace or "Expressway")
     local outlineFlag = (db.fontOutline ~= "NONE" and db.fontOutline) or ""
-    self.text:SetFont(fontPath, db.fontSize or 20, outlineFlag)
+    SP.SetFontSafe(self.text, fontPath, db.fontSize or 20, outlineFlag)
     self.text:SetText(db.warningText or "REPAIR NOW")
 
     local cr, cg, cb = SP.GetColorFromSource(db.colorSource or "custom",
