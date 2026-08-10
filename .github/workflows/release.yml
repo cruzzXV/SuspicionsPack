@@ -22,9 +22,39 @@ jobs:
             SuspicionsPackClassIcons/ \
             SuspicionsPack_Config/
 
+      # An addon zip has to hold the addon folders AT ITS ROOT: WowUp and the
+      # CurseForge client extract it straight into Interface/AddOns, so a single
+      # wrapping folder installs one directory that is not an addon and nothing
+      # loads. This has happened once, from a hand-built zip uploaded alongside
+      # the one built here, so the shape is now checked rather than assumed.
+      - name: Check the archive shape
+        run: |
+          set -e
+          roots=$(unzip -Z1 SuspicionsPack-${{ github.ref_name }}.zip \
+                  | cut -d/ -f1 | sort -u)
+          expected="SuspicionsPack
+          SuspicionsPackClassIcons
+          SuspicionsPackNudgeTool
+          SuspicionsPack_Config"
+          if [ "$roots" != "$(echo "$expected" | sed 's/^ *//')" ]; then
+            echo "::error::unexpected archive roots"
+            echo "found:"; echo "$roots"
+            echo "expected:"; echo "$expected" | sed 's/^ *//'
+            exit 1
+          fi
+          for d in $roots; do
+            test -f "$d/$d.toc" || { echo "::error::$d has no .toc"; exit 1; }
+          done
+          echo "archive roots OK"
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           name: "Suspicion's Pack ${{ github.ref_name }}"
+          # Notes come from a file in the repo. Without this the release ships
+          # with an empty body and the notes have to be patched in by hand
+          # afterwards, every single time -- which is exactly how a second,
+          # badly built zip ended up attached to v2.5.1.
+          body_path: .github/RELEASE_NOTES.md
           generate_release_notes: false
           files: SuspicionsPack-${{ github.ref_name }}.zip

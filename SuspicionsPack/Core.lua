@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.5.1"
+SP.VERSION = "2.5.2"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1198,6 +1198,9 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
+    ["2.5.2"] = {
+        { type = "fix", text = "The Bloodlust timer's music no longer cuts out after a few seconds. The default sound was the only one of the seven encoded at a sample rate the client does not handle well." },
+    },
     ["2.5.1"] = {
         { type = "fix", text = "Text sizes no longer come up wrong at login. The setting was never lost -- it simply was not being applied when the font file was slow to load, and opening the options quietly fixed it by running the same code again." },
         { type = "fix", text = "Affects the movement alert, combat timer, death alert, durability warning, gateway alert, potion alert, bloodlust timer and combat cross." },

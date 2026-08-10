@@ -4,6 +4,47 @@
 
 ---
 
+## 2026-08-09 — v2.5.2
+
+### La musique du lust qui s'arrête au bout de quelques secondes
+
+Les sept sons durent 40 s et sont tous à 192 kb/s en 44,1 kHz — sauf un.
+`hotnigga.mp3`, **le son par défaut**, était le seul à 48 kHz. C'est la seule
+différence mesurable entre le fichier signalé et les six autres, et rien de tout
+cela n'est visible depuis le Lua : les minuteurs sont justes, `StopSound` n'est
+pas appelé en avance, le fichier a la bonne longueur. Réencodé en 44,1 kHz,
+l'original est conservé dans `Archive/audio-originaux/`.
+
+Septième porte : `tests/run.py --audio` sonde chaque son livré et refuse ce qui
+n'est pas en 44,1 ou 22,05 kHz. La liste de sons s'allonge régulièrement, chaque
+fichier arrivant au format de sa source, et ce mode de panne est silencieux.
+Contre-testée en remettant l'original 48 kHz : rouge.
+
+**Réserve, la même que pour la police.** Le fait que ça meure pendant un lust —
+le moment le plus bruyant du jeu — se lit aussi comme une éviction du son par le
+moteur, quand le budget de voix simultanées est saturé. Un problème de format
+échouerait à l'identique dans une fenêtre d'options silencieuse ; une éviction ne
+se produit que sous charge. Le bouton d'écoute des options sépare les deux. Si le
+problème persiste, le canal `Music` — déjà proposé dans la liste — est le suivant
+sur la liste.
+
+### Empaquetage
+
+La v2.5.1 portait **deux** archives : celle du workflow, correcte, et une
+seconde construite à la main qui contenait un dossier enveloppe. Extraite par
+WowUp, la seconde installait un unique dossier au lieu des quatre addons, et rien
+ne se chargeait. L'archive fautive est retirée.
+
+La cause tient en une ligne du workflow : il ne posait pas les notes de version,
+donc chaque publication demandait une reprise à la main — et c'est cette reprise
+qui a déposé le mauvais zip. Les notes viennent maintenant de
+`.github/RELEASE_NOTES.md`, il n'y a plus rien à faire à la main.
+
+Et la construction vérifie désormais la structure de l'archive : quatre dossiers
+à la racine, chacun avec son `.toc`. Sans quoi elle échoue au lieu de publier.
+
+---
+
 ## 2026-08-09 — v2.5.1
 
 ### La taille de police qui « saute » au login
