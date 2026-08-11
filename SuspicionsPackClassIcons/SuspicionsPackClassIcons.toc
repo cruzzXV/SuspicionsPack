@@ -1,11 +1,10 @@
-## Interface: 120001, 120005, 120007
+## Interface: 120001, 120005, 120007, 120100
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r — Class Icons
 ## Notes: Custom class icon packs for Details! (SuspicionsPack plugin)
 ## Author: Cruzz
-## Version: 2.5.2
+## Version: 2.5.3
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## Dependencies: SuspicionsPack
-## IconTexture: Interface\AddOns\SuspicionsPack\icon.png
 
 # Plugin entry point
 ClassIcons.lua

@@ -1,8 +1,8 @@
-## Interface: 120001, 120005, 120007
+## Interface: 120001, 120005, 120007, 120100
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r
 ## Notes: Collection of QoL features
 ## Author: Cruzz
-## Version: 2.5.2
+## Version: 2.5.3
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## SavedVariables: SuspicionsPackDB
 ## IconTexture: Interface\AddOns\SuspicionsPack\Media\Icons\icon.png

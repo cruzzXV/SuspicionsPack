@@ -1,18 +1,14 @@
-## La musique du timer de Bloodlust
+## Compatible avec le patch 12.1.0
 
-Elle s'arrêtait au bout de quelques secondes. Le son par défaut était le seul des
-sept à être encodé en 48 kHz, là où les six autres sont en 44,1 kHz — le taux que
-le client accepte sans discuter. Il est réencodé, sans perte audible.
+Les quatre addons déclarent désormais l'interface `120100`. Sans cela ils
+seraient apparus comme obsolètes au lancement et désactivés par défaut.
 
-Une vérification a été ajoutée à la construction : un son ajouté à l'addon dans
-un format que WoW risque de refuser est signalé avant publication, et non pendant
-un raid.
+Aucune des fonctions retirées par la 12.1 n'est utilisée par le pack. En
+revanche le patch restreint la lecture des auras : si l'alerte de Bloodlust
+cesse de se déclencher, c'est de ce côté qu'il faudra chercher, pas dans une
+régression du pack.
 
-## Note d'installation
+## Liste des addons
 
-L'archive v2.5.1 portait par erreur un second fichier zip, construit à la main,
-qui contenait un dossier enveloppe. Installé via WowUp il donnait un seul dossier
-au lieu des quatre addons. Il a été retiré, et la construction refuse désormais
-toute archive dont la structure n'est pas la bonne.
-
-Si votre v2.5.1 s'est installée de travers, désinstallez puis réinstallez.
+Le panneau d'options porte le même nom que les deux autres plugins, et les
+chemins d'icône qui pointaient vers un fichier absent ont été retirés.

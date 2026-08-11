@@ -4,6 +4,38 @@
 
 ---
 
+## 2026-08-11 — v2.5.3
+
+### Patch 12.1.0
+
+Les TOC déclaraient `120001, 120005, 120007`. La 12.1.0 est `120100`, absent de
+la liste : les quatre addons seraient sortis marqués obsolètes et désactivés par
+défaut. Ajouté partout.
+
+Le TOC n'est que le portier, donc la surface a été croisée avec ce que le patch
+retire. `SecureAuraHeaderTemplate`, `AddAuraFrame` et la création directe
+d'`AuraButton` disparaissent de Mainline : **aucun des quatre addons ne les
+utilise**. Le pack est déjà sur les APIs d'aura modernes.
+
+Ce qui reste exposé, c'est BloodlustAlert. La 12.1 filtre les auras pour réduire
+les informations de combat qui remontent aux addons, et la détection du debuff
+d'épuisement repose entièrement sur `C_UnitAuras.GetPlayerAuraBySpellID`. Les
+gardes `issecretvalue` protègent d'une erreur Lua, pas d'une donnée qui n'est
+plus fournie. Si l'alerte ne part plus, la cause sera là et non chez nous.
+
+### Liste des addons
+
+Le panneau d'options s'appelait « SuspicionPack Options » quand les deux autres
+plugins ont un tiret cadratin. Aligné, et sa description reprend le format des
+autres.
+
+Class Icons et Nudge Tool n'avaient pas « pas d'icône » : ils déclaraient
+`Interface\AddOns\SuspicionsPack\icon.png`, un fichier qui n'existe pas — le
+vrai est dans `Media\Icons\`. Les deux lignes mortes sont retirées et l'icône ne
+reste que sur l'addon parent, seul endroit où le chemin est juste.
+
+---
+
 ## 2026-08-09 — v2.5.2
 
 ### La musique du lust qui s'arrête au bout de quelques secondes
