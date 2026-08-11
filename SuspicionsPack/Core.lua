@@ -1198,16 +1198,19 @@ end
 -- Entries are shown newest-first in the popup.
 -- ============================================================
 SP.Changelog = {
-    ["2.5.3"] = {
-        { type = "new", text = "Ready for patch 12.1.0. Without this the four addons would have been listed as out of date and switched off by default." },
-        { type = "fix", text = "The addon list entries line up: the options panel is named like the other two plugins, and the icon paths that pointed at a file which was not there are gone." },
-    },
+    -- Write these for someone opening the window to see what changed, not for
+    -- someone reading the diff. What the player gets, in their words; the why
+    -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    -- No entry for 2.5.3 on purpose. It bumped the TOC for patch 12.1.0 and
+    -- tidied the addon list names: nothing a player would notice, so nothing
+    -- worth a line here. This window is for changes you can see. A release with
+    -- no entry is fine -- the popup lists whatever the table holds and does not
+    -- look up the running version.
     ["2.5.2"] = {
-        { type = "fix", text = "The Bloodlust timer's music no longer cuts out after a few seconds. The default sound was the only one of the seven encoded at a sample rate the client does not handle well." },
+        { type = "fix", text = "The Bloodlust music plays the whole timer instead of cutting out after a few seconds." },
     },
     ["2.5.1"] = {
-        { type = "fix", text = "Text sizes no longer come up wrong at login. The setting was never lost -- it simply was not being applied when the font file was slow to load, and opening the options quietly fixed it by running the same code again." },
-        { type = "fix", text = "Affects the movement alert, combat timer, death alert, durability warning, gateway alert, potion alert, bloodlust timer and combat cross." },
+        { type = "fix", text = "Text comes up at the size you set it, instead of shrinking until you open the options. Affects the movement alert, combat timer, death alert, durability warning, gateway alert, potion alert, Bloodlust timer and combat cross." },
     },
     ["2.5.0"] = {
         { type = "new", text = "Movement alert: each tracked spell can be given its own on-screen name. The module always supported it; nothing let you set it." },
