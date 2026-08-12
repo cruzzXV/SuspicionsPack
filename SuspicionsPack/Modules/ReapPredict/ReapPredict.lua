@@ -283,9 +283,45 @@ local function ReadCDMAuraData(findFn)
     return ok and data or nil
 end
 
+-- The Cooldown Manager keeps its own copy of the aura data on its frame.
+-- rawget, deliberately: a restricted frame denies ordinary field access, and
+-- this side-channel is the only soul count that survives the lockdown.
+--
+-- Provisional by nature. It is the first thing that dies if Blizzard locks the
+-- Cooldown Manager down too, so nothing here treats it as authoritative.
+local function ReadCDMCachedApplications(cdm)
+    if not cdm then return nil end
+    local ok, cache = pcall(rawget, cdm, "auraDataCached")
+    if not ok or type(cache) ~= "table" then return nil end
+    local ok2, apps = pcall(function() return cache.applications end)
+    if not ok2 then return nil end
+    return apps
+end
+
+-- Soul fragments, or nil for "cannot tell".
+--
+-- THE BUG THIS FIXES: the only path used to be auraInstanceID ->
+-- GetAuraDataByAuraInstanceID, which patch 12.1 blocks while auras are secret.
+-- That is every moment of every fight, so the soul bar, the MoC preview and the
+-- fury prediction all died the instant combat started and came back the instant
+-- it ended -- "it only works out of combat".
+--
+-- Two regimes, and the difference matters:
+--   * Not secret: read the aura directly. Finding none is a truthful ZERO.
+--   * Secret: only the cache speaks, and a miss is nil meaning HOLD. Drawing a
+--     zero there would be inventing a number, and a confident wrong zero is
+--     worse than a value one beat old.
 local function ReadSFStackFromCDM()
-    local data = ReadCDMAuraData(FindSFCDMFrame)
-    return data and data.applications
+    if not SP.AurasSecret() then
+        local data = ReadCDMAuraData(FindSFCDMFrame)
+        if data then
+            local apps = data.applications
+            if issecretvalue(apps) then return apps end
+            if type(apps) == "number" then return apps end
+        end
+        return 0
+    end
+    return ReadCDMCachedApplications(FindSFCDMFrame())
 end
 
 local function ReadMoCActive()
@@ -299,10 +335,16 @@ local SB_SMOOTH = (Enum and Enum.StatusBarInterpolation
 
 local function ApplyToBar(bar, value)
     if issecretvalue(value) then
+        -- Passed straight through. SetValue accepts a secret; we never read it
+        -- back, so the fill is correct without the number ever being known.
         bar._lastNum = nil
         bar:SetValue(value, SB_SMOOTH)
         return
     end
+    -- nil is HOLD, not zero. It used to fall into `or 0`, so every read the
+    -- lockdown refused emptied the bar -- a confident zero, drawn from nothing.
+    -- Leaving the last known fill in place is honest: it is stale, not invented.
+    if value == nil then return end
     local v = (type(value) == "number") and value or 0
     if bar._lastNum == v then return end
     bar._lastNum = v
@@ -310,11 +352,19 @@ local function ApplyToBar(bar, value)
 end
 
 local function SetBarLabel(label, value)
-    if issecretvalue(value) then
-        label._lastNum = nil
-        label:SetFormattedText("%d", value)
-        return
-    end
+    -- A secret HOLDS its last text instead of being formatted.
+    --
+    -- SetFormattedText("%d", secret) does not print the number and does not
+    -- error: the C++ formatter renders a secret through an integer format as a
+    -- literal 0. So the fill would sit correctly past the threshold with a
+    -- confident "0" written beside it. A number one beat old is a far smaller
+    -- lie, and the BAR is still exact because SetValue takes the secret itself.
+    if issecretvalue(value) then return end
+
+    -- nil is HOLD too, for the same reason it is on the bar: a read the lockdown
+    -- refused is not a zero and not an empty string.
+    if value == nil then return end
+
     if label._lastNum == value then return end
     label._lastNum = value
     if type(value) == "number" then

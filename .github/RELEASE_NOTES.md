@@ -1,16 +1,17 @@
-## Reap Predict et les talents
+## Reap Predict en combat
 
-Le compteur de Métamorphose du Vide ignorait les talents qui abaissent le nombre
-d'âmes nécessaire. Avec Glouton d'âmes, la barre était graduée sur 50 alors que
-la Métamorphose se déclenchait à 35 : elle affichait deux tiers au moment précis
-où c'était prêt. Le seuil suit désormais vos talents et se recalcule quand vous
-en changez.
+La barre d'âmes, l'aperçu de Reap et la prédiction de fureur ne fonctionnaient
+qu'en dehors des combats. Elles lisaient le compte de fragments par un chemin que
+le patch 12.1 bloque dès que les auras deviennent secrètes — c'est-à-dire
+pendant toute la durée d'un combat. Elles passent désormais par la donnée que le
+Cooldown Manager conserve lui-même, qui reste lisible.
 
-## Interrupteurs
+## Deux affichages qui mentaient
 
-Redessinés. La couleur se fond par-dessus la piste au lieu de la remplacer, avec
-un léger dégradé. Un interrupteur verrouillé perd sa couleur d'accent, pour ne
-plus ressembler à un interrupteur actif.
+Une lecture que le client refuse **conserve sa dernière valeur** au lieu de
+retomber à zéro. Un zéro affiché avec assurance à côté d'une barre visiblement
+pleine est pire qu'un chiffre en retard d'un instant.
 
-Un réglage dont l'écriture est refusée revient maintenant à sa vraie valeur au
-lieu d'afficher celle que vous veniez de choisir.
+Pour la même raison, le nombre de fureur n'écrit plus « 0 » quand le client
+refuse de donner la valeur : il garde le dernier chiffre connu, et la barre
+elle-même reste exacte.

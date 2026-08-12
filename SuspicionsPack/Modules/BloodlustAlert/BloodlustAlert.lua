@@ -190,17 +190,9 @@ local zoneGuardUntil = 0
 local lastScan      = 0
 local SCAN_THROTTLE = 0.2
 
--- Are auras secret RIGHT NOW? Combat is not the predicate on its own: secrecy
--- outlasts combat in Mythic+, so a module that asks InCombatLockdown alone will
--- believe the client between pulls when it is still refusing to answer.
-local function AurasSecret()
-    if InCombatLockdown and InCombatLockdown() then return true end
-    if C_Secrets and C_Secrets.ShouldAurasBeSecret then
-        local ok, secret = pcall(C_Secrets.ShouldAurasBeSecret)
-        if ok and secret then return true end
-    end
-    return false
-end
+-- Shared with ReapPredict, which asks the same question for the same reason.
+-- See SP.AurasSecret in Core.lua.
+local AurasSecret = SP.AurasSecret
 
 -- Is THIS spell's aura one the client will still describe?
 --

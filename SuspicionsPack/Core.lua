@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.5.6"
+SP.VERSION = "2.5.7"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -218,6 +218,24 @@ function SP.ApplyAnchor(frame, db, defX, defY, defStrata)
         db.y          or defY or 0
     )
     frame:SetFrameStrata(db.frameStrata or defStrata or "HIGH")
+end
+
+-- Are auras secret RIGHT NOW?
+--
+-- The only sanctioned basis for the question, and it is NOT InCombatLockdown on
+-- its own: secrecy outlasts combat in Mythic+, so a module asking about combat
+-- alone believes the client between pulls while it is still refusing to answer.
+--
+-- Shared because two modules ask it for the same reason. BloodlustAlert needs it
+-- to tell a suppressed debuff from an absent one; ReapPredict needs it to know
+-- whether a missing soul count is a truthful zero or a "cannot tell".
+function SP.AurasSecret()
+    if InCombatLockdown and InCombatLockdown() then return true end
+    if C_Secrets and C_Secrets.ShouldAurasBeSecret then
+        local ok, secret = pcall(C_Secrets.ShouldAurasBeSecret)
+        if ok and secret then return true end
+    end
+    return false
 end
 
 -- StatusBar texture helpers (LibSharedMedia)
@@ -1201,6 +1219,10 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.5.7"] = {
+        { type = "fix", text = "Reap Predict: the soul bar, the Reap preview and the fury prediction work in combat again. They read a source that patch 12.1 blocks mid-fight, so they died the moment a pull started and came back the moment it ended." },
+        { type = "fix", text = "A reading the client refuses now holds its last value instead of dropping to zero, and the fury number no longer prints a confident 0 next to a bar that is plainly not empty." },
+    },
     ["2.5.6"] = {
         { type = "fix", text = "Reap Predict: the Void Metamorphosis meter follows talents that lower the soul requirement. With Soul Glutton it was scaled to 50 while Metamorphosis actually triggered at 35, so the bar read two thirds full at the moment it was ready." },
         { type = "new", text = "Switches have been redrawn: the colour now fades in over the track instead of replacing it, and a switch you cannot change no longer looks like a live one." },

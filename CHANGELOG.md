@@ -4,6 +4,59 @@
 
 ---
 
+## 2026-08-12 — v2.5.7
+
+### « Ça ne marche qu'hors combat »
+
+Signalé en jeu, et c'était exactement ça. `ReadSFStackFromCDM` passait par
+`auraInstanceID` puis `GetAuraDataByAuraInstanceID`, que la 12.1 bloque tant que
+les auras sont secrètes — donc pendant toute la durée d'un combat. Le compte de
+fragments revenait `nil`, et avec lui la barre d'âmes, l'aperçu de MoC, la barre
+de fureur des âmes et son aperçu : quatre régions mortes au pull, ressuscitées à
+la fin du combat.
+
+Deux régimes maintenant, et la distinction est le fond du correctif :
+
+**Hors verrouillage**, lecture directe. Ne rien trouver est un **zéro véritable**.
+
+**Sous verrouillage**, la seule source qui parle est la copie que le Cooldown
+Manager garde sur son propre cadre, lue par `rawget` — un cadre restreint refuse
+l'accès ordinaire à ses champs. Un échec y vaut **`nil`, c'est-à-dire « on
+garde »**. Dessiner un zéro serait inventer un nombre.
+
+Provisoire par nature : c'est la première chose qui meurt si le Cooldown Manager
+est verrouillé à son tour. Rien ici ne le traite comme faisant autorité.
+
+### Deux affichages qui mentaient
+
+`ApplyToBar` faisait tomber un `nil` dans `or 0`. Chaque lecture refusée vidait
+donc la barre — un zéro assuré, tiré de rien. `nil` **garde** désormais le
+dernier remplissage : périmé, pas inventé.
+
+`SetBarLabel` formatait une valeur secrète avec `"%d"`. Ça ne lève pas et
+n'imprime pas le nombre : le formateur C++ rend un secret comme un **0
+littéral**. La barre était donc correctement remplie au-delà du seuil avec un
+« 0 » écrit à côté. Un secret conserve son texte : un chiffre en retard d'un
+instant est un mensonge bien plus petit, et la barre reste exacte puisque
+`SetValue` accepte le secret lui-même.
+
+### `SP.AurasSecret`
+
+Hissé dans Core et partagé. Deux modules posent la même question pour la même
+raison : BloodlustAlert pour distinguer un débuff supprimé d'un débuff absent,
+ReapPredict pour savoir si un compte manquant est un zéro ou un « je ne sais
+pas ». Et ce n'est pas `InCombatLockdown` seul — la confidentialité survit au
+combat en Mythique+.
+
+### Couverture
+
+Ces trois correctifs ne sont **pas couverts par une porte** : `ApplyToBar` et
+`SetBarLabel` sont des locales de ReapPredict, et charger ce module dans le
+harnais demanderait d'y modéliser toute sa surface. C'est écrit ici plutôt que
+passé sous silence.
+
+---
+
 ## 2026-08-12 — v2.5.6
 
 ### Le compteur de Métamorphose mentait d'un tiers
