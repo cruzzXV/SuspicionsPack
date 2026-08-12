@@ -33,7 +33,26 @@ do local ids = { 1238495, 1238488 }
 
 local CS_THRESHOLD  = 30
 local CS_AURA_MAX   = 40
-local VM_THRESHOLD  = 50
+
+-- The souls Void Metamorphosis needs. NOT a constant: talents move it, and a
+-- meter that predicts against the wrong number does not fail loudly, it lies.
+-- Soul Glutton takes 15 off, so a build carrying it triggers at 35 while a bar
+-- scaled to 50 shows 52% when the truth is 74% -- Metamorphosis fires at two
+-- thirds of the bar with no warning.
+--
+-- VM_THRESHOLD is recomputed in RecomputeDerived, which the existing
+-- TRAIT_CONFIG_UPDATED -> Refresh -> ApplySize chain already runs on every
+-- talent change; ApplyPhaseMode then re-scales the bar from it.
+local VM_THRESHOLD_BASE = 50
+
+-- spellID -> souls removed. A table rather than an `if`, because this is
+-- exactly the kind of number Blizzard rebalances: a future talent is one line,
+-- and a changed value is one number next to the id that identifies it.
+local VM_THRESHOLD_MODS = {
+    [1247534] = 15,   -- Soul Glutton / Glouton d'âmes
+}
+
+local VM_THRESHOLD  = VM_THRESHOLD_BASE
 local REAP_CAP_BASE = 4
 local REAP_CAP_MOC  = 10
 
@@ -1332,8 +1351,33 @@ end
 -- ============================================================
 -- Sizing
 -- ============================================================
+-- Souls Void Metamorphosis needs on THIS build. Read before any geometry, so
+-- everything derived below is scaled to the real number.
+local function ComputeVMThreshold()
+    local t = VM_THRESHOLD_BASE
+    for spellID, reduction in pairs(VM_THRESHOLD_MODS) do
+        local known = false
+        if IsPlayerSpell then
+            local ok, r = pcall(IsPlayerSpell, spellID)
+            known = ok and r and true or false
+        end
+        if not known and C_SpellBook and C_SpellBook.IsSpellKnown then
+            local ok, r = pcall(C_SpellBook.IsSpellKnown, spellID)
+            known = ok and r and true or false
+        end
+        if known then t = t - reduction end
+    end
+    -- A talent stack that took it to zero would divide by zero in the pixel
+    -- maths below and blank the bar.
+    if t < 1 then t = 1 end
+    return t
+end
+
 function RecomputeDerived()
-    -- Bar width = exact growth cap (50 build / 40 meta).
+    -- Talent-dependent, so it leads: PX_PER_STACK_BUILD divides by it.
+    VM_THRESHOLD = ComputeVMThreshold()
+
+    -- Bar width = exact growth cap (VM threshold in build, 40 in meta).
     -- SF prediction zone overlays the right end of the bar, so no extra units.
     PX_PER_STACK_VM     = CONTAINER_W / CS_AURA_MAX
     PX_PER_STACK_BUILD  = CONTAINER_W / VM_THRESHOLD
@@ -2271,6 +2315,24 @@ function DumpState()
         inVM and "Collapsing Star" or "Void Metamorphosis",
         inVM and CS_THRESHOLD or VM_THRESHOLD,
         inVM and CS_AURA_MAX  or VM_THRESHOLD))
+    -- Which talents moved the threshold, and to what. The old dump printed the
+    -- threshold alone, so a wrong one looked exactly like a right one.
+    do
+        local found = {}
+        for spellID, reduction in pairs(VM_THRESHOLD_MODS) do
+            local known = false
+            if IsPlayerSpell then
+                local ok, r = pcall(IsPlayerSpell, spellID)
+                known = ok and r and true or false
+            end
+            if known then
+                found[#found + 1] = ("%d (-%d)"):format(spellID, reduction)
+            end
+        end
+        print(("  VM threshold: %d (base %d)  talents: %s"):format(
+            VM_THRESHOLD, VM_THRESHOLD_BASE,
+            #found > 0 and table.concat(found, ", ") or "none"))
+    end
     print(("  CS aura apps: %s"):format(secretSafeStr(ReadCSApplications())))
     print(("  VM stack apps: %s"):format(secretSafeStr(ReadVMStacks())))
     print(("  SF CDM stacks: %s"):format(secretSafeStr(ReadSFStackFromCDM())))

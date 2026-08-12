@@ -245,6 +245,28 @@ function GUI.RoundTex(parent, layer, style, border, sublevel)
     return Skin.RoundTex(parent, layer, style, border, sublevel)
 end
 
+-- A horizontal gradient across a texture, darker on the left.
+--
+-- The alpha is BAKED INTO THE COLOURS, never applied with SetAlpha afterwards.
+-- A gradient's own vertex alpha wins over SetAlpha, so fading a gradient texture
+-- the obvious way does nothing at all and the caller is left wondering why the
+-- cross-fade never appears. That is the whole reason this helper takes an alpha
+-- per stop instead of returning a texture for the caller to fade.
+--
+-- The darker stop is the same hue at 60%: a flat accent reads as a coloured
+-- rectangle, while the same colour with a fall across it reads as a surface.
+function GUI.TintGradientH(tex, r, g, b, a, factor)
+    if not tex or not tex.SetGradient then return end
+    factor = factor or 0.6
+    if CreateColor then
+        tex:SetGradient("HORIZONTAL",
+            CreateColor(r * factor, g * factor, b * factor, a),
+            CreateColor(r, g, b, a))
+    else
+        tex:SetVertexColor(r, g, b, a)
+    end
+end
+
 -- A flat colour texture that follows a theme key.
 function GUI.Tex(parent, layer, colorKey, alpha)
     local tex = parent:CreateTexture(nil, layer or "ARTWORK")

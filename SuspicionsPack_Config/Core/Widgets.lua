@@ -293,6 +293,17 @@ function W.Toggle(parent, spec)
     local trackBR = GUI.RoundTex(track, "BORDER", "pill", true, 7)
     trackBR:SetAllPoints(track)
 
+    -- The ON state is its OWN layer over the dark track, not a recolour of it.
+    --
+    -- Lerping one texture between the background and the accent was the obvious
+    -- way and it looks flat: at rest the switch is a grey rectangle, and every
+    -- intermediate frame is a muddy blend of two unrelated colours. Two layers
+    -- keep the dark track underneath at all times and cross-fade the accent in
+    -- above it, so the colour sits ON the surface rather than replacing it, and
+    -- the hover tint of the track still reads through.
+    local fill = GUI.RoundTex(track, "BACKGROUND", "pill", false, -7)
+    fill:SetAllPoints(track)
+
     local knob = GUI.CircleTex(track, "OVERLAY")
     knob:SetSize(KNOB, KNOB)
 
@@ -305,16 +316,22 @@ function W.Toggle(parent, spec)
         knob:SetPoint("LEFT", track, "LEFT", pos, 0)
     end
 
-    -- The track colour lerps with the knob so the two never disagree mid-slide.
+    -- Everything visual is driven by ONE number: how far along the knob is.
+    -- Track, fill and knob can never disagree mid-slide because none of them
+    -- carries its own idea of the state.
     local function PaintTrack()
-        local p  = (pos - OFF_X) / (ON_X - OFF_X)
-        local a  = T.accent
+        local p = (pos - OFF_X) / (ON_X - OFF_X)
+
         local bg = T.bgMedium
-        trackBG:SetVertexColor(
-            bg[1] + (a[1] - bg[1]) * p,
-            bg[2] + (a[2] - bg[2]) * p,
-            bg[3] + (a[3] - bg[3]) * p, 1)
-        local br = row._hover and T.accent or T.border
+        trackBG:SetVertexColor(bg[1], bg[2], bg[3], 1)
+
+        -- Disabled drops the accent ENTIRELY rather than dimming it. A greyed
+        -- switch that is still red reads as "on and working"; the whole point of
+        -- the disabled state is that it cannot be mistaken for a live one.
+        local c = row._disabled and T.textMuted or T.accent
+        GUI.TintGradientH(fill, c[1], c[2], c[3], p)
+
+        local br = (row._hover and not row._disabled) and T.accent or T.border
         trackBR:SetVertexColor(br[1], br[2], br[3], 1)
         knob:SetVertexColor(1, 1, 1, 1)
     end
@@ -341,12 +358,24 @@ function W.Toggle(parent, spec)
     end)
     hit:SetScript("OnClick", function()
         if row._disabled then return end
-        state = not state
+
+        -- Write the flipped value, then READ BACK what the binding actually
+        -- holds. Flipping a local and trusting it means a setter that clamps,
+        -- refuses, or rewrites the value leaves the switch showing one thing
+        -- while the profile holds another -- and the switch is the more
+        -- convincing of the two. Going back to the source keeps the setter
+        -- authoritative.
+        row.binding:Set(not state)
+        state = row.binding:Get() and true or false
+
+        -- Written before the slide, not after. The old toggle deferred the DB
+        -- write by the 0.18s animation, so a fast click-and-close lost it.
         Slide(state and ON_X or OFF_X)
-        -- Written immediately. The old toggle deferred the DB write by the 0.18s
-        -- animation length, so a fast click-and-close lost the change.
-        row.binding:Set(state)
         UpdateModified(row)
+        if PlaySound and SOUNDKIT then
+            PlaySound(state and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON
+                            or SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF)
+        end
         if spec.onToggle then spec.onToggle(state) end
     end)
 
@@ -364,6 +393,10 @@ function W.Toggle(parent, spec)
     function row:SetEnabled(en)
         StdSetEnabled(self, en)
         hit:EnableMouse(en)
+        -- StdSetEnabled only greys the LABEL. Without this the track kept its
+        -- full accent while switched off, so a locked-on switch looked exactly
+        -- like a live one.
+        PaintTrack()
     end
 
     UpdateModified(row)

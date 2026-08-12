@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.5.5"
+SP.VERSION = "2.5.6"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1201,6 +1201,10 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.5.6"] = {
+        { type = "fix", text = "Reap Predict: the Void Metamorphosis meter follows talents that lower the soul requirement. With Soul Glutton it was scaled to 50 while Metamorphosis actually triggered at 35, so the bar read two thirds full at the moment it was ready." },
+        { type = "new", text = "Switches have been redrawn: the colour now fades in over the track instead of replacing it, and a switch you cannot change no longer looks like a live one." },
+    },
     ["2.5.5"] = {
         { type = "fix", text = "The Bloodlust alert no longer goes off when you change zone or log in while still Sated." },
     },

@@ -4,6 +4,73 @@
 
 ---
 
+## 2026-08-12 — v2.5.6
+
+### Le compteur de Métamorphose mentait d'un tiers
+
+`VM_THRESHOLD` était écrit en dur à 50 et utilisé à huit endroits, dont
+`growthBar:SetMinMaxValues` et `PX_PER_STACK_BUILD`. Glouton d'âmes (1247534)
+retire 15 âmes : la Métamorphose se déclenche à 35. Relevé en jeu, `VM stack
+apps: 26` s'affichait à **52 %** alors que la vraie progression était **74 %**,
+et la Métamorphose partait aux deux tiers de la barre.
+
+Le module ne se taisait pas, il mentait — et il avait raison sur une build sans
+ce talent, d'où l'impression que l'arbre héroïque était en cause.
+
+Le seuil devient une valeur calculée en tête de `RecomputeDerived`. Rien d'autre
+n'a bougé : la chaîne `TRAIT_CONFIG_UPDATED -> Refresh -> ApplySize ->
+RecomputeDerived` existait déjà, et `ApplyPhaseMode` refixe l'échelle depuis le
+seuil. Les huit usages en aval suivent sans y toucher.
+
+La réduction est dans une table plutôt qu'un `if`, parce que c'est typiquement
+la valeur qu'un équilibrage déplace : un futur talent est une ligne, une valeur
+changée est un chiffre à côté de l'ID qui l'identifie.
+
+`DumpState` affiche désormais le seuil, la base et les talents détectés. L'ancien
+n'imprimait que le seuil, donc un mauvais ressemblait exactement à un bon.
+
+### Les interrupteurs
+
+Le fond était un lerp d'UNE texture entre le fond et l'accent : à l'arrêt un
+rectangle gris, et chaque image intermédiaire un mélange de deux couleurs sans
+rapport. Deux couches maintenant — la piste sombre reste visible en permanence,
+l'accent se fond par-dessus en dégradé horizontal.
+
+L'alpha est **dans les couleurs du dégradé**, jamais posé avec `SetAlpha` : un
+dégradé impose son propre alpha de vertex, donc fondre la texture par la méthode
+évidente ne fait strictement rien.
+
+Deux correctifs de comportement :
+
+Le clic écrivait un état local et le croyait. Un setter qui refuse ou corrige la
+valeur laissait l'interrupteur afficher une chose et le profil en contenir une
+autre — et c'est l'interrupteur qu'on croit. La valeur est relue à la source
+après écriture.
+
+Et `StdSetEnabled` ne grisait que le libellé, donc un interrupteur verrouillé
+gardait son accent plein et se lisait « allumé et fonctionnel ». L'accent
+disparaît maintenant à la désactivation.
+
+Plus le son de case à cocher de Blizzard au clic.
+
+### Trois assertions décoratives, trouvées par le contre-test
+
+Celle du setter ne cliquait jamais : le `OnClick` est sur le bouton de survol,
+pas sur la ligne, donc lire le script sur la ligne ne trouvait rien et
+l'assertion passait sans avoir rien basculé.
+
+Celle de l'alpha testait à l'état allumé, où un alpha intégré et un `SetAlpha`
+sont indiscernables — les deux finissent opaques. Elle teste à l'état éteint, le
+seul point où ils divergent.
+
+Et un cas du contre-test lui-même était mal écrit : il insérait un appel désactivé
+sans retirer le vrai. Le stub sait maintenant enregistrer `SetGradient`, sans quoi
+tout l'état allumé restait intestable.
+
+139 assertions, cinq comportements contre-testés au rouge.
+
+---
+
 ## 2026-08-12 — v2.5.5
 
 ### Ce que la 12.1 interdit vraiment
