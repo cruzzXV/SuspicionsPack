@@ -4,6 +4,59 @@
 
 ---
 
+## 2026-08-12 — v2.5.5
+
+### Ce que la 12.1 interdit vraiment
+
+La 2.5.4 partait d'une lecture trop pessimiste. Comparaison faite avec
+EllesmereUI, dont le module Bloodlust tourne sur 12.1, deux corrections :
+
+**Lire `updateInfo.isFullUpdate` est permis.** Le plantage d'origine ne venait
+pas de la lecture du champ mais du `not` appliqué à la valeur secrète qu'il
+renvoie. `issecretvalue` est l'inspecteur autorisé et ne lève jamais, donc une
+garde avant le branchement suffit — supprimer le chemin était plus brutal que
+nécessaire :
+
+    local full = updateInfo.isFullUpdate
+    if _issecretvalue(full) then return false end
+    return full and true or false
+
+**Et la détection fonctionne en combat.** Interroger un spell ID CONNU renvoie
+l'aura même quand ses champs seraient secrets ; ce qui est verrouillé, c'est le
+contenu de l'événement, pas la question posée sur un sort qu'on nomme
+soi-même. La conclusion « aveugle en raid » de la 2.5.4 venait d'un commentaire
+de ReapMeter portant sur ses propres sorts, qui sont sur liste blanche.
+
+### Deux fausses alertes fermées
+
+Le champ récupéré sert à ce pour quoi EllesmereUI l'utilise : **un
+rafraîchissement complet n'est pas un lust**. Zoner ou se connecter renvoie
+toutes les auras d'un coup, ce qui, pour un détecteur de front, est
+indiscernable d'un débuff qui vient de tomber.
+
+Quand le drapeau est secret, une **fenêtre de grâce de 1,5 s** après
+`PLAYER_ENTERING_WORLD` prend le relais. Un épuisement déjà porté en sortant
+d'un donjon ne se ré-annonce donc plus.
+
+Dans les deux cas l'état est enregistré et seule l'annonce est supprimée :
+sauter aussi l'affectation laisserait le front armé, et l'alerte partirait sur
+l'événement ordinaire suivant.
+
+### Le modèle de test, troisième version
+
+Le stub interdisait tout accès à `updateInfo`. C'était **plus strict que le
+client** et cela aurait rejeté le correctif correct — une porte qui interdit la
+bonne solution n'est pas une porte, c'est un obstacle. Le champ est maintenant
+lisible et renvoie un secret marqué que `issecretvalue` reconnaît.
+
+`--secret` passe à 19 assertions. Les cinq comportements sont contre-testés :
+bug d'origine, garde de rafraîchissement, fenêtre de zone, sonde `C_Secrets`,
+adoption après un passage aveugle. Tous rouges quand on les retire.
+
+Approche relevée sur EllesmereUI (Bloodlust Tracker) ; rien n'en est copié.
+
+---
+
 ## 2026-08-12 — v2.5.4
 
 ### L'alerte Bloodlust cassée par la 12.1

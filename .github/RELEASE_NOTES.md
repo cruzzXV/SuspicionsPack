@@ -1,13 +1,10 @@
-## L'alerte Bloodlust sur le patch 12.1
+## L'alerte Bloodlust
 
-Le patch a rendu secret le contenu de l'événement d'auras : l'addon n'a plus le
-droit de lire ce qui vient d'être appliqué. Le module s'en servait, et cela
-provoquait une erreur à chaque buff ou débuff gagné — environ 1400 pendant un
-seul combat.
+Elle pouvait se déclencher toute seule au changement de zone ou à la connexion,
+quand le débuff d'épuisement était encore sur vous : le client renvoie alors
+toutes vos auras d'un coup, ce qui ressemble exactement à un lust qui vient de
+tomber. Deux garde-fous ont été ajoutés, et l'alerte ne s'annonce plus que sur
+une vraie application.
 
-La détection repose désormais sur la présence du débuff d'épuisement, sans lire
-aucune valeur interdite. Si une prochaine restriction ferme aussi cet accès, le
-module se taira au lieu de générer des erreurs.
-
-Un contrôle de ReapPredict qui lisait les mêmes données a été retiré. Il était
-derrière le mode debug et aurait produit la même erreur si vous l'aviez activé.
+La détection fonctionne de nouveau en combat. La restriction du patch 12.1 porte
+sur le contenu de l'événement d'auras, pas sur l'interrogation d'un sort connu.

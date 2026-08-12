@@ -2317,6 +2317,13 @@ ReapPredict.ApplyBarTexture    = ApplyBarTexture
 ReapPredict.ApplyLock          = ApplyLock
 ReapPredict.ApplyFuryLock      = ApplyFuryLock
 ReapPredict.ApplySavedPosition = ApplySavedPosition
+
+-- DumpState prints, among other things, whether the aura reads come back as
+-- numbers or as SECRET. That is the one fact that decides whether this module
+-- still has its stack refinements on a given patch -- and it was a file-local,
+-- so the only way to see it was to edit the file. Exposed:
+--   /run SuspicionsPack.ReapPredict.DumpState()
+ReapPredict.DumpState = DumpState
 ReapPredict.ApplyFuryPosition  = ApplyFuryPosition
 ReapPredict.UpdateSoulBarVisibility = UpdateSoulBarVisibility
 ReapPredict.UpdateFuryVisibility    = UpdateFuryVisibility

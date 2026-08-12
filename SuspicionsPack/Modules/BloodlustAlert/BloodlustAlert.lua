@@ -182,25 +182,70 @@ end
 -- become an error generator.
 
 local sawExhaustion = false
+local wasBlind      = false
+-- Zoning and logging in resend every aura. A rising edge inside this window is
+-- the client catching up, not a lust: an exhaustion debuff already on you when
+-- you step out of a dungeon must not re-announce itself.
+local zoneGuardUntil = 0
 local lastScan      = 0
 local SCAN_THROTTLE = 0.2
 
--- true / false / nil, where nil means "the client will not say". That is
--- deliberately NOT folded into false: "no exhaustion" and "cannot tell" lead to
--- different behaviour, and conflating them is how an edge detector fires on a
--- debuff that was there all along.
+-- Are auras secret RIGHT NOW? Combat is not the predicate on its own: secrecy
+-- outlasts combat in Mythic+, so a module that asks InCombatLockdown alone will
+-- believe the client between pulls when it is still refusing to answer.
+local function AurasSecret()
+    if InCombatLockdown and InCombatLockdown() then return true end
+    if C_Secrets and C_Secrets.ShouldAurasBeSecret then
+        local ok, secret = pcall(C_Secrets.ShouldAurasBeSecret)
+        if ok and secret then return true end
+    end
+    return false
+end
+
+-- Is THIS spell's aura one the client will still describe?
+--
+-- This matters more than it looks. GetPlayerAuraBySpellID carries
+-- RequiresNonSecretAura: for a secret aura it returns NOTHING AT ALL. So a
+-- suppressed debuff and an absent debuff produce the identical nil, and
+-- issecretvalue never fires because there is no value to inspect. Only this
+-- probe separates them.
+-- Deliberately NOT cached. The obvious optimisation is to remember the answer,
+-- but "is this spell's aura secret" is a property of the moment, not of the
+-- spell: caching it during a pull pins the module to "cannot tell" for the rest
+-- of the session, and it then holds forever and never fires again. The call is
+-- cheap and only happens on the nil branch, at most seven times per scan, at
+-- five scans a second.
+local function IsPlainSpell(spellID)
+    if not (C_Secrets and C_Secrets.ShouldSpellAuraBeSecret) then return false end
+    local ok, secret = pcall(C_Secrets.ShouldSpellAuraBeSecret, spellID)
+    return ok and secret == false
+end
+
+-- true / false / nil, where nil means "the client will not say".
+--
+-- nil is deliberately NOT folded into false. Absence and suppression are
+-- different facts, and treating a suppressed debuff as absent is what makes an
+-- edge detector fire the moment the client starts answering again -- announcing
+-- a lust that landed five minutes ago, as you walk out of the pull.
+--
+-- So absence only counts while the spell is plain. Anything else is a hold.
 local function ExhaustionPresent()
     local blind = false
     for i = 1, #EXHAUSTION_IDS do
+        local spellID = EXHAUSTION_IDS[i]
         -- pcall because these APIs are documented as not callable at all while
         -- aura access is restricted, not merely as returning secrets.
-        local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, EXHAUSTION_IDS[i])
+        local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, spellID)
         if not ok then
             blind = true
         elseif _issecretvalue(aura) then
             blind = true
         elseif aura then
             return true
+        elseif not IsPlainSpell(spellID) then
+            -- nil, and the client is not committing to this spell being
+            -- visible: cannot tell absence from suppression.
+            blind = true
         end
     end
     if blind then return nil end
@@ -212,13 +257,35 @@ BLAlert.ExhaustionPresent = ExhaustionPresent
 -- Called on Activate so a lust already running at login does not read as a
 -- fresh application on the first scan.
 function BLAlert:PrimeExhaustion()
+    wasBlind = false
     local present = ExhaustionPresent()
     sawExhaustion = (present == true)
 end
 
+-- Is this a FULL aura refresh rather than an incremental change?
+--
+-- The original crash was `not updateInfo.isFullUpdate`: reading the field is
+-- fine, running `not` on the secret boolean it returns is what throws.
+-- issecretvalue is the sanctioned inspector and never throws, so guarding
+-- before the branch keeps the field usable. Deleting the read, as a first pass
+-- did, threw away something worth having.
+--
+-- Worth having because zoning and logging in resend EVERY aura at once. To an
+-- edge detector that is indistinguishable from a lust landing this instant. A
+-- full refresh is therefore never an edge.
+local function IsFullRefresh(updateInfo)
+    if _issecretvalue(updateInfo) or not updateInfo then return false end
+    local full = updateInfo.isFullUpdate
+    if _issecretvalue(full) then
+        -- Secret: it cannot be read, so it cannot be trusted either way. Treated
+        -- as incremental, because full refreshes come from zoning and logging in
+        -- and the zone guard below already covers those.
+        return false
+    end
+    return full and true or false
+end
+
 function BLAlert:OnUnitAura(event, unit, updateInfo)
-    -- updateInfo is deliberately untouched. It is secret in 12.1 and reading
-    -- any field of it is the bug this replaced.
     local db = self:GetDB()
     if not (db and db.enabled) then return end
     if active or not armed then return end
@@ -230,15 +297,38 @@ function BLAlert:OnUnitAura(event, unit, updateInfo)
     lastScan = now
 
     local present = ExhaustionPresent()
+
     if present == nil then
+        -- Blind. Remember it: what we see when sight returns cannot be treated
+        -- as news, because it may have been there the whole time we were blind.
+        wasBlind = true
         SP:Debug("Bloodlust", "aura access is secret, detection unavailable")
+        return
+    end
+
+    if wasBlind then
+        -- Sight just came back. ADOPT the current state as the baseline instead
+        -- of calling it an edge. Firing here would announce a lust that landed
+        -- mid-pull, at the moment you walk out of combat, which is worse than
+        -- not announcing it at all.
+        wasBlind      = false
+        sawExhaustion = present
         return
     end
 
     if present then
         if not sawExhaustion then
             sawExhaustion = true
-            self:StartBL()
+            -- The state is recorded either way; only the ANNOUNCEMENT is
+            -- suppressed. Skipping the assignment too would leave the edge
+            -- armed and fire on the next ordinary event instead.
+            if IsFullRefresh(updateInfo) then
+                SP:Debug("Bloodlust", "full aura refresh, not a fresh lust")
+            elseif GetTime() < zoneGuardUntil then
+                SP:Debug("Bloodlust", "inside the post-zone grace window")
+            else
+                self:StartBL()
+            end
         end
     else
         sawExhaustion = false
@@ -381,7 +471,11 @@ function BLAlert:OnPlayerDead()
 end
 
 function BLAlert:OnEnteringWorld()
+    zoneGuardUntil = GetTime() + 1.5
+    wasBlind       = false
     if active then self:StopBL() end
+    -- Re-baseline on the new zone rather than inheriting the old one.
+    self:PrimeExhaustion()
 end
 
 -- ============================================================
