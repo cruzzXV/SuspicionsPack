@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.5.8"
+SP.VERSION = "2.5.9"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1219,6 +1219,9 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.5.9"] = {
+        { type = "remove", text = "The Nudge Tool has been removed: it interfered with Blizzard's Edit Mode. If you had it installed, delete the SuspicionsPackNudgeTool folder from your AddOns directory by hand -- an update cannot remove a folder for you." },
+    },
     ["2.5.8"] = {
         { type = "fix", text = "The three companion addons no longer show a question mark in the addon list. They carry a transparent icon now, because leaving the line out is what made the client draw its own placeholder." },
     },

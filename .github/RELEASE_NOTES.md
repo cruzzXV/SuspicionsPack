@@ -1,7 +1,9 @@
-## Le point d'interrogation dans la liste des addons
+## Retrait du Nudge Tool
 
-Les trois addons compagnons affichaient l'icône de remplacement du client. Ce
-n'était pas un oubli de texture mais l'inverse : c'est **l'absence** de
-déclaration qui fait dessiner ce point d'interrogation. Ils portent désormais une
-icône entièrement transparente, ce qui est la seule façon de n'afficher rien du
-tout. Seul l'addon principal garde son icône.
+Il perturbait le mode Édition de Blizzard. L'addon compagnon est retiré du pack,
+ainsi que sa page dans les options.
+
+**Une mise à jour ne peut pas supprimer un dossier de votre disque.** Si vous
+l'aviez installé, supprimez à la main le dossier `SuspicionsPackNudgeTool` dans
+votre répertoire `Interface/AddOns`, sinon il continuera à se charger et le mode
+Édition restera perturbé.

@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r — Options
 ## Notes: Options panel for the pack (SuspicionsPack plugin)
 ## Author: Cruzz
-## Version: 2.5.8
+## Version: 2.5.9
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## Dependencies: SuspicionsPack
 # A VALID but fully transparent texture, not an absent line: the client
@@ -58,7 +58,6 @@ Pages\CopyTooltip.lua
 Pages\EnhancedObjectiveText.lua
 Pages\MicroMenuSkin.lua
 Pages\Drawer.lua
-Pages\NudgeTool.lua
 Pages\Performance.lua
 Pages\SilvermoonMapIcon.lua
 Pages\CVars.lua

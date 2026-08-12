@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-08-12 — v2.5.9
+
+### Retrait du Nudge Tool
+
+Il perturbait le mode Édition de Blizzard. Le dossier part dans `Archive/` — il
+n'est pas détruit, et l'historique git le garde de toute façon.
+
+Sept endroits tenaient une référence, dont **deux qui auraient fait échouer la
+construction de la release** si on les avait oubliés : le workflow zippe les
+dossiers par leur nom, et son contrôle de structure attend une liste exacte de
+racines. Un `rm` seul aurait produit un tag qui ne construit pas.
+
+Les autres : la ligne de liste blanche du `.gitignore`, la page d'options et son
+entrée dans le TOC du module de configuration, et les listes d'addons des portes
+`--audio` et `--tocicons`.
+
+Le contrôle de structure du workflow a été rejoué localement avant le tag, sur
+une archive construite à trois dossiers.
+
+### Ce qu'une mise à jour ne peut pas faire
+
+Retirer le dossier du paquet ne le supprime pas du disque : un gestionnaire
+d'addons remplace ce qu'il livre, il n'efface pas ce qu'il ne livre plus. Le
+dossier `SuspicionsPackNudgeTool` doit être supprimé à la main, sinon il continue
+de se charger et le mode Édition reste perturbé. C'est écrit dans les notes de
+version et dans la fenêtre en jeu.
+
+---
+
 ## 2026-08-12 — v2.5.8
 
 ### « Pas d'icône » ne s'obtient pas en retirant la ligne
