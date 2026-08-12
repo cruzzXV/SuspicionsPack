@@ -2164,35 +2164,15 @@ function ReapPredict:EnsureUnitEvents()
                         end
                     end)
                 end
-            elseif event == "UNIT_AURA" then
-                local updateInfo = type(arg1) == "table" and arg1
-                                or type(arg2) == "table" and arg2
-                if not updateInfo then return end
-                local addedN   = updateInfo.addedAuras             and #updateInfo.addedAuras             or 0
-                local removedN = updateInfo.removedAuraInstanceIDs and #updateInfo.removedAuraInstanceIDs or 0
-                local updatedN = updateInfo.updatedAuraInstanceIDs and #updateInfo.updatedAuraInstanceIDs or 0
-                if addedN > 0 or removedN > 0 then
-                    dbg("UNIT_AURA added=%d removed=%d updated=%d full=%s",
-                        addedN, removedN, updatedN, tostring(updateInfo.isFullUpdate))
-                end
-                if updateInfo.addedAuras then
-                    for _, a in ipairs(updateInfo.addedAuras) do
-                        dbg("  AURA+ iid=%s sid=%s name=%s helpful=%s",
-                            tostring(a.auraInstanceID), secretSafeStr(a.spellId),
-                            secretSafeStr(a.name), tostring(a.isHelpful))
-                    end
-                end
-                if updateInfo.removedAuraInstanceIDs then
-                    for _, iid in ipairs(updateInfo.removedAuraInstanceIDs) do
-                        local cachedSFIID  = cdmSFFrame  and rawget(cdmSFFrame,  "auraInstanceID")
-                        local cachedMoCIID = cdmMoCFrame and rawget(cdmMoCFrame, "auraInstanceID")
-                        if iid == cachedMoCIID then
-                            dbg("  AURA- iid=%s (was MoC)", tostring(iid))
-                        elseif iid == cachedSFIID then
-                            dbg("  AURA- iid=%s (was SF)", tostring(iid))
-                        end
-                    end
-                end
+            -- The UNIT_AURA branch that used to live here dumped the event's
+            -- payload: counts of addedAuras and removedAuraInstanceIDs, each
+            -- aura's spellId and name, and isFullUpdate. Patch 12.1 made that
+            -- payload FULLY secret, so every one of those reads now throws --
+            -- the same error that hit BloodlustAlert about 1400 times in one
+            -- fight, waiting behind `/spack` debug rather than firing for
+            -- everyone. It is removed rather than guarded: its only purpose was
+            -- inspecting values the client no longer hands out, so there is
+            -- nothing left for it to print.
             end
         end)
         ReapPredict._eventsFrame = events

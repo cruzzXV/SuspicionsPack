@@ -1,14 +1,13 @@
-## Compatible avec le patch 12.1.0
+## L'alerte Bloodlust sur le patch 12.1
 
-Les quatre addons déclarent désormais l'interface `120100`. Sans cela ils
-seraient apparus comme obsolètes au lancement et désactivés par défaut.
+Le patch a rendu secret le contenu de l'événement d'auras : l'addon n'a plus le
+droit de lire ce qui vient d'être appliqué. Le module s'en servait, et cela
+provoquait une erreur à chaque buff ou débuff gagné — environ 1400 pendant un
+seul combat.
 
-Aucune des fonctions retirées par la 12.1 n'est utilisée par le pack. En
-revanche le patch restreint la lecture des auras : si l'alerte de Bloodlust
-cesse de se déclencher, c'est de ce côté qu'il faudra chercher, pas dans une
-régression du pack.
+La détection repose désormais sur la présence du débuff d'épuisement, sans lire
+aucune valeur interdite. Si une prochaine restriction ferme aussi cet accès, le
+module se taira au lieu de générer des erreurs.
 
-## Liste des addons
-
-Le panneau d'options porte le même nom que les deux autres plugins, et les
-chemins d'icône qui pointaient vers un fichier absent ont été retirés.
+Un contrôle de ReapPredict qui lisait les mêmes données a été retiré. Il était
+derrière le mode debug et aurait produit la même erreur si vous l'aviez activé.

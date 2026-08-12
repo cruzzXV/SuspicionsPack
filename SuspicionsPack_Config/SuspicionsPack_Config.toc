@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r — Options
 ## Notes: Options panel for the pack (SuspicionsPack plugin)
 ## Author: Cruzz
-## Version: 2.5.3
+## Version: 2.5.4
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## Dependencies: SuspicionsPack
 ## LoadOnDemand: 1

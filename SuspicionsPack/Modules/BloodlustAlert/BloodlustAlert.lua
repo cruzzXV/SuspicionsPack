@@ -40,8 +40,9 @@ local EXHAUSTION_IDS = {
 }
 
 -- Fast lookup set
-local EXHAUSTION_SET = {}
-for _, id in ipairs(EXHAUSTION_IDS) do EXHAUSTION_SET[id] = true end
+-- EXHAUSTION_SET (id -> true) used to exist for the UNIT_AURA fast path, which
+-- scanned updateInfo.addedAuras. That payload is secret as of 12.1 and the fast
+-- path is gone, so the lookup table went with it.
 
 -- ============================================================
 -- State
@@ -164,44 +165,83 @@ end
 -- Detection: UNIT_AURA on player
 -- ============================================================
 
+-- Patch 12.1 made the UNIT_AURA payload FULLY secret. isFullUpdate, addedAuras
+-- and removedAuraInstanceIDs are all secret values, and merely branching on one
+-- throws "attempt to perform boolean test on a secret boolean value" -- which it
+-- did, roughly 1400 times in a single fight. The fast path that read them is
+-- gone. It was only an optimisation and there is no way to keep it.
+--
+-- The old slow path is not safe either. It computed the application time from
+-- expirationTime and duration, fields on an AuraData struct the patch may no
+-- longer let us read. It is replaced by an EDGE: exhaustion was absent on the
+-- last scan and is present now, therefore it was just applied. That needs no
+-- field values at all, only presence.
+--
+-- Every access below is guarded, INCLUDING the returned table itself. If these
+-- spells turn out to be secret too, the module has to go quiet rather than
+-- become an error generator.
+
+local sawExhaustion = false
+local lastScan      = 0
+local SCAN_THROTTLE = 0.2
+
+-- true / false / nil, where nil means "the client will not say". That is
+-- deliberately NOT folded into false: "no exhaustion" and "cannot tell" lead to
+-- different behaviour, and conflating them is how an edge detector fires on a
+-- debuff that was there all along.
+local function ExhaustionPresent()
+    local blind = false
+    for i = 1, #EXHAUSTION_IDS do
+        -- pcall because these APIs are documented as not callable at all while
+        -- aura access is restricted, not merely as returning secrets.
+        local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, EXHAUSTION_IDS[i])
+        if not ok then
+            blind = true
+        elseif _issecretvalue(aura) then
+            blind = true
+        elseif aura then
+            return true
+        end
+    end
+    if blind then return nil end
+    return false
+end
+
+BLAlert.ExhaustionPresent = ExhaustionPresent
+
+-- Called on Activate so a lust already running at login does not read as a
+-- fresh application on the first scan.
+function BLAlert:PrimeExhaustion()
+    local present = ExhaustionPresent()
+    sawExhaustion = (present == true)
+end
+
 function BLAlert:OnUnitAura(event, unit, updateInfo)
+    -- updateInfo is deliberately untouched. It is secret in 12.1 and reading
+    -- any field of it is the bug this replaced.
     local db = self:GetDB()
     if not (db and db.enabled) then return end
     if active or not armed then return end
 
-    -- Fast path : ignore si aucun debuff d'épuisement dans addedAuras.
-    if updateInfo and not updateInfo.isFullUpdate then
-        local added = updateInfo.addedAuras
-        if not added then return end
-        local found = false
-        for _, aura in ipairs(added) do
-            local sid = aura.spellId
-            if type(sid) == "number" and not _issecretvalue(sid) and EXHAUSTION_SET[sid] then
-                found = true
-                break
-            end
-        end
-        if not found then return end
+    -- Without the fast path this scans on every player aura change, so a short
+    -- throttle keeps seven lookups off the hot path during heavy aura churn.
+    local now = GetTime()
+    if now - lastScan < SCAN_THROTTLE then return end
+    lastScan = now
+
+    local present = ExhaustionPresent()
+    if present == nil then
+        SP:Debug("Bloodlust", "aura access is secret, detection unavailable")
+        return
     end
 
-    -- Slow path : confirmation via GetPlayerAuraBySpellID + vérification de fraîcheur.
-    for _, spellId in ipairs(EXHAUSTION_IDS) do
-        local aura = C_UnitAuras.GetPlayerAuraBySpellID(spellId)
-        if aura then
-            -- Read the fields, then guard, THEN test. `if aura.expirationTime`
-            -- is itself a truthiness branch on a possibly-secret value, so the
-            -- guard has to come before it -- not after, as a first pass had it.
-            local expiration = aura.expirationTime
-            local dur        = aura.duration
-            if not _issecretvalue(expiration) and not _issecretvalue(dur) and expiration then
-                if not dur or dur <= 0 then dur = 600 end
-                local appliedTime = expiration - dur
-                if (GetTime() - appliedTime) < BL_DURATION then
-                    self:StartBL()
-                    return
-                end
-            end
+    if present then
+        if not sawExhaustion then
+            sawExhaustion = true
+            self:StartBL()
         end
+    else
+        sawExhaustion = false
     end
 end
 
@@ -361,6 +401,10 @@ function BLAlert:Activate()
     unitAuraFrame:RegisterUnitEvent("UNIT_AURA", "player")
     self:RegisterEvent("PLAYER_DEAD",           "OnPlayerDead")
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
+
+    -- Detection is an edge now, so the starting state matters: logging in with
+    -- exhaustion already on you must not read as a fresh application.
+    self:PrimeExhaustion()
 end
 
 function BLAlert:Deactivate()

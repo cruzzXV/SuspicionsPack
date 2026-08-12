@@ -4,6 +4,58 @@
 
 ---
 
+## 2026-08-12 — v2.5.4
+
+### L'alerte Bloodlust cassée par la 12.1
+
+Erreur signalée en jeu, environ 1400 fois dans un seul combat :
+
+    BloodlustAlert.lua:173: attempt to perform boolean test on field
+    'isFullUpdate' (a secret boolean value, while execution tainted by
+    'SuspicionsPack')
+
+La 12.1 rend le payload de `UNIT_AURA` **entièrement secret** : `isFullUpdate`,
+`addedAuras` et `removedAuraInstanceIDs` sont des valeurs secrètes, et le simple
+fait de brancher dessus lève. Le chemin rapide qui les lisait n'était qu'une
+optimisation ; il est supprimé, il n'y a pas moyen de le garder.
+
+Le chemin lent n'était pas sûr non plus. Il calculait l'instant d'application à
+partir de `expirationTime` et `duration`, des champs d'un `AuraData` que le
+patch peut refuser de livrer. Il est remplacé par une **détection de front** :
+l'épuisement était absent au dernier passage et il est présent maintenant, donc
+il vient d'être appliqué. Aucune valeur de champ nécessaire, seulement la
+présence.
+
+`ExhaustionPresent()` renvoie `true`, `false` ou **`nil`**, ce dernier signifiant
+« le client refuse de répondre ». Ne pas confondre `nil` et `false` est le coeur
+de la correction : les fondre ferait déclencher le détecteur de front à l'instant
+où le client recommence à répondre, sur un débuff présent depuis le début.
+
+ReapPredict lisait le même payload dans son bloc de debug. Retiré : son seul but
+était d'inspecter des valeurs que le client ne donne plus.
+
+### Pourquoi la suite était verte pendant que l'addon cassait
+
+`wowstub.lua` définissait `issecretvalue()` retournant toujours `false`, **sous**
+la vraie implémentation, qu'elle écrasait donc silencieusement. Toutes les gardes
+`_issecretvalue` du pack répondaient « pas secret » dans tous les tests : aucune
+assertion n'a jamais exercé le chemin des valeurs secrètes. Un stub qui dit
+toujours non est pire que pas de stub, parce qu'il fait passer la garde pour
+testée.
+
+Huitième porte : `tests/run.py --secret`, 11 assertions, contre-testées en
+remettant le chemin rapide.
+
+**Le premier modèle de valeur secrète était faux et le contre-test l'a prouvé.**
+Une table portant des champs secrets laissait passer le bug d'origine : en Lua
+`not` n'est pas surchargeable — il n'existe pas de métaméthode `__not` — donc
+`not updateInfo.isFullUpdate` valait tranquillement `false` au lieu de lever. Le
+modèle rend maintenant l'accès au champ lui-même impossible, ce qui est plus
+strict que le client mais impose la règle qui compte : ne pas toucher à
+`updateInfo`.
+
+---
+
 ## 2026-08-11 — v2.5.3
 
 ### Patch 12.1.0
