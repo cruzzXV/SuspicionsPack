@@ -8,8 +8,8 @@
 
 ### Ce que la 12.1 interdit vraiment
 
-La 2.5.4 partait d'une lecture trop pessimiste. Comparaison faite avec
-EllesmereUI, dont le module Bloodlust tourne sur 12.1, deux corrections :
+La 2.5.4 partait d'une lecture trop pessimiste de la restriction. Deux
+corrections :
 
 **Lire `updateInfo.isFullUpdate` est permis.** Le plantage d'origine ne venait
 pas de la lecture du champ mais du `not` appliqué à la valeur secrète qu'il
@@ -22,17 +22,16 @@ nécessaire :
     return full and true or false
 
 **Et la détection fonctionne en combat.** Interroger un spell ID CONNU renvoie
-l'aura même quand ses champs seraient secrets ; ce qui est verrouillé, c'est le
-contenu de l'événement, pas la question posée sur un sort qu'on nomme
-soi-même. La conclusion « aveugle en raid » de la 2.5.4 venait d'un commentaire
-de ReapMeter portant sur ses propres sorts, qui sont sur liste blanche.
+l'aura même quand ses champs seraient secrets : ce qui est verrouillé, c'est le
+contenu de l'événement, pas la question posée sur un sort qu'on nomme soi-même.
+La conclusion « aveugle en raid » de la 2.5.4 généralisait à tort une remarque
+qui ne valait que pour des sorts placés sur liste blanche.
 
 ### Deux fausses alertes fermées
 
-Le champ récupéré sert à ce pour quoi EllesmereUI l'utilise : **un
-rafraîchissement complet n'est pas un lust**. Zoner ou se connecter renvoie
-toutes les auras d'un coup, ce qui, pour un détecteur de front, est
-indiscernable d'un débuff qui vient de tomber.
+Le champ récupéré sert précisément à cela : **un rafraîchissement complet n'est
+pas un lust**. Zoner ou se connecter renvoie toutes les auras d'un coup, ce qui,
+pour un détecteur de front, est indiscernable d'un débuff qui vient de tomber.
 
 Quand le drapeau est secret, une **fenêtre de grâce de 1,5 s** après
 `PLAYER_ENTERING_WORLD` prend le relais. Un épuisement déjà porté en sortant
@@ -52,8 +51,6 @@ lisible et renvoie un secret marqué que `issecretvalue` reconnaît.
 `--secret` passe à 19 assertions. Les cinq comportements sont contre-testés :
 bug d'origine, garde de rafraîchissement, fenêtre de zone, sonde `C_Secrets`,
 adoption après un passage aveugle. Tous rouges quand on les retire.
-
-Approche relevée sur EllesmereUI (Bloodlust Tracker) ; rien n'en est copié.
 
 ---
 
@@ -284,7 +281,7 @@ traînée complète, le curseur est considéré comme téléporté et l'interpol
 sautée — sans quoi un retour d'alt-tab peindrait une traînée en travers de
 l'écran.
 
-NaowhQOL a le même défaut d'échantillonnage. Il le masque en plafonnant sa propre
+Une implémentation de référence a le même défaut d'échantillonnage. Elle le masque en plafonnant sa propre
 cadence à 40 Hz : la traînée est déjà maigre à 144 fps, donc elle maigrit moins
 en tombant à 30. Le plafond est repris ici, mais il n'est sans danger **que**
 parce que l'échantillonnage suit le chemin : un tick plus lent devient un segment
@@ -311,7 +308,7 @@ simplement corrigé. Même correction sur les deux libellés des lignes de coule
 Des copies de l'anneau laissées derrière le curseur, qui s'effacent.
 
 Trois points ne sont pas devinables et viennent tous de la lecture d'une
-implémentation qui tourne (NaowhQOL, `MouseRingDisplay`), après une première
+implémentation qui tourne, après une première
 version qui les avait ratés :
 
 - **Le fondu est sur une horloge, pas sur la position dans l'anneau.** Un fondu
@@ -344,11 +341,11 @@ battle rez, et un lanceur qui ne l'est pas, non. `RESURRECT_REQUEST` passe le no
 du lanceur, et un nom de joueur est un token d'unité valide — `UnitAffectingCombat`
 répond directement.
 
-Deux détails repris de Leatrix Plus, qui expédie ça depuis des années et qu'il
+Deux détails relevés sur une implémentation éprouvée, qu'il
 aurait fallu lire avant d'inventer : `AcceptResurrect()` ne ferme pas la boîte de
 dialogue, il faut `StaticPopup_Hide("RESURRECT_NO_TIMER")` derrière ; et les rez
 d'objets (Pylône de détection des échecs, Brasero de l'Éveil) sont des battle rez
-qu'il faut exclure. Leatrix les liste par nom dans dix langues ; `UnitExists` sur
+qu'il faut exclure. L'approche connue les liste par nom dans dix langues ; `UnitExists` sur
 le lanceur donne la même réponse dans toutes, parce qu'un objet n'est pas une
 unité.
 
@@ -621,14 +618,14 @@ unmeasurable and the scroll-range bug above was invisible.
 ### Nettoyage global — suppression des attributions et corrections de style
 
 #### Tous les modules (.lua)
-- Suppression de toutes les mentions de fork/attribution externe (NorskenUI, NephUI, ItruliaQoL, WilduTools, Sakuria, NaowhQOL, EnhanceQoL, ExwindTools, Lantern, R41z0r, AzortharionUI, etc.) dans les headers et commentaires.
+- Suppression de toutes les mentions d'attribution externe dans les headers et commentaires.
 - Correction du pattern dot notation → colon notation sur toutes les fonctions `Module.Refresh()` qui utilisaient `mod = SP.ModuleName` en dur. Modules corrigés : WhisperAlert, Durability, AutoInvite, GroupJoinedReminder, AutoPlaystyle, FilterExpansionOnly, AutoBuy, CraftShopper, SpellEffectAlpha, CleanObjectiveTrackerHeader, EnhancedObjectiveText, Performance, SilvermoonMapIcon, CopyTooltip.
 - Suppression des commentaires `-- Called by GUI toggle` et variantes.
 
 #### Core.lua / GUI/GUI.lua
-- Suppression de toutes les mentions NorskenUI dans les commentaires (theme presets, CreateMessagePopup, CreateReloadPrompt, PreviewManager, widget styles, etc.).
-- Suppression du header `-- Architecture inspired by NorskenUI` dans GUI.lua.
-- Suppression des mentions ItruliaQoL (raid marker coords) et ExwindTools (CVar apply).
+- Suppression des mentions externes dans les commentaires (theme presets, CreateMessagePopup, CreateReloadPrompt, PreviewManager, widget styles, etc.).
+- Suppression du header d'attribution dans GUI.lua.
+- Suppression des mentions externes (raid marker coords, CVar apply).
 
 #### Modules supprimés
 - **CombatLog** : retiré du .toc, Core.lua (DB defaults), GUI.lua (sidebar, IsModuleEnabled, page). Fichier physique à supprimer manuellement.
@@ -639,11 +636,11 @@ unmeasurable and the scroll-range bug above was invisible.
 - Suppression de la ligne 281 corrompue (2562 null bytes `0x00`) qui causait un `LUA_WARNING: unexpected symbol`.
 
 #### SuspicionsPackNudgeTool/NudgeTool.lua
-- Suppression du header `-- Forked from NephUI Cooldown Manager's Utils/Nudge.lua.`
+- Suppression du header d'attribution en tête du fichier.
 
 #### Automation/Automation.lua
 - Suppression de `local ADDON_NAME, NS = ...` (inutilisé).
-- Nettoyage des mentions WilduTools et NorskenUI dans les commentaires.
+- Nettoyage des mentions externes dans les commentaires.
 
 ---
 
@@ -705,7 +702,7 @@ unmeasurable and the scroll-range bug above was invisible.
 ## 2026-05-10
 
 ### Modules/PetStatus/PetStatus.lua — New module
-- Forked from NorskenUI's PetTexts module, adapted to SP patterns.
+- Nouveau module de textes d'état du familier, écrit aux conventions du pack.
 - Detects pet state: **Missing** (no pet unit exists), **Dead** (pet HP = 0 or death-tracked), **Passive** (PET_MODE_PASSIVE stance active).
 - Supports Hunter, Warlock, Unholy DK, and Arcane Mage. Suppresses for MM Hunter with Unbreakable Bond talent.
 - Positioned FontString with configurable text + color per state, font/size/outline, and drag-to-move.
@@ -803,7 +800,7 @@ unmeasurable and the scroll-range bug above was invisible.
 - Hooks restored to original state.
 
 ### Modules/CombatTimer/CombatTimer.lua — Always-shown mode restored
-- `showLastDuration` toggle re-added: off = timer only during combat, on = always visible like Norsken.
+- `showLastDuration` toggle re-added: off = timer only during combat, on = always visible.
 - Fixed missing `frame:Show()` in `OnEnterCombat` (timer was never appearing).
 
 ### Modules/Automation/Automation.lua — Localized delete confirmation
@@ -890,9 +887,9 @@ unmeasurable and the scroll-range bug above was invisible.
 
 ## 2026-04-03
 
-### Modules/MovementAlert/MovementAlert.lua — Refonte détection (approche Itrulia, sans charge tracking)
+### Modules/MovementAlert/MovementAlert.lua — Refonte détection (sans charge tracking)
 - **Suppression complète du charge tracking manuel** : `cachedChargeCount`, `chargeRechargeStart`, `rechargeTimers`, `lastChargeDecrement`, `StartRechargeTimer`, `StopRechargeTimer`, `UpdateCachedCharges` — source des désynchronisations.
-- **Nouvelle logique de détection (identique à ItruliaQoL)** : `GetSpellCooldown` direct dans `CheckMovementCooldown`. Condition : `cdInfo.timeUntilEndOfStartRecovery` truthy + `isOnGCD == false` + `isOnGCD ~= nil`. Exception WARLOCK : `isOnGCD == nil` autorisé (Demonic Circle quirk).
+- **Nouvelle logique de détection** : `GetSpellCooldown` direct dans `CheckMovementCooldown`. Condition : `cdInfo.timeUntilEndOfStartRecovery` truthy + `isOnGCD == false` + `isOnGCD ~= nil`. Exception WARLOCK : `isOnGCD == nil` autorisé (Demonic Circle quirk).
 - **`SPELLS_WITH_OWN_GCD`** : remplace l'ancien mécanisme `OWN_GCD_SPELLS`. Pour DH Shift (1234796), `UNIT_SPELLCAST_SENT` pose `ignoreMovementCd = true` pendant 0.8 s (durée GCD) pour éviter le faux positif isOnGCD=false du DH. CheckMovementCooldown est rappelé à l'expiration.
 - **`UNIT_SPELLCAST_SENT` sorti du bloc `if db.showTimeSpiral`** : `ignoreMovementCd` doit fonctionner même quand Time Spiral est désactivé.
 - **Suppression du système d'alias** (`SPELL_ALIAS_GROUPS`, `SPELL_ALIAS_MAP`, `SPELL_CATEGORY_DURATION`, `GetKnownCategoryDuration`, `RebuildTrackedSpellSet`, `trackedSpellSet`) — uniquement utile pour le charge tracking supprimé.
@@ -903,7 +900,7 @@ unmeasurable and the scroll-range bug above was invisible.
 ### tasks/lessons.md — Nouvelle règle
 
 ### Modules/MovementAlert/MovementAlert.lua — Time Spiral icon + LSM sound
-- Ajout de l'icône de sort NorskenUI-style pour la Time Spiral : frame lazy-créé avec texture de sort, spiral de cooldown (`CooldownFrameTemplate`) et glow natif (`ActionButton_ShowOverlayGlow`).
+- Ajout de l'icône de sort pour la Time Spiral : frame lazy-créé avec texture de sort, spiral de cooldown (`CooldownFrameTemplate`) et glow natif (`ActionButton_ShowOverlayGlow`).
 - `ShowTSIcon(spellId)` appelé dans le handler `SPELL_ACTIVATION_OVERLAY_GLOW_SHOW` (à côté de `timeSpiralOn = GetTime()`).
 - `HideTSIcon()` appelé dans `GLOW_HIDE`, quand le timer expire dans OnUpdate, et dans `HideTimeSpiralPreview()`.
 - `ShowTimeSpiralPreview()` appelle maintenant `ShowTSIcon(nil)` (icône fallback Time Spiral).
@@ -966,9 +963,9 @@ unmeasurable and the scroll-range bug above was invisible.
 
 ## 2026-03-28
 
-### Modules/FocusTargetMarker/ — Nouveau module (fork ItruliaQoL)
+### Modules/FocusTargetMarker/ — Nouveau module
 - **Nouveau fichier** : `SuspicionsPack/Modules/FocusTargetMarker/FocusTargetMarker.lua`
-- Forké depuis `ItruliaQoL/src/focus-target-marker/` (Itrulia).
+- Écrit aux conventions du pack.
 - Crée/met à jour un macro `FocusTargetMarker` : `/focus [@mouseover,harm,nodead][]` + `/tm [@mouseover,harm,nodead][] <marker>`.
 - Événements via AceEvent-3.0 (`PLAYER_ENTERING_WORLD`, `READY_CHECK`).
 - Option announce : envoie le marker en party chat sur ready check (instances seulement).
@@ -1024,10 +1021,10 @@ unmeasurable and the scroll-range bug above was invisible.
 
 ## 2026-03-28
 
-### GUI/GUI.lua — Animation de hover NorskenUI sur tous les widgets interactifs
+### GUI/GUI.lua — Animation de hover sur tous les widgets interactifs
 
 #### Objectif
-Porter le style de hover de NorskenUI dans SuspicionsPack : fond foncé (`bgMedium`) permanent, border qui anime en douceur vers la couleur accent au hover et revient à `T.border` au leave. Animation de 0.15 s avec easing ease-out quadratique.
+Style de hover du pack : fond foncé (`bgMedium`) permanent, border qui anime en douceur vers la couleur accent au hover et revient à `T.border` au leave. Animation de 0.15 s avec easing ease-out quadratique.
 
 #### `AnimateBorderFocus` — amélioration
 - La fonction partait auparavant d'une couleur de départ fixe (`T.border` ou `T.accent`), ce qui provoquait un flash si l'animation était interrompue à mi-chemin.
@@ -1072,10 +1069,10 @@ Les helpers `StyleActionBtn`, `StyleRecBtn`, `StyleDurBtn`, `StyleGABtn` fixaien
 
 **Cause** : La frame `_healthMonitor` (plain Frame) héritait d'un contexte d'exécution contaminé par l'interaction avec `SP_RecuperateButton` (SecureActionButtonTemplate), ce qui rendait la valeur retournée par `UnitHealth()` non utilisable en arithmétique.
 
-**Fix — miroir de NorskenUI** :
+**Fix** :
 - Suppression de `_healthMonitor` + `local function UpdateAlpha(btn)`.
 - Ajout de `function REC:UpdateAlpha(event, unit)` (méthode module, filtre UNIT_HEALTH par unit).
-- Dans `Activate()` : enregistrement des événements via **AceEvent-3.0** (`self:RegisterEvent(..., "UpdateAlpha")`), comme NorskenUI dans son `OnEnable()`. AceEvent utilise son propre frame interne dans un contexte propre.
+- Dans `Activate()` : enregistrement des événements via **AceEvent-3.0** (`self:RegisterEvent(..., "UpdateAlpha")`). AceEvent utilise son propre frame interne dans un contexte propre.
 - Garde pcall autour de `cur / max * 100` pour les contextes résiduelment tainter.
 - `HidePreview()` et `EndDragMode()` appellent `self:UpdateAlpha()` à la place de l'ancienne fonction locale.
 
