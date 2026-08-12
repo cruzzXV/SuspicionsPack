@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-08-12 — v2.5.8
+
+### « Pas d'icône » ne s'obtient pas en retirant la ligne
+
+Les trois compagnons affichaient le point d'interrogation du client. La 2.5.3
+avait retiré leur `IconTexture` en croyant bien faire — elle pointait vers
+`SuspicionsPack\icon.png`, un fichier qui n'existe pas, et le résultat *avait
+l'air* voulu puisque rien ne s'affichait.
+
+Les deux états sont pourtant distincts, et c'est exactement l'inverse de
+l'intuition :
+
+**Chemin cassé** → rien ne se dessine. Muet, indiscernable d'un choix.
+**Ligne absente** → le client dessine SON point d'interrogation.
+
+La 2.5.3 est donc passée du premier au second, c'est-à-dire d'un bug invisible à
+un bug visible. « Rien » se déclare : une texture valide de 16x16 dont chaque
+pixel est transparent.
+
+Huitième porte, `--tocicons`, qui refuse les deux erreurs — un chemin qui ne
+résout pas, et une déclaration manquante. Contre-testée dans les deux sens.
+
+---
+
 ## 2026-08-12 — v2.5.7
 
 ### « Ça ne marche qu'hors combat »
