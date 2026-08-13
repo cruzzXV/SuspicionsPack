@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.6.1"
+SP.VERSION = "2.6.2"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)

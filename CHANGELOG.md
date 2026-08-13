@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-08-13 — v2.6.2
+
+Aucun changement de code. La v2.6.1 avait été taguée sur le mauvais commit, puis
+supprimée et republiée — et un gestionnaire d'addons qui avait déjà vu passer la
+première garde son entrée en cache et ne redemande pas. Un numéro qu'il n'a
+jamais vu contourne le problème sans rien manipuler côté client.
+
+La leçon est dans la cause : ma commande n'était pas chaînée, le `git tag` s'est
+exécuté malgré l'échec du `git commit` qui le précédait, et a posé la 2.6.1 sur
+le commit de la 2.6.0. Supprimer une release déjà publiée coûte plus cher que de
+la republier sous un nouveau numéro.
+
+---
+
 ## 2026-08-12 — v2.6.1
 
 ### La piste n'a jamais été une pilule
