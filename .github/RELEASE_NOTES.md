@@ -1,9 +1,11 @@
-## Retrait du Nudge Tool
+## Les interrupteurs
 
-Il perturbait le mode Édition de Blizzard. L'addon compagnon est retiré du pack,
-ainsi que sa page dans les options.
+Ils passent **avant** leur libellé au lieu de le suivre. Une carte de réglages se
+lit désormais comme une colonne d'états, au lieu d'obliger l'oeil à chercher
+l'interrupteur au bout de libellés de longueurs différentes.
 
-**Une mise à jour ne peut pas supprimer un dossier de votre disque.** Si vous
-l'aviez installé, supprimez à la main le dossier `SuspicionsPackNudgeTool` dans
-votre répertoire `Interface/AddOns`, sinon il continuera à se charger et le mode
-Édition restera perturbé.
+Ils sont aussi un peu plus hauts, avec un pouce plus gros, et la couleur se fond
+par-dessus la piste au lieu de la remplacer.
+
+Les curseurs et les listes déroulantes gardent leur alignement habituel : un
+curseur ne peut pas passer avant son libellé.

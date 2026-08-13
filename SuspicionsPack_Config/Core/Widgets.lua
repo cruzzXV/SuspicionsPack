@@ -280,10 +280,43 @@ end
 -- ============================================================
 
 -- A capsule track with a round knob, not a 1px rectangle with a square pip.
-local TR_W, TR_H, KNOB = 38, 16, 12
+-- Track 36x18 with a 14px knob, not 38x16 with a 12. The ratio is what reads:
+-- a knob at 78% of the track height leaves a thin even margin all round and the
+-- switch looks like a switch, where 75% of a shorter track reads flat and thin.
+local TR_W, TR_H, KNOB = 36, 18, 14
+
+-- Gap between the switch and the text it belongs to.
+local TOGGLE_LABEL_GAP = 6
 
 function W.Toggle(parent, spec)
     local row = NewRow(parent, spec, TR_W, TR_H)
+
+    -- THE SWITCH COMES FIRST, then its label.
+    --
+    -- Every other row in this file is label-left / control-after, and NewRow
+    -- builds that. A switch is the one control that reads better inverted: it is
+    -- small, its state IS the information, and putting it first means the eye
+    -- scans a column of on/off states instead of hunting for them at the end of
+    -- labels of differing length.
+    --
+    -- Re-anchored here rather than parameterised in NewRow, because NewRow
+    -- measures the label to place the control and that whole calculation is
+    -- meaningless once the order flips. Only the two points move; the shared
+    -- centre line (midY) and the description's own anchor are untouched.
+    -- TOPLEFT, like NewRow's own anchor. Anchoring by LEFT instead puts the
+    -- control's vertical MIDDLE on the centre line, which drops its bottom edge
+    -- half a control lower and straight through the description underneath.
+    -- Caught by the "no control overlaps its own description" assertion.
+    -- midY == -(ctrlTop + TR_H/2), so this recovers ctrlTop exactly.
+    row.ctrl:ClearAllPoints()
+    row.ctrl:SetPoint("TOPLEFT", row, "TOPLEFT", PAD, row.midY + TR_H / 2)
+
+    row.label:ClearAllPoints()
+    row.label:SetPoint("LEFT", row.ctrl, "RIGHT", TOGGLE_LABEL_GAP, 0)
+    -- The label no longer has a column to be clamped into, so it may run to the
+    -- card's edge instead of being truncated at COL_MAX.
+    row.label:SetPoint("RIGHT", row, "RIGHT", -PAD_R, 0)
+    row.labelCol = PAD
 
     local track = CreateFrame("Frame", nil, row.ctrl)
     track:SetAllPoints(row.ctrl)
@@ -342,7 +375,7 @@ function W.Toggle(parent, spec)
         if instant or not SP.Tick then
             pos = target; Place(); PaintTrack(); return
         end
-        SP.Tick.Animate(pos, target, 0.18, function(v)
+        SP.Tick.Animate(pos, target, 0.15, function(v)
             pos = v; Place(); PaintTrack()
         end)
     end

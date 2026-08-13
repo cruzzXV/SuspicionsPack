@@ -4,6 +4,47 @@
 
 ---
 
+## 2026-08-12 — v2.6.0
+
+### L'interrupteur passe avant son libellé
+
+La 2.5.6 avait changé la TECHNIQUE de rendu — deux couches, dégradé — mais pas
+l'APPARENCE, qui était la demande. Deux écarts restaient.
+
+Les proportions : piste 36x18 avec un pouce de 14, au lieu de 38x16 avec 12. Le
+rapport est ce qui se voit — un pouce à 78 % de la hauteur laisse une marge fine
+et régulière tout autour, là où 75 % d'une piste plus basse se lit plat. Le
+glissement passe à 0,15 s.
+
+Et l'ordre. Toutes les autres lignes sont libellé-à-gauche / contrôle-ensuite, et
+c'est `NewRow` qui le construit. L'interrupteur est le seul contrôle qui gagne à
+être inversé : il est petit, son état EST l'information, et le mettre devant
+donne une colonne d'états à parcourir au lieu d'une chasse en fin de ligne.
+
+Ré-ancré dans le widget et non paramétré dans `NewRow` : celui-ci mesure le
+libellé pour placer le contrôle, et tout ce calcul n'a plus de sens une fois
+l'ordre inversé. Les curseurs et listes gardent la grille — un curseur ne peut
+pas passer avant son libellé.
+
+### Deux régressions attrapées par la suite
+
+**Le contrôle débordait sur sa description.** Ancré par `LEFT`, son milieu
+vertical se posait sur l'axe, ce qui descend son bord bas d'une demi-hauteur —
+droit à travers la description. `NewRow` ancre par `TOPLEFT` pour cette raison
+exacte. L'assertion « aucun contrôle ne chevauche sa description » l'a vu.
+
+**Puis l'assertion d'alignement a échoué, et elle avait tort.** Elle suppose que
+libellé et contrôle sont tous deux relatifs à la LIGNE et compare leurs
+décalages. Le libellé inversé est ancré au CONTRÔLE : un décalage de 0 y signifie
+« même axe », et il était comparé à un -16 exprimé dans l'autre repère — soit un
+désalignement de 16 px annoncé sur une ligne parfaitement centrée.
+
+Elle connaît maintenant les deux repères. Vérifié qu'elle n'a pas été affaiblie :
+elle échoue toujours sur un libellé désaxé en disposition inversée, sur un
+libellé désaxé en disposition classique, et sur le débordement de description.
+
+---
+
 ## 2026-08-12 — v2.5.9
 
 ### Retrait du Nudge Tool
