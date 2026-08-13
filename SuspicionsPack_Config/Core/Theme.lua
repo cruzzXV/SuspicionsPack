@@ -240,9 +240,15 @@ function GUI.CircleTex(parent, layer, sublevel)
 end
 
 -- A standalone rounded texture, for callers that want the shape without the
--- frame plumbing (the toggle track, a swatch outline).
+-- frame plumbing (a swatch outline).
 function GUI.RoundTex(parent, layer, style, border, sublevel)
     return Skin.RoundTex(parent, layer, style, border, sublevel)
+end
+
+-- A true capsule: round ends, radius exactly half the height. See Skin.Capsule
+-- for why this is one stretched texture and not a nine-slice.
+function GUI.CapsuleTex(parent, layer, border, sublevel)
+    return Skin.Capsule(parent, layer, border, sublevel)
 end
 
 -- A horizontal gradient across a texture, darker on the left.

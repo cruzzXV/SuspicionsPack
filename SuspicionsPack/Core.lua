@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.6.0"
+SP.VERSION = "2.6.1"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1219,6 +1219,9 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.6.1"] = {
+        { type = "fix", text = "Switch tracks are properly capsule-shaped now. The old texture was a rounded rectangle with small corners, so the ends always read flat." },
+    },
     ["2.6.0"] = {
         { type = "new", text = "Switches now come before their label instead of after it, so a card of settings reads as a column of on/off states rather than a hunt at the end of each line." },
         { type = "new", text = "They are also a little taller with a bigger knob, and the colour fades in over the track rather than replacing it." },

@@ -29,7 +29,6 @@ Skin.ROUND = {
     rr4    = { tex = "rr4",  margin = 8  },   -- controls        16x16
     rr6    = { tex = "rr6",  margin = 12 },   -- cards, panels   24x24
     rr10   = { tex = "rr10", margin = 20 },   -- windows         40x40
-    pill   = { tex = "pill", margin = 8  },   -- toggle tracks   16x16
 }
 
 -- Every sliced texture can be recorded with the frame it covers so the rule
@@ -122,6 +121,24 @@ function Skin.RoundTex(parent, layer, style, border, sublevel)
     -- a selection strip, a toggle track), so measuring the parent asked the rule
     -- of the wrong object and always passed.
     Skin.Slice(tex, st.tex .. (border and "-border" or ""), st.margin, tex)
+    return tex
+end
+
+-- The toggle's capsule, drawn as ONE stretched texture rather than nine-sliced.
+--
+-- A capsule cannot be nine-sliced. Its corner radius is half its height by
+-- definition, so 2*margin always equals the full height and there is no centre
+-- strip left to stretch. The old track used the `pill` style, whose texture is a
+-- rounded RECTANGLE with a ~5px radius, sliced at margin 8 -- a margin larger
+-- than the radius, so every corner carried a piece of the straight edge and the
+-- ends read flat.
+--
+-- The source is 64x32 and the track is 36x18: both 2:1, so the stretch is
+-- uniform and the caps stay circular. Drawing a square capsule across a 2:1
+-- track would squash them into ellipses.
+function Skin.Capsule(parent, layer, border, sublevel)
+    local tex = parent:CreateTexture(nil, layer or "ARTWORK", nil, sublevel)
+    tex:SetTexture(TEXDIR .. "toggle-pill" .. (border and "-border" or "") .. ".png")
     return tex
 end
 

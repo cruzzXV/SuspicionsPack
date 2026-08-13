@@ -1,11 +1,9 @@
-## Les interrupteurs
+## La forme des interrupteurs
 
-Ils passent **avant** leur libellé au lieu de le suivre. Une carte de réglages se
-lit désormais comme une colonne d'états, au lieu d'obliger l'oeil à chercher
-l'interrupteur au bout de libellés de longueurs différentes.
+La piste est enfin une vraie capsule. L'ancienne texture était un rectangle aux
+coins arrondis d'environ cinq pixels, découpée avec une marge plus large que ce
+rayon : chaque extrémité emportait un morceau de bord droit et se lisait plate.
 
-Ils sont aussi un peu plus hauts, avec un pouce plus gros, et la couleur se fond
-par-dessus la piste au lieu de la remplacer.
-
-Les curseurs et les listes déroulantes gardent leur alignement habituel : un
-curseur ne peut pas passer avant son libellé.
+Une capsule ne peut pas être découpée en nine-slice — son rayon vaut la moitié de
+sa hauteur, donc les marges se rejoignent et il ne reste rien à étirer. Elle est
+désormais dessinée en une seule texture.

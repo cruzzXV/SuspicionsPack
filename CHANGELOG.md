@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-08-12 — v2.6.1
+
+### La piste n'a jamais été une pilule
+
+Le style s'appelait `pill`, le commentaire disait « toggle tracks 16x16 », et le
+fichier faisait 24x24. Mesuré : le profil alpha atteint le bord à cinq pixels du
+coin, et la forme remplit **90,3 %** de son rectangle englobant là où une capsule
+en remplirait **78,5 %**. C'était un rectangle arrondi.
+
+Pire, la marge de découpe valait 8 pour un rayon réel d'environ 5 : chaque coin
+prélevé contenait déjà du bord droit. Les extrémités ne pouvaient pas être
+rondes.
+
+**Une capsule ne se découpe pas en nine-slice.** Son rayon EST la moitié de sa
+hauteur, donc `2 * margin` égale toujours la hauteur entière et il ne reste aucun
+bandeau central à étirer. Elle est dessinée en une seule texture, et la source
+est en 2:1 (64x32) comme la piste (36x18) pour que l'étirement soit uniforme —
+une capsule carrée étirée sur une piste 2:1 aplatirait les extrémités en
+ellipses.
+
+Le style `pill` et ses deux textures sont supprimés : plus aucun usage.
+
+### Une porte sur la forme, pas sur le nom
+
+`--textures` vérifie maintenant la capsule **par son aire**. C'est décisif là où
+l'oeil et le nom ne le sont pas : une capsule de w x h couvre
+`(w-h)*h + pi*(h/2)^2`, un rectangle arrondi couvre mesurablement plus. Elle
+contrôle aussi le rapport 2:1.
+
+Contre-testée dans les deux directions : un rectangle arrondi est rejeté à 10,8 %
+d'écart, une capsule carrée est rejetée sur son rapport.
+
+C'est exactement le défaut qui a survécu deux ans — parce que personne n'avait
+demandé à la forme ce qu'elle était réellement.
+
+---
+
 ## 2026-08-12 — v2.6.0
 
 ### L'interrupteur passe avant son libellé

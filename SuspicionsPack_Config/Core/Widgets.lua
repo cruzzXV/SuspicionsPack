@@ -321,9 +321,14 @@ function W.Toggle(parent, spec)
     local track = CreateFrame("Frame", nil, row.ctrl)
     track:SetAllPoints(row.ctrl)
 
-    local trackBG = GUI.RoundTex(track, "BACKGROUND", "pill", false, -8)
+    -- A true capsule, not the `pill` nine-slice. That texture is a rounded
+    -- RECTANGLE with a ~5px radius and was sliced at margin 8 -- a margin wider
+    -- than the radius, so each corner carried a piece of the straight edge and
+    -- the ends read flat. A capsule cannot be nine-sliced at all: its radius is
+    -- half its height, so the margins always meet and leave no centre strip.
+    local trackBG = GUI.CapsuleTex(track, "BACKGROUND", false, -8)
     trackBG:SetAllPoints(track)
-    local trackBR = GUI.RoundTex(track, "BORDER", "pill", true, 7)
+    local trackBR = GUI.CapsuleTex(track, "BORDER", true, 7)
     trackBR:SetAllPoints(track)
 
     -- The ON state is its OWN layer over the dark track, not a recolour of it.
@@ -334,7 +339,7 @@ function W.Toggle(parent, spec)
     -- keep the dark track underneath at all times and cross-fade the accent in
     -- above it, so the colour sits ON the surface rather than replacing it, and
     -- the hover tint of the track still reads through.
-    local fill = GUI.RoundTex(track, "BACKGROUND", "pill", false, -7)
+    local fill = GUI.CapsuleTex(track, "BACKGROUND", false, -7)
     fill:SetAllPoints(track)
 
     local knob = GUI.CircleTex(track, "OVERLAY")
