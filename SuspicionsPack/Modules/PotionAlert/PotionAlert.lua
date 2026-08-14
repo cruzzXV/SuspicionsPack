@@ -116,7 +116,10 @@ local function BuildFrame()
 
     local lbl = f:CreateFontString(nil, "OVERLAY")
     lbl:SetAllPoints()
-    lbl:SetFont(DEFAULT_FONT, 20, "OUTLINE")
+    -- Same reason as MovementAlert's seed: a SetFont that fails at file-load
+    -- time leaves the FontString with no font at all, and GetFont then returns
+    -- garbage rather than the value that was asked for.
+    SP.SetFontSafe(lbl, DEFAULT_FONT, 20, "OUTLINE")
     lbl:SetJustifyH("CENTER")
     lbl:SetJustifyV("MIDDLE")
     f.lbl = lbl

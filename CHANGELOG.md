@@ -4,6 +4,55 @@
 
 ---
 
+## 2026-08-13 — v2.6.5
+
+### La cause, enfin, et ce n'était aucune des trois
+
+La trace de la 2.6.4 a donné la réponse en une ligne :
+
+    [SP trace] OnEnable loggedIn=true | db=true | fontSize=28 | applique=-1566.51 | profil=Default
+    [SP trace] ApplyStyles            | db=true | fontSize=28 | applique=-1566.51 | profil=Default
+    [SP trace] ApplyStyles            | db=true | fontSize=28 | applique=27.999998 | profil=Default
+
+**`applique = -1566.51`.** Une taille de police négative à quatre chiffres n'est
+pas une taille : c'est un `FontString` **sans police valide**. `ApplyStyles`
+tournait bien, voyait bien `fontSize=28`, et le profil était le bon — tout ce que
+j'avais supposé cassé fonctionnait.
+
+Le coupable est la ligne qui pose la valeur de départ, à la création du
+`FontString` :
+
+    fsText:SetFont(SP_FONT, 14, "OUTLINE")
+
+Elle échoue au chargement du fichier, ne change rien — et laisse le texte sans
+police du tout, dans un état où `GetFont()` rend n'importe quoi. C'est
+exactement le défaut d'API que `SP.SetFontSafe` existe pour couvrir depuis la
+2.5.1.
+
+### L'exemption qui a caché le trou pendant quatre versions
+
+Ces deux lignes — MovementAlert et PotionAlert — étaient **explicitement
+exemptées** dans la porte `--setfont`, avec ce commentaire :
+
+    Creation-time seed values. These are the "before" state the real call
+    overwrites; the module applies the user's size later through SetFontSafe.
+
+Le raisonnement était faux : une valeur de départ qui peut échouer n'est pas une
+valeur de départ, c'est un trou. La porte savait poser la bonne question et on
+l'avait dispensée d'y répondre. **`ALLOWED` est maintenant vide.**
+
+### Trois hypothèses, trois réfutations
+
+Pour mémoire, et parce que le coût était réel : course au chargement de police
+(2.5.1), `ApplyStyles` qui ne tournerait pas (2.6.3), erreur précoce sur une base
+nulle. Chacune était plausible, chacune a été réfutée par une mesure, et deux ont
+donné lieu à une version publiée pour rien.
+
+La règle du projet le disait déjà : ne jamais supposer, poser un print d'abord.
+Elle a été écrite pour les signatures d'événements ; elle vaut pour tout.
+
+---
+
 ## 2026-08-13 — v2.6.4 (diagnostic)
 
 Version d'instrumentation, sans correction. Trois explications du symptôme « la

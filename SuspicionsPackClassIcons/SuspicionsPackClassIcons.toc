@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r — Class Icons
 ## Notes: Custom class icon packs for Details! (SuspicionsPack plugin)
 ## Author: Cruzz
-## Version: 2.6.4
+## Version: 2.6.5
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## Dependencies: SuspicionsPack
 # A VALID but fully transparent texture, not an absent line: the client

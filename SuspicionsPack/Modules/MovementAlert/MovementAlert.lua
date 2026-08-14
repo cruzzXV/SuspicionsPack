@@ -402,7 +402,17 @@ end
 
 fsText = f:CreateFontString(nil, "OVERLAY")
 fsText:SetPoint("CENTER")
-fsText:SetFont(SP_FONT, 14, "OUTLINE")
+-- SetFontSafe, not SetFont, even though this is only the seed value.
+--
+-- It was exempted from the --setfont gate as a harmless starting point that
+-- ApplyStyles overwrites. A login trace proved otherwise: this call fails at
+-- file-load time, changes nothing, and leaves the FontString with NO FONT AT
+-- ALL -- GetFont() then returns garbage, measured at -1566.51. A FontString in
+-- that state renders at whatever the engine falls back to, which is what made
+-- the alert look wrong before anything else had a chance to run.
+--
+-- A seed that can fail is not a seed, it is a hole.
+SP.SetFontSafe(fsText, SP_FONT, 14, "OUTLINE")
 fsText:SetTextColor(1, 1, 1, 1)
 fsText:SetJustifyH("CENTER")
 fsText:Hide()
@@ -415,37 +425,8 @@ MA.isPreview = false
 -- ============================================================
 -- Helpers
 -- ============================================================
--- ============================================================
--- TEMPORARY LOGIN TRACE — remove once the cause is known.
---
--- Three explanations for "the size is 14 at login" have been proposed and all
--- three were refuted by measurement: a font-loading race (a manual Refresh fixes
--- it instantly, which an unloadable font cannot do), ApplyStyles never running
--- (the event IS registered, so Activate ran, so Refresh completed), and an early
--- error on a nil db (no error, and Refresh reached its end).
---
--- What is left is that ApplyStyles runs and reads 14 -- which is exactly the
--- DEFAULT value of fontSize. So db.fontSize is the default at that moment and
--- the saved 28 a moment later. This prints what it actually sees, because
--- guessing has now cost two releases.
--- ============================================================
-local _traceLeft = 5
-local function Trace(where, db)
-    if _traceLeft <= 0 then return end
-    _traceLeft = _traceLeft - 1
-    local _, applied = fsText:GetFont()
-    print(("|cffe51039[SP trace]|r %s | db=%s | fontSize=%s | applique=%s | profil=%s")
-        :format(where,
-                tostring(db ~= nil),
-                tostring(db and db.fontSize),
-                tostring(applied),
-                tostring(SP.db and SP.db:GetCurrentProfile())))
-end
-SP.MovementAlertTrace = Trace
-
 local function ApplyStyles()
     local db = GetDB()
-    Trace("ApplyStyles", db)
     local fontPath = GetFontPath(db.fontFace or "Expressway")
     -- Not fsText:SetFont directly: at login the .ttf is sometimes not loadable
     -- yet, SetFont then returns false and changes NOTHING -- leaving the size at

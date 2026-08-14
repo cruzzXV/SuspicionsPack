@@ -79,12 +79,6 @@ function ModuleMixin:Refresh()
 end
 
 function ModuleMixin:OnEnable()
-    -- TEMPORARY: traces the login path for MovementAlert only. Remove with the
-    -- trace in that module once the cause of the wrong font size is known.
-    if self.moduleName == "MovementAlert" and SP.MovementAlertTrace then
-        SP.MovementAlertTrace("OnEnable loggedIn=" .. tostring(IsLoggedIn()),
-                              self:GetDB())
-    end
     -- Frames and player data are not reliable before PLAYER_LOGIN, and
     -- OnEnable can fire earlier than that.
     if IsLoggedIn() then
@@ -96,10 +90,6 @@ end
 
 function ModuleMixin:OnSPLogin()
     self:UnregisterEvent("PLAYER_LOGIN")
-    -- TEMPORARY, same removal as above.
-    if self.moduleName == "MovementAlert" and SP.MovementAlertTrace then
-        SP.MovementAlertTrace("OnSPLogin", self:GetDB())
-    end
     self:Refresh()
 end
 
