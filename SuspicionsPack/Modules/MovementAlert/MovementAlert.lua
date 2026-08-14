@@ -574,6 +574,28 @@ local function OnEvent(self, event, ...)
         or event == "PLAYER_TALENT_UPDATE"
         or event == "TRAIT_CONFIG_UPDATED"
     then
+        -- RE-APPLY THE STYLING HERE, and understand that this is a fix BY
+        -- CONSTRUCTION rather than a diagnosis.
+        --
+        -- Measured in game: at login the saved size reads 28, the module is
+        -- Ace-enabled, IsOn() is true, no Lua error is raised -- and the
+        -- FontString is still carrying the 14 it was created with. So
+        -- ApplyStyles did not run, even though every branch of ModuleMixin's
+        -- OnEnable leads to Refresh, which calls it first. Which link fails
+        -- could not be established remotely: a /reload erases the evidence, and
+        -- the state after login is indistinguishable from a clean start.
+        --
+        -- Version 2.5.1 shipped a confident explanation of this symptom -- a
+        -- font-loading race -- and it was WRONG: a manual Refresh fixes the size
+        -- instantly, which a font that will not load cannot do. That guess cost
+        -- a release, so this one claims nothing.
+        --
+        -- PLAYER_ENTERING_WORLD arrives after login and after every zone, when
+        -- everything is ready by definition. ApplyStyles is idempotent, so
+        -- re-running it is three SetFont calls per zone -- the same self-healing
+        -- shape ReapPredict uses for its anchor retry.
+        ApplyStyles()
+
         if not InCombatLockdown() then
             self.cachedSpells = BuildMovementSpellList()
             self.spellsToIgnoreGlow = GetGlowIgnoreList()

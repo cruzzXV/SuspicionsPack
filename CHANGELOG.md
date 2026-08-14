@@ -4,6 +4,52 @@
 
 ---
 
+## 2026-08-13 — v2.6.3
+
+### La taille de l'alerte de déplacement, pour de bon cette fois
+
+Ce que la mesure en jeu a établi, au login et avant toute autre action :
+
+    taille en base .... 28
+    taille appliquee .. 14
+    IsEnabled() ....... true
+    IsOn() ............ true
+    erreur Lua ........ aucune
+
+`ApplyStyles` n'a donc pas tourné, alors que `OnEnable` a bien eu lieu et que
+toutes les branches du mixin y mènent. Le maillon fautif **n'a pas pu être
+isolé** : un `/reload` efface la preuve, et l'état d'après login est
+indiscernable d'un démarrage propre.
+
+Le style est réappliqué sur `PLAYER_ENTERING_WORLD`, événement que le module
+écoute déjà, qui arrive après le login et à chaque zone, à un moment où tout est
+prêt par définition. `ApplyStyles` est idempotente : trois `SetFont` par zone.
+C'est la forme d'auto-réparation que ReapPredict utilise déjà pour son ancrage.
+
+### Ce que la 2.5.1 avait dit, et pourquoi c'était faux
+
+Elle attribuait ce symptôme à une course au chargement de la police et
+introduisait `SP.SetFontSafe`. **`Refresh()` corrige la taille instantanément** —
+ce qu'une police introuvable ne peut pas faire. Le diagnostic était donc faux, et
+il a coûté une version.
+
+`SetFontSafe` reste : il corrige un vrai défaut de l'API — un `SetFont` qui
+échoue ne change rien, pas même la taille — et il ne nuit pas. Mais il ne
+soignait pas ce bug-ci.
+
+**Cette correction-ci ne prétend à aucun diagnostic.** Elle est juste quel que
+soit le maillon fautif, et c'est écrit tel quel dans le code plutôt que
+travesti en explication.
+
+### Les autres modules
+
+CombatTimer, DeathAlert et CombatCross n'écoutent pas `PLAYER_ENTERING_WORLD` et
+ne peuvent donc pas recevoir le même traitement en l'état. Ils n'ont pas été
+touchés : rien n'indique qu'ils souffrent du même défaut, et le supposer serait
+refaire l'erreur de la 2.5.1.
+
+---
+
 ## 2026-08-13 — v2.6.2
 
 Aucun changement de code. La v2.6.1 avait été taguée sur le mauvais commit, puis
