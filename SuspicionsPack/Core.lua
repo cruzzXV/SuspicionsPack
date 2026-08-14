@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.6.5"
+SP.VERSION = "2.6.6"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1219,6 +1219,10 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.6.6"] = {
+        { type = "fix", text = "The movement alert settles itself a couple of seconds after you log in, so it no longer needs the options window opened to look right." },
+        { type = "fix", text = "Spell effect alpha applies at login instead of waiting for you to open the options and nudge a slider. It now waits for your specialization to be known, and checks the value actually took." },
+    },
     ["2.6.5"] = {
         { type = "fix", text = "The movement alert and the potion alert come up at the right size. The line that set their starting size could fail without saying so, leaving the text with no font at all." },
     },

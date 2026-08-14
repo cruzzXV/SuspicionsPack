@@ -4,6 +4,119 @@
 
 ---
 
+## 2026-08-14 — v2.6.6
+
+### La taille de l'alerte de déplacement : contournement assumé
+
+**Ceci n'est pas un diagnostic.** La 2.6.5 expliquait le défaut par un `SetFont`
+de création qui échouait silencieusement ; corrigé, le symptôme persiste. C'est
+la **quatrième** explication réfutée en jeu après la course de police (2.5.1),
+`ApplyStyles` qui ne tournerait pas (2.6.3) et la db nulle au démarrage.
+
+Ce que la trace de la 2.6.4 dit vraiment, en la relisant correctement : elle
+imprime la taille **avant** le travail d'`ApplyStyles`. Le second passage
+affichait `27.999998` — donc **la taille est déjà bonne à la fin du login**, et
+pourtant l'affichage ne l'est pas. La taille n'est donc probablement pas le
+sujet. `Refresh()` fait strictement plus qu'`ApplyStyles` : il repositionne
+aussi le texte (`ResetTSTextPosition`) et l'icône Spirale du temps. Une de ces
+deux choses est la piste, et elle n'a jamais été explorée parce que je cherchais
+une police depuis le début.
+
+Faute de cause établie, le module rejoue tout seul, **deux secondes après
+l'entrée en jeu**, exactement la commande que l'utilisateur tapait à la main :
+
+    MovementAlert:Refresh()
+
+Bornes délibérées, parce qu'un contournement se tient plus court qu'un correctif :
+
+- **Connexion initiale et `/reload` uniquement.** `PLAYER_ENTERING_WORLD` part à
+  chaque portail, ascenseur et porte d'instance ; re-dispatcher le module à
+  chacun échangerait un défaut cosmétique au login contre un à-coup toute la
+  session. Le garde lit `isInitialLogin` / `isReloadingUi`.
+- **Annulé par `Deactivate`.** Un minuteur armé avant que l'utilisateur ne coupe
+  le module le rallumerait sinon.
+- **Ne s'empile pas.** Deux connexions coup sur coup remplacent le minuteur en
+  attente au lieu d'en ajouter un.
+
+Fichier : `Modules/MovementAlert/MovementAlert.lua` (`OnEvent`, `Deactivate`).
+Si le vrai défaut refait surface un jour avec un symptôme propre, ce bloc se
+supprime — il ne sert de fondation à rien.
+
+### Spell effect alpha : appliqué au login, plus seulement au curseur
+
+Symptôme : l'opacité n'était bonne qu'après avoir ouvert les options et bougé un
+curseur. Or bouger un curseur appelle **exactement le même `ApplyAlpha`** que le
+login — l'écriture n'a donc jamais été cassée, seulement son **moment**. Deux
+mécanismes rendent l'appel de login muet, et le symptôme ne les distingue pas :
+
+1. **La spé n'est pas encore connue.** `Activate` tourne à `PLAYER_LOGIN`, où les
+   API de spécialisation répondent `nil`. L'ancien code traduisait ça en
+   `specID == 0` et **abandonnait en silence**, sans rien pour réessayer : la
+   valeur restait non appliquée toute la session.
+2. **Le moteur écrase.** Le client rejoue ses propres CVars pendant le login ; une
+   valeur écrite juste avant est jetée sans un mot. `Core.lua` porte déjà cette
+   connaissance pour `preloadWorldNonCriticalObjects` (« Re-apply CVars that WoW
+   resets on every login ») — ce module n'y avait jamais eu droit.
+
+Les deux sont traités :
+
+- **Réessais bornés** (1 s, 2 s, 4 s, 8 s) au lieu d'un abandon muet. Bornés, et
+  pas un ticker : si la spé n'est pas résolue quinze secondes après le début de
+  session, elle ne le sera pas, et un sondage sans fin serait pire que le défaut
+  qu'il couvre.
+- **Relecture du CVar** deux secondes après l'écriture. S'il n'a pas pris, on
+  réécrit **une fois** — un dernier mot, pas une boucle : un CVar que le client
+  refuse obstinément ne doit pas devenir une dispute qui dure la session.
+- **`PLAYER_ENTERING_WORLD`** rejoint `PLAYER_SPECIALIZATION_CHANGED`. C'est
+  l'événement qui arrive **après** la restauration du moteur.
+- **Résolution de spé défensive** : `C_SpecializationInfo` d'abord, les globales
+  en repli — comme `FocusTargetMarker`. L'ancien code ne lisait que la globale.
+
+Fichier : `Modules/SpellEffectAlpha/SpellEffectAlpha.lua`.
+
+### Deux portes de plus, et une fidélité de stub rétablie
+
+`tests/test_login_settle.lua` (`python3 tests/run.py --login`) — 7 assertions,
+toutes contre-testées en réintroduisant le défaut :
+
+| Perturbation | Assertions tombées |
+|---|---|
+| Bloc du minuteur retiré | 3 |
+| Garde de login retiré (part à chaque zone) | 1 |
+| `Deactivate` n'annule plus | 1 |
+| Deux connexions s'empilent | 1 |
+| `Refresh` appelé en direct au lieu d'être différé | 3 |
+| `Refresh` lui-même cassé | 1 |
+
+`wowstub.lua` : **`Timer:Cancel` était un no-op**, donc le stub était incapable
+d'échouer sur tout ce qui touche à l'annulation — les deux assertions concernées
+passaient contre un code qui n'annulait rien. Un minuteur annulé quitte
+désormais réellement la file (vérifié : remettre le no-op fait tomber ces deux
+assertions, et elles seules).
+
+`test_login_settle.lua` charge le **vrai** `Core/Module.lua` plutôt qu'un
+`ModuleMixin` de substitution : `Refresh` délègue sa dernière étape au mixin, et
+la stubber laisserait l'assertion ne tester que la moitié dont personne ne
+doutait.
+
+`tests/test_cvar.lua` (`python3 tests/run.py --cvar`) — 17 assertions, mêmes
+contre-tests. **Trois d'entre elles étaient décoratives au premier passage** et
+ont été réécrites :
+
+- « la relecture ne boucle pas » passait contre une version qui bouclait, parce
+  qu'elle était vérifiée contre un client coopératif : la relecture sort tôt
+  quand la valeur est déjà bonne, donc une boucle folle restait invisible. Il
+  fallait un client qui **refuse toujours**.
+- « l'index 0 n'est pas une spé » ne pouvait pas échouer : le stub rendait déjà
+  `nil` pour 0. Remplacée par ce qui est réellement porteur — les globales et
+  `C_SpecializationInfo` **répondent des spés différentes** dans le stub, si bien
+  que le CVar écrit dit quel espace de noms a été lu.
+- « les arguments d'événement n'empoisonnent pas le compteur de réessais » ne
+  s'exerçait qu'avec une spé connue, c'est-à-dire jamais sur le chemin des
+  réessais.
+
+---
+
 ## 2026-08-13 — v2.6.5
 
 ### La cause, enfin, et ce n'était aucune des trois

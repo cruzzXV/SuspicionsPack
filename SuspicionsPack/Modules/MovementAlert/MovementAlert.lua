@@ -584,27 +584,39 @@ local function OnEvent(self, event, ...)
         or event == "PLAYER_TALENT_UPDATE"
         or event == "TRAIT_CONFIG_UPDATED"
     then
-        -- RE-APPLY THE STYLING HERE, and understand that this is a fix BY
-        -- CONSTRUCTION rather than a diagnosis.
-        --
-        -- Measured in game: at login the saved size reads 28, the module is
-        -- Ace-enabled, IsOn() is true, no Lua error is raised -- and the
-        -- FontString is still carrying the 14 it was created with. So
-        -- ApplyStyles did not run, even though every branch of ModuleMixin's
-        -- OnEnable leads to Refresh, which calls it first. Which link fails
-        -- could not be established remotely: a /reload erases the evidence, and
-        -- the state after login is indistinguishable from a clean start.
-        --
-        -- Version 2.5.1 shipped a confident explanation of this symptom -- a
-        -- font-loading race -- and it was WRONG: a manual Refresh fixes the size
-        -- instantly, which a font that will not load cannot do. That guess cost
-        -- a release, so this one claims nothing.
-        --
-        -- PLAYER_ENTERING_WORLD arrives after login and after every zone, when
-        -- everything is ready by definition. ApplyStyles is idempotent, so
-        -- re-running it is three SetFont calls per zone -- the same self-healing
-        -- shape ReapPredict uses for its anchor retry.
         ApplyStyles()
+
+        -- THE DEFERRED REFRESH BELOW IS A WORKAROUND, NOT A DIAGNOSIS.
+        --
+        -- Symptom: at login the alert text is drawn at the wrong size. The
+        -- saved value is right (reads 28 throughout), the module is enabled,
+        -- no error is raised, and an instrumented build showed ApplyStyles
+        -- both running and leaving the FontString at 27.999998 -- i.e. the
+        -- size is already correct by the end of login, yet what is drawn is
+        -- not. Typing MovementAlert:Refresh() by hand fixes it every time.
+        --
+        -- Four releases were spent on explanations of this -- a font-loading
+        -- race, ApplyStyles not running, an early nil db, a silently failing
+        -- creation-time SetFont -- and every one was refuted by measurement in
+        -- game. So this claims nothing about the cause. It re-runs, two
+        -- seconds after the world is up, exactly the call the user was running
+        -- manually. Refresh does strictly more than ApplyStyles: it also
+        -- repositions the text (ResetTSTextPosition) and the Time Spiral icon,
+        -- and one of those is the likelier culprit now that the size is known
+        -- to be right.
+        --
+        -- Bounded on purpose: initial login and /reload only, never on a zone
+        -- change, and cancelled if another login fires first. If the real
+        -- defect ever surfaces with a cleaner symptom, delete this block
+        -- rather than building on it.
+        local isInitialLogin, isReloadingUi = ...
+        if isInitialLogin or isReloadingUi then
+            if f._loginSettle then f._loginSettle:Cancel() end
+            f._loginSettle = C_Timer.NewTimer(2, function()
+                f._loginSettle = nil
+                if MA.Refresh and MA:IsOn() then MA:Refresh() end
+            end)
+        end
 
         if not InCombatLockdown() then
             self.cachedSpells = BuildMovementSpellList()
@@ -781,6 +793,12 @@ end
 function MA:Deactivate()
     f:SetScript("OnEvent", nil)
     f:UnregisterAllEvents()
+    -- A login settle timer armed before the user switched the module off would
+    -- otherwise fire into a deactivated module and re-dispatch it.
+    if f._loginSettle then
+        f._loginSettle:Cancel()
+        f._loginSettle = nil
+    end
     SP.Tick.Remove(TICK_KEY)
     if fsText then fsText:Hide() end
     HideTSIcon()

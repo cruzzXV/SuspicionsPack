@@ -82,19 +82,87 @@ end
 -- exactly the bug the db.enabled gate below was added to fix.
 local _applied = false
 
-local function ApplyAlpha()
+-- Reported: the opacity is wrong after login and only takes hold once the
+-- options window is opened and a slider nudged. Moving a slider calls the SAME
+-- ApplyAlpha as login does, so nothing about the writing is broken -- what
+-- differs is only WHEN it runs. Two things can make the login call a no-op, and
+-- both are handled below because the symptom does not distinguish them:
+--
+--   1. THE SPEC IS NOT KNOWN YET. Activate runs at PLAYER_LOGIN, and the spec
+--      APIs answer nil that early. The old code turned that into `specID == 0`
+--      and returned in silence, with nothing left to try again -- so the value
+--      stayed unapplied for the whole session. Handled by RETRYING rather than
+--      giving up (see RETRY_DELAYS).
+--
+--   2. THE ENGINE OVERWRITES US. The client runs its own CVar restore during
+--      login; a value written just before it lands is discarded without a word.
+--      Core.lua already carries this knowledge for preloadWorldNonCriticalObjects
+--      ("Re-apply CVars that WoW resets on every login"), and this module never
+--      got the same treatment. Handled by READING THE CVAR BACK and writing once
+--      more if it did not stick.
+--
+-- Resolved defensively, the way FocusTargetMarker does it: C_SpecializationInfo
+-- first, the globals as a fallback. Note the explicit range test -- 0 is TRUTHY
+-- in Lua and is exactly what these return when no spec is chosen, so `index and`
+-- would sail straight past it.
+local function ResolveSpecID()
+    local getSpec = (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization)
+                    or _G.GetSpecialization
+    local getInfo = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo)
+                    or _G.GetSpecializationInfo
+    if not (getSpec and getInfo) then return nil end
+
+    local index = getSpec()
+    if type(index) ~= "number" or index < 1 then return nil end
+
+    local specID = getInfo(index)
+    if type(specID) ~= "number" or specID < 1 then return nil end
+    return specID
+end
+
+local function GetCVarValue(name)
+    local get = (C_CVar and C_CVar.GetCVar) or _G.GetCVar
+    return get and get(name) or nil
+end
+
+-- Bounded, and deliberately not a ticker: if the spec has not resolved fifteen
+-- seconds into a session it is not going to, and a poll that never stops is a
+-- worse bug than the one it was covering.
+local RETRY_DELAYS = { 1, 2, 4, 8 }
+
+local ApplyAlpha
+
+-- Confirm the write actually took, once. `verified` stops this from recursing:
+-- the follow-up write is a last word, not a loop, because a CVar the client
+-- keeps refusing must not turn into an argument that runs all session.
+local function VerifyApplied(wanted)
+    C_Timer.After(2, function()
+        if not _applied then return end            -- switched off in the meantime
+        local got = tonumber(GetCVarValue("spellActivationOverlayOpacity"))
+        if got and math.abs(got - wanted) <= 0.005 then return end
+        ApplyAlpha(nil, true)
+    end)
+end
+
+-- attempt:  how many times the spec lookup has already come back empty.
+-- verified: true when this call IS the second-chance write, so it does not
+--           schedule another readback.
+function ApplyAlpha(attempt, verified)
     local db = GetDB()
     -- Never write a CVar while switched off. AceAddon enables every module at
     -- login regardless of the user's setting, so an ungated write here silently
     -- overwrote the player's own Blizzard CVars every session.
     if not db or not db.enabled then return end
 
-    -- Safe spec ID resolution
-    local specIndex = GetSpecialization and GetSpecialization() or 0
-    local specID = (specIndex and specIndex > 0 and GetSpecializationInfo)
-        and GetSpecializationInfo(specIndex) or 0
-
-    if not specID or specID == 0 then return end
+    local specID = ResolveSpecID()
+    if not specID then
+        attempt = (attempt or 0) + 1
+        local delay = RETRY_DELAYS[attempt]
+        if delay then
+            C_Timer.After(delay, function() ApplyAlpha(attempt, verified) end)
+        end
+        return
+    end
 
     local val = (db.specs and db.specs[specID]) or db.globalDefault or 100
     val = math.max(0, math.min(100, val))
@@ -103,6 +171,8 @@ local function ApplyAlpha()
     SetCVar("spellActivationOverlayOpacity", tostring(finalVal))
     SetCVar("displaySpellActivationOverlays", finalVal > 0 and "1" or "0")
     _applied = true
+
+    if not verified then VerifyApplied(finalVal) end
 end
 
 local function RestoreAlpha()
@@ -122,15 +192,23 @@ end
 -- ============================================================
 function SEA:Activate()
     self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", "OnSpecChanged")
+    -- PLAYER_ENTERING_WORLD arrives AFTER the engine's own login CVar restore,
+    -- which is the whole point: the write from Activate can be thrown away, the
+    -- one from here cannot be. Two SetCVar calls per loading screen.
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnSpecChanged")
     ApplyAlpha()
 end
 
 function SEA:Deactivate()
     self:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    self:UnregisterEvent("PLAYER_ENTERING_WORLD")
     RestoreAlpha()
 end
 
 function SEA:OnSpecChanged()
+    -- No arguments forwarded on purpose: ApplyAlpha's first parameter is the
+    -- retry counter, and handing it an event name would index RETRY_DELAYS with
+    -- a string and quietly disable every retry.
     ApplyAlpha()
 end
 

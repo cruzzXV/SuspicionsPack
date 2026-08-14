@@ -1,10 +1,17 @@
 ## La taille de l'alerte de déplacement
 
-Trouvée, et ce n'était aucune des trois causes envisagées. La ligne qui donne sa
-taille de départ au texte pouvait échouer sans rien signaler, laissant le texte
-**sans aucune police** — l'affichage retombait alors sur ce que le client voulait
-bien dessiner.
+Elle se remet d'aplomb toute seule, deux secondes après l'entrée en jeu. Plus
+besoin d'ouvrir les options une fois par session pour que le texte reprenne la
+taille réglée.
 
-L'alerte de potion avait exactement la même ligne et le même défaut.
+C'est un contournement et il est écrit comme tel : la cause n'est toujours pas
+établie, alors le module rejoue simplement, tout seul, la commande qu'il fallait
+taper à la main. Bornée à la connexion et au `/reload` — jamais à un changement
+de zone.
 
-Les messages de diagnostic de la version précédente sont retirés.
+## L'opacité des effets de sort
+
+Elle s'applique au login, sans qu'il faille ouvrir les options et bouger un
+curseur. Le module attend désormais que ta spécialisation soit connue au lieu
+d'abandonner en silence, et il relit la valeur pour vérifier qu'elle a bien
+tenu — le client en réécrit certaines pendant la connexion.
