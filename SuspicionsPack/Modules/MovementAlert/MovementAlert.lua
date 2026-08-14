@@ -415,8 +415,37 @@ MA.isPreview = false
 -- ============================================================
 -- Helpers
 -- ============================================================
+-- ============================================================
+-- TEMPORARY LOGIN TRACE — remove once the cause is known.
+--
+-- Three explanations for "the size is 14 at login" have been proposed and all
+-- three were refuted by measurement: a font-loading race (a manual Refresh fixes
+-- it instantly, which an unloadable font cannot do), ApplyStyles never running
+-- (the event IS registered, so Activate ran, so Refresh completed), and an early
+-- error on a nil db (no error, and Refresh reached its end).
+--
+-- What is left is that ApplyStyles runs and reads 14 -- which is exactly the
+-- DEFAULT value of fontSize. So db.fontSize is the default at that moment and
+-- the saved 28 a moment later. This prints what it actually sees, because
+-- guessing has now cost two releases.
+-- ============================================================
+local _traceLeft = 5
+local function Trace(where, db)
+    if _traceLeft <= 0 then return end
+    _traceLeft = _traceLeft - 1
+    local _, applied = fsText:GetFont()
+    print(("|cffe51039[SP trace]|r %s | db=%s | fontSize=%s | applique=%s | profil=%s")
+        :format(where,
+                tostring(db ~= nil),
+                tostring(db and db.fontSize),
+                tostring(applied),
+                tostring(SP.db and SP.db:GetCurrentProfile())))
+end
+SP.MovementAlertTrace = Trace
+
 local function ApplyStyles()
     local db = GetDB()
+    Trace("ApplyStyles", db)
     local fontPath = GetFontPath(db.fontFace or "Expressway")
     -- Not fsText:SetFont directly: at login the .ttf is sometimes not loadable
     -- yet, SetFont then returns false and changes NOTHING -- leaving the size at

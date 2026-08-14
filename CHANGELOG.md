@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-08-13 — v2.6.4 (diagnostic)
+
+Version d'instrumentation, sans correction. Trois explications du symptôme « la
+taille vaut 14 au login » ont été proposées et **les trois ont été réfutées par
+la mesure** :
+
+- une course au chargement de police — un `Refresh` manuel corrige
+  instantanément, ce qu'une police introuvable ne peut pas faire
+- `ApplyStyles` qui ne tournerait pas — l'événement EST enregistré, donc
+  `Activate` a tourné, donc `Refresh` est allé au bout
+- une erreur précoce sur une base nulle — aucune erreur, et `Refresh` a terminé
+
+Ce qui reste : `ApplyStyles` tourne et lit **14**, qui est exactement la valeur
+par DÉFAUT de `fontSize`. La même expression renvoie 14 pendant le login et 28
+une minute plus tard.
+
+La trace imprime, aux cinq premiers passages, ce que `ApplyStyles` voit
+réellement : présence de la base, valeur de `fontSize`, taille appliquée, et nom
+du profil courant. Deux points d'observation supplémentaires dans le mixin,
+`OnEnable` et `OnSPLogin`, situent le moment.
+
+Deux versions ont été dépensées à corriger sur la foi d'un raisonnement. Celle-ci
+ne corrige rien et se contente de regarder.
+
+---
+
 ## 2026-08-13 — v2.6.3
 
 ### La taille de l'alerte de déplacement, pour de bon cette fois
