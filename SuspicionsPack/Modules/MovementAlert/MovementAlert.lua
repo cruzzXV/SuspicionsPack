@@ -448,6 +448,45 @@ local function ApplyStyles()
 end
 
 -- ============================================================
+-- EnsureStyled -- the font is re-checked at every SHOW, not at login
+--
+-- Five releases were spent trying to find the one moment at login when the font
+-- could be applied and would stick. Font race, ApplyStyles not running, an early
+-- nil db, a silently failing creation-time SetFont, a Refresh deferred two
+-- seconds -- each was refuted in game, and the last one is the tell: a manual
+-- Refresh works at ANY later moment, so the problem was never "which moment",
+-- it was the assumption that one moment exists.
+--
+-- EllesmereUI's own movement alert does not make that assumption. Its StyleSlot
+-- (EllesmereUIQoL_MovementAlert.lua:431) is called from ShowMovementSlot
+-- (:929) and ShowBuffActiveSlot (:1110) -- that is, on every show, on every poll
+-- tick -- and is change-guarded so the repetition costs nothing. There is no
+-- login race to lose because there is no single moment of truth.
+--
+-- This is that, for one FontString. Note what it compares against: the
+-- FontString's OWN CURRENT STATE via GetFont, not a cached stamp of what we
+-- last asked for. A stamp would be blind exactly when it matters -- if anything
+-- outside this file resets the font, the stamp still reads "unchanged" and the
+-- repair is skipped. Reading it back cannot be fooled, and it also catches the
+-- garbage GetFont returns when a FontString has no valid font at all.
+local function EnsureStyled()
+    local db       = GetDB()
+    local fontPath = GetFontPath(db.fontFace or "Expressway")
+    local size     = db.fontSize or 14
+    local flags    = db.outline or "OUTLINE"
+
+    local curFace, curSize, curFlags = fsText:GetFont()
+    if curFace == fontPath
+        and type(curSize) == "number" and math.abs(curSize - size) < 0.5
+        and (curFlags or "") == flags
+    then
+        return
+    end
+
+    SP.SetFontSafe(fsText, fontPath, size, flags)
+end
+
+-- ============================================================
 -- Tick arming
 --
 -- The per-frame driver exists only to refresh a COUNTDOWN. Everything else is
@@ -498,6 +537,7 @@ local function CheckMovementCooldown()
                 local aura = C_UnitAuras.GetPlayerAuraBySpellID(entry.spellId)
                 if aura then
                     fsText:SetText(entry.customText or entry.spellName)
+                    EnsureStyled()
                     fsText:Show()
                     return
                 end
@@ -516,6 +556,7 @@ local function CheckMovementCooldown()
                 local label = entry.customText or ("No " .. entry.spellName)
                 fsText:SetText(label .. "\n"
                     .. string.format("%." .. prec .. "f", cdInfo.timeUntilEndOfStartRecovery))
+                EnsureStyled()
                 fsText:Show()
                 return
             end
@@ -560,6 +601,7 @@ MATick = function(elapsed)
         local label = db.timeSpiralText or "Free Movement"
         local prec  = db.precision or 0
         fsText:SetText(hex .. label .. "\n" .. string.format("%." .. prec .. "f", remaining) .. "|r")
+        EnsureStyled()
         fsText:Show()
         return
     end
@@ -585,38 +627,6 @@ local function OnEvent(self, event, ...)
         or event == "TRAIT_CONFIG_UPDATED"
     then
         ApplyStyles()
-
-        -- THE DEFERRED REFRESH BELOW IS A WORKAROUND, NOT A DIAGNOSIS.
-        --
-        -- Symptom: at login the alert text is drawn at the wrong size. The
-        -- saved value is right (reads 28 throughout), the module is enabled,
-        -- no error is raised, and an instrumented build showed ApplyStyles
-        -- both running and leaving the FontString at 27.999998 -- i.e. the
-        -- size is already correct by the end of login, yet what is drawn is
-        -- not. Typing MovementAlert:Refresh() by hand fixes it every time.
-        --
-        -- Four releases were spent on explanations of this -- a font-loading
-        -- race, ApplyStyles not running, an early nil db, a silently failing
-        -- creation-time SetFont -- and every one was refuted by measurement in
-        -- game. So this claims nothing about the cause. It re-runs, two
-        -- seconds after the world is up, exactly the call the user was running
-        -- manually. Refresh does strictly more than ApplyStyles: it also
-        -- repositions the text (ResetTSTextPosition) and the Time Spiral icon,
-        -- and one of those is the likelier culprit now that the size is known
-        -- to be right.
-        --
-        -- Bounded on purpose: initial login and /reload only, never on a zone
-        -- change, and cancelled if another login fires first. If the real
-        -- defect ever surfaces with a cleaner symptom, delete this block
-        -- rather than building on it.
-        local isInitialLogin, isReloadingUi = ...
-        if isInitialLogin or isReloadingUi then
-            if f._loginSettle then f._loginSettle:Cancel() end
-            f._loginSettle = C_Timer.NewTimer(2, function()
-                f._loginSettle = nil
-                if MA.Refresh and MA:IsOn() then MA:Refresh() end
-            end)
-        end
 
         if not InCombatLockdown() then
             self.cachedSpells = BuildMovementSpellList()
@@ -695,6 +705,7 @@ end
 function MA:ShowPreview()
     self.isPreview = true
     fsText:SetText("No Blink\n3.2")
+    EnsureStyled()
     fsText:Show()
     f:Show()
     ApplyStyles()
@@ -722,6 +733,7 @@ function MA:ShowTimeSpiralPreview()
     local prec  = db.precision or 0
     ApplyTSTextPosition()
     fsText:SetText(hex .. label .. "\n" .. string.format("%." .. prec .. "f", 10.0) .. "|r")
+    EnsureStyled()
     fsText:Show()
     ShowTSIcon(nil)
     if self._tsPrevTimer then self._tsPrevTimer:Cancel() end
@@ -793,12 +805,6 @@ end
 function MA:Deactivate()
     f:SetScript("OnEvent", nil)
     f:UnregisterAllEvents()
-    -- A login settle timer armed before the user switched the module off would
-    -- otherwise fire into a deactivated module and re-dispatch it.
-    if f._loginSettle then
-        f._loginSettle:Cancel()
-        f._loginSettle = nil
-    end
     SP.Tick.Remove(TICK_KEY)
     if fsText then fsText:Hide() end
     HideTSIcon()

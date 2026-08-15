@@ -4,6 +4,68 @@
 
 ---
 
+## 2026-08-15 — v2.6.7
+
+### La taille de l'alerte de déplacement : la bonne question n'était pas « quand »
+
+Le contournement de la 2.6.6 — un `Refresh()` différé de deux secondes — **ne
+marchait pas non plus**. Cinquième échec. Et c'est précisément cet échec qui
+donne la réponse : un `Refresh()` **manuel** fonctionne à n'importe quel moment
+ultérieur, alors qu'un `Refresh()` **différé** à deux secondes ne fonctionne pas.
+Si le moment n'explique pas la différence, c'est que le problème n'a jamais été
+« à quel instant appliquer la police ». C'était **l'hypothèse qu'un instant
+suffisant existe**.
+
+Cinq versions ont cherché cet instant : course de police (2.5.1), `ApplyStyles`
+qui ne tournerait pas (2.6.3), db nulle au démarrage, `SetFont` de création
+échouant en silence (2.6.5), `Refresh` différé (2.6.6).
+
+**EllesmereUI ne fait pas cette hypothèse.** Son propre module d'alerte de
+déplacement applique la police depuis `StyleSlot`
+(`EllesmereUIQoL_MovementAlert.lua:431`), appelé par `ShowMovementSlot` (:929) et
+`ShowBuffActiveSlot` (:1110) — c'est-à-dire **à chaque affichage, à chaque tick
+de sondage**, et protégé par une garde de changement pour que la répétition ne
+coûte rien (voir le commentaire ligne 459 : *« change-guarded: StyleSlot runs on
+every poll tick »*). Il n'y a pas de course au login à perdre parce qu'il n'y a
+pas d'instant de vérité unique.
+
+`EnsureStyled()` fait ça pour notre unique `FontString`, appelé juste avant
+chacun des cinq `fsText:Show()`. Le contournement de la 2.6.6 est **supprimé** —
+il ne marchait pas et ne devait servir de fondation à rien.
+
+**Détail qui n'en est pas un : la garde relit `GetFont()` sur le `FontString`
+lui-même, elle ne mémorise pas ce qu'on a demandé en dernier.** Un mémo serait
+aveugle exactement là où ça compte : si quelque chose *hors de ce fichier*
+réinitialise la police, le mémo répond « inchangé » et la réparation est sautée.
+Après cinq diagnostics faux, cette hypothèse-là reste la principale suspecte, et
+relire l'état réel la couvre sans avoir à la prouver. Ça rattrape aussi le
+`-1566.51` de la trace 2.6.4 — un `FontString` sans police valide du tout.
+
+Fichier : `Modules/MovementAlert/MovementAlert.lua`.
+
+### Porte `--style` (remplace `--login`)
+
+`tests/test_show_style.lua` — 11 assertions, toutes contre-testées :
+
+| Perturbation | Assertions tombées |
+|---|---|
+| `EnsureStyled` retiré des affichages (état 2.6.6) | 9 |
+| Garde par mémo au lieu de relire `GetFont` | 5 |
+| Garde absente (SetFont à chaque affichage) | 1 |
+| `SetFont` nu au lieu de `SP.SetFontSafe` | 1 |
+| Garde ne comparant que la face, pas la taille | 1 |
+
+La ligne « garde par mémo » est celle qui compte : elle ne fait tomber **que**
+les assertions sur une réinitialisation venue de l'extérieur, ce qui confirme
+qu'elles testent bien ça et rien d'autre.
+
+Le harnais charge le **vrai** bloc police de `Core.lua` : `spstub` répond à
+toute clé `SP` capitalisée par un stub universel muet, donc sans ça
+`SP.SetFontSafe` écrivait dans le vide et les onze assertions auraient réussi ou
+échoué pour des raisons sans rapport avec le module.
+
+---
+
 ## 2026-08-14 — v2.6.6
 
 ### La taille de l'alerte de déplacement : contournement assumé
