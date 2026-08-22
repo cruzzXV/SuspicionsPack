@@ -4,6 +4,151 @@
 
 ---
 
+## 2026-08-15 — v2.7.0
+
+### Nouveau : alerte d'interruption
+
+« Interrompu [icône] Frappe de l'ombre » à l'écran quand **tu** kickes. Le kick
+de ton familier compte comme le tien. Coupé par défaut, catégorie Combat.
+
+**Le combat log n'existe plus pour ça.** `COMBAT_LOG_EVENT_UNFILTERED` est
+protégé depuis la 12.1 et **lève à l'enregistrement** — ce n'est pas un champ qui
+devient secret, c'est `RegisterEvent` lui-même qui refuse. L'implémentation
+évidente d'un « ai-je kické » est donc simplement indisponible.
+
+À la place, deux événements ordinaires sont corrélés :
+
+1. `UNIT_SPELLCAST_SUCCEEDED`, **filtré à `player`+`pet` au niveau C**, et le
+   sort lancé appartient à la table des kicks de ta spé → on arme un drapeau.
+2. `UNIT_SPELLCAST_INTERRUPTED` (ou `CHANNEL_STOP`) dans les 0,35 s → c'était toi.
+
+`CHANNEL_STOP` est là parce que kicker un sort **canalisé** ne lève pas
+`INTERRUPTED`. Le prix est réel et assumé : un canalisé qui se termine
+normalement pendant la fenêtre peut être pris pour ton kick.
+
+Trois détails qui font la différence entre « ça marche » et « c'est utilisable » :
+
+- **`C_Spell.GetSpellInfo` est `AllowedWhenTainted`** : il accepte un spellID
+  **secret** et répond proprement. C'est ce qui rend possible de *nommer* le sort
+  kické en contenu restreint, là où tout le reste de la charge utile est
+  illisible.
+- **L'icône est insérée recadrée** (`5:59` sur 64), pas en `|Tid:taille|t` nu :
+  une icône de sort porte sa bordure gravée dans l'art, et à la taille du texte
+  cette bordure se lit comme un bloc décalé posé à côté de la ligne.
+- **Le test `issecretvalue` vient en premier et seul**, avant même d'utiliser le
+  spellID comme clé : indexer une table avec un secret est exactement la même
+  comparaison interdite qu'un `==`.
+
+**Ce que je n'ai pas fait : supposer la signature de l'événement.** La signature
+documentée de `UNIT_SPELLCAST_INTERRUPTED` est `(unit, castGUID, spellID)` — trois
+arguments, aucun auteur. Une implémentation de référence en lit pourtant un
+quatrième nommé `interruptedBy`. L'une des deux se trompe, et notre règle maison
+est explicite. Donc le module **ne compte pas les arguments** : il balaie la
+charge utile et RECONNAÎT un GUID à son préfixe (`Player-`, `Creature-`, `Pet-`,
+`Vehicle-`). Si Blizzard en fournit un, où qu'il soit, il sert à écarter le kick
+d'un allié ; s'il n'y en a pas — cas normal des interruptions à projectile, et
+contenu restreint où il serait secret — le drapeau seul tient. `SP.DEBUG`
+imprime la charge utile réelle, qui tranchera en jeu.
+
+Fichiers : `Modules/InterruptAlert/InterruptAlert.lua`,
+`SuspicionsPack_Config/Pages/InterruptAlert.lua`.
+
+### Trois défauts trouvés en relisant, avant publication
+
+Aucun n'aurait fait lever une erreur, et c'est ce qui les rend intéressants.
+
+- **Abandon silencieux sur la spé.** `Activate` tourne à `PLAYER_LOGIN`, où les
+  API de spécialisation répondent `nil` — donc le cache des kicks restait vide
+  pour toute la session si les deux événements de rafraîchissement rataient leur
+  coup. **C'est le défaut corrigé dans SpellEffectAlpha à la 2.6.6**, réintroduit
+  trois versions plus tard dans du code neuf. La reprise se fait au moment du
+  lancer : si tu lances un sort, ta spé est forcément connue, donc pas besoin de
+  minuteur. Sur `specKnown`, jamais sur `kickSet == nil` — « cette spé n'a pas
+  d'interruption » est une réponse VALIDE, et retenter dessus relancerait la
+  résolution à chaque sort lancé par un soigneur.
+- **L'aperçu mourait au premier réglage.** Le GUI appelle `Refresh` → `Activate`
+  à chaque valeur touchée, et `Activate` masquait le cadre — donc bouger le
+  curseur de position faisait disparaître l'aperçu, c'est-à-dire pile quand on le
+  regarde pour se repérer.
+- **Le `castGUID` pouvait passer pour l'auteur.** `FindActorGUID` balaie la
+  charge utile au lieu de compter les positions, donc il croise forcément le
+  `castGUID` — une chaîne, comme un GUID d'unité. Sans le test de préfixe, il
+  aurait été pris pour l'auteur, n'aurait correspondu ni au joueur ni à son
+  familier, et aurait **annulé chaque annonce**. Le module était donc mort-né, et
+  aucune assertion ne le voyait.
+
+### Auto Buy : Potion de soin concentrée de Lune-d'Argent
+
+Ajoutée aux préréglages de potions de soin, en tête de section — palier courant
+d'abord, version précédente juste dessous.
+
+**Une seule clé, l'ID Qualité 1.** Un préréglage porte deux IDs côte à côte
+(`id` = Q1, `q2` = Q2) et le mauvais se lit parfaitement naturellement comme clé
+de `DEFAULTS.char.autoBuy.items`. C'est exactement ce qui est arrivé à **quinze
+objets** : les valeurs livrées étaient injoignables, l'UI signalait des
+modifications fantômes, et AceDB avait déjà écrit les tables mortes dans les
+données de chaque personnage — réécrites à chaque déconnexion, indéfiniment.
+`prune_autobuy_q2_item_keys_2026_08` les nettoie ; rien n'empêchait d'en
+reproduire une.
+
+### Porte `--autobuy`
+
+Trois règles, contre-testées chacune :
+
+| Perturbation | Message |
+|---|---|
+| Défaut clé par le Q2 | « 271883 is the Q2 id of … key it by 271884 » |
+| Préréglage sans défaut livré | « reports a phantom change on an untouched profile » |
+| Défaut sans préréglage derrière | « a shipped default with no preset behind it » |
+
+Ce défaut ne fait **rien** échouer : l'addon charge, la page s'affiche, la ligne
+apparaît — elle ne retient simplement jamais rien. C'est précisément la classe de
+bug pour laquelle une porte existe.
+
+### Porte `--interrupt`
+
+35 assertions. Dans une corrélation, ce qui tourne mal n'est pas « est-ce que ça
+annonce » mais « est-ce que ça annonce à tort » : la moitié portent donc sur des
+cas où **rien** ne doit sortir — hors fenêtre, sans avoir kické, le kick d'un
+allié, le lancer d'un allié, une spé sans interruption, le module coupé.
+
+| Perturbation | Assertions tombées |
+|---|---|
+| Le drapeau ne se désarme jamais | 1 |
+| Pas de filtrage par GUID d'auteur | 1 |
+| Un GUID absent fait renoncer (trop strict) | 11 |
+| Test de secret retiré, ou placé après l'indexation | 2 / 1 |
+| `CHANNEL_STOP` non enregistré | 3 |
+| `SUCCEEDED` enregistré sans filtre d'unité | 2 |
+| Icône sans bornes de rognage | 1 |
+| Masquage automatique retiré | 1 |
+| `FindActorGUID` sans test de préfixe | 1 |
+| Reprise paresseuse retirée | 1 |
+| `Activate` masque pendant l'aperçu | 1 |
+| Reprise déclenchée sur `kickSet` au lieu de `specKnown` | 1 |
+
+**Deux assertions décoratives démasquées, et une leçon de stub.**
+
+`CHANNEL_STOP` passait contre un module qui ne l'enregistrait pas, parce que le
+test appelait `GetScript("OnEvent")` à la main — ce qui court-circuite
+l'enregistrement. `wowstub` a donc gagné `RegisterUnitEvent`, `IsEventRegistered`
+et `FireEvent`, qui livre comme le client : rien pour un événement non demandé,
+et filtrage par unité. C'est aussi ce qui rend testable le filtre `player`+`pet`,
+via le cas qu'il existe pour bloquer — le Contresort d'un autre mage.
+
+*(Au passage : nommer ce répartiteur `Fire` a écrasé le répartiteur de scripts
+du stub et cassé les 139 assertions de l'UI en une ligne. D'où `FireEvent`.)*
+
+Le test « un spellID secret ne fait rien lever » était invérifiable : `wowstub`
+modélise un secret par une table, et `kickSet[<table>]` rend `nil` sans broncher
+— l'assertion passait avec ET sans la garde. Même piège que « ATTEMPT 1 » dans
+`test_secret.lua`. Comme la conséquence n'est pas observable hors du vrai client,
+elle est devenue une **assertion statique sur la source** : le test de secret
+doit apparaître AVANT l'indexation. C'est exactement ce que la règle demande, et
+c'est vérifiable.
+
+---
+
 ## 2026-08-15 — v2.6.7
 
 ### La taille de l'alerte de déplacement : la bonne question n'était pas « quand »

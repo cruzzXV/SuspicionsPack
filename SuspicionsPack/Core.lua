@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.6.7"
+SP.VERSION = "2.7.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -739,6 +739,23 @@ local DEFAULTS = {
             channel      = "Master",
             muteInCombat = false,
         },
+        interruptAlert = {
+            enabled     = false,
+            text        = "Interrompu",
+            showIcon    = true,
+            duration    = 3,
+            fontSize    = 20,
+            fontFace    = "Expressway",
+            fontOutline = "OUTLINE",
+            frameStrata = "HIGH",
+            colorSource = "custom",
+            color       = { 0.45, 0.85, 1, 1 },
+            x           = 0,
+            y           = 172,
+            anchorFrom  = "CENTER",
+            anchorTo    = "CENTER",
+            anchorFrame = "UIParent",
+        },
         gatewayAlert = {
             enabled     = false,
             fontSize    = 16,
@@ -857,6 +874,11 @@ local DEFAULTS = {
                 [241327] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Flask of the Shattered Sun
                 [241321] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Flask of Thalassian Resistance
                 -- ── Health/Mana Potions ───────────────────────────────
+                -- CLÉ Q1 UNIQUEMENT. Le Q2 (271883) vit dans le champ `q2` du
+                -- préréglage, jamais comme clé ici : c'est exactement le défaut
+                -- que la migration prune_autobuy_q2_item_keys_2026_08 a nettoyé
+                -- pour quinze objets, et que rien n'empêche de recréer.
+                [271884] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Concentrated Silvermoon Health Potion
                 [241305] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Silvermoon Health Potion
                 [241301] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Lightfused Mana Potion
                 [241299] = { enabled = false, quantity = 0, buyQty = 0, quality = 2 }, -- Amani Extract
@@ -1219,6 +1241,10 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.7.0"] = {
+        { type = "new", text = "Interrupt alert: a line on screen naming the spell you just kicked, with its icon. Your pet's interrupt counts as yours. Off by default, in Combat." },
+        { type = "new", text = "Auto Buy: Concentrated Silvermoon Health Potion added to the health potion presets." },
+    },
     ["2.6.7"] = {
         { type = "fix", text = "The movement alert is drawn at the size you set it, at login and every time after. It now re-checks its font each time it appears instead of relying on one pass at startup." },
     },

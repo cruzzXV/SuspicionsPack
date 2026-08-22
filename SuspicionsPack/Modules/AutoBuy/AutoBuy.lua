@@ -25,6 +25,9 @@ AutoBuy.PresetItems = {
     { id = 241321, q2 = 241320, buy = 10, cat = "flask",        name = "Flask of Thalassian Resistance" },
 
     -- ── Health/Mana Potions ──────────────────────────────────────────────
+    -- Palier courant en tête, la version précédente juste dessous : c'est le même
+    -- soin, et la liste se lit mieux du plus récent au plus ancien.
+    { id = 271884, q2 = 271883, buy = 20, cat = "healthpotion", name = "Concentrated Silvermoon Health Potion" },
     { id = 241305, q2 = 241304, buy = 20, cat = "healthpotion", name = "Silvermoon Health Potion" },
     { id = 241301, q2 = 241300, buy = 20, cat = "healthpotion", name = "Lightfused Mana Potion" },
     { id = 241299, q2 = 241298, buy = 10, cat = "healthpotion", name = "Amani Extract" },
