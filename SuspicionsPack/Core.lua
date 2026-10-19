@@ -1290,6 +1290,7 @@ SP.Changelog = {
         { type = "new", text = "Auto Buy: Concentrated Silvermoon Health Potion added to the health potion presets." },
         { type = "fix", text = "Release and rez: a spot saved inside a dungeon or raid now covers the whole instance. It used to also record the subzone and the map, which change when you get knocked back or fall a floor, so the release quietly never happened." },
         { type = "new", text = "/spack debug zoneid now compares where you are to every saved spot and names the field that disagrees." },
+        { type = "new", text = "Movement alert and Interrupt alert work on WoW: Forever. With no specializations there, both follow your class: Charge, Intercept, Sprint, Blink, Dash and Feral Charge for the countdown; Kick, Pummel, Shield Bash, Counterspell, Earth Shock, Silence, Feral Charge, Bash, Hammer of Justice and the felhunter's Spell Lock for the kick line, every rank included." },
     },
     ["2.6.7"] = {
         { type = "fix", text = "The movement alert is drawn at the size you set it, at login and every time after. It now re-checks its font each time it appears instead of relying on one pass at startup." },

@@ -31,6 +31,9 @@ Core\Module.lua
 # [AllowLoadGameType standard] = Midnight only. WoW: Forever (game type "camelot",
 # Interface 16001, Vanilla content on the Midnight engine) skips those files: no specs,
 # no M+, no Bloodlust, no Silvermoon, no crafting orders, no LFG tool there.
+# MovementAlert and InterruptAlert carry no condition: they are bi-flavor. Each
+# resolves by class instead of by spec when WOW_PROJECT_ID == WOW_PROJECT_CAMELOT,
+# from its own FOREVER_* table of Vanilla IDs (see the top of each file).
 Modules\Drawer\Drawer.lua
 Modules\Cursor\Cursor.lua
 Modules\CopyTooltip\CopyTooltip.lua
@@ -50,13 +53,13 @@ Modules\CraftShopper\CraftShopper.lua
 Modules\WhisperAlert\WhisperAlert.lua
 Modules\SilvermoonMapIcon\SilvermoonMapIcon.lua [AllowLoadGameType standard]
 Modules\GroupJoinedReminder\GroupJoinedReminder.lua [AllowLoadGameType standard]
-Modules\MovementAlert\MovementAlert.lua [AllowLoadGameType standard]
+Modules\MovementAlert\MovementAlert.lua
 Modules\AutoPlaystyle\AutoPlaystyle.lua [AllowLoadGameType standard]
 Modules\Performance\Performance.lua
 Modules\EnhancedObjectiveText\EnhancedObjectiveText.lua
 Modules\CleanObjectiveTrackerHeader\CleanObjectiveTrackerHeader.lua
 Modules\MicroMenuSkin\MicroMenuSkin.lua
-Modules\InterruptAlert\InterruptAlert.lua [AllowLoadGameType standard]
+Modules\InterruptAlert\InterruptAlert.lua
 Modules\GatewayAlert\GatewayAlert.lua [AllowLoadGameType standard]
 Modules\CombatCross\CombatCross.lua
 Modules\Durability\Durability.lua

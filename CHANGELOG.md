@@ -4,6 +4,79 @@
 
 ---
 
+## 2026-10-19 — MovementAlert et InterruptAlert sur WoW: Forever (non versionné)
+
+### Une branche par classe, à côté de la branche par spécialisation
+
+Les deux modules indexaient leurs sorts par specID et n'avaient que des IDs
+Midnight ; Forever n'a pas de spécialisation, donc ils y restaient gated. Chacun
+porte maintenant une table jumelle indexée par le jeton de classe d'`UnitClass`
+(`FOREVER_MOVEMENT_ABILITIES`, `FOREVER_INTERRUPTS`), lue seulement quand
+`WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT`. La
+constante est `nil` sur retail, d'où le test en deux temps : `WOW_PROJECT_ID ==
+nil` serait simplement faux et passerait sans bruit. La branche retail ne touche
+ni aux tables ni au flux existant.
+
+**Les rangs.** En Vanilla chaque rang est un sort distinct, et
+`UNIT_SPELLCAST_SUCCEEDED` porte l'ID du rang lancé. InterruptAlert met donc
+TOUS les rangs dans l'ensemble de la classe. MovementAlert liste une capacité
+comme une liste de rangs : le rang 1 est la clé stable (`disabledSpells`,
+`spellOverrides`, nom et icône dans la page), et le dernier rang connu
+(`IsPlayerSpell`) est l'ID dont la recharge est lue -- c'est celui sur la barre
+d'action. La CVar `ShowAllSpellRanks` (défaut 0) ne cache les rangs inférieurs
+que du grimoire.
+
+**Les IDs.** Chacun est vérifié sur la branche Forever de Wowhead
+(`https://www.wowhead.com/forever/spell=<ID>`, bêta, 2026-10-19), URL en
+commentaire à côté de chaque entrée. Forever n'a PAS gardé tous les IDs de
+Classic Era : Charge sauvage est renumérotée (`1238122`, lançable en félin et en
+ours ; la variante Ours `16979` de Vanilla existe toujours). Tout le reste est
+identique à Classic Era (Charge 100/6178/11578, Interception 20252/20616/20617,
+Sprint 2983/8696/11305, Transfert 1953, Course 1850/9821 ; Volée de coups
+6552/6554, Coup de bouclier 72/1671/1672, Coup de pied 1766-1769, Contresort
+2139, Horion de terre 8042/8044/8045/8046/10412/10413/10414, Silence 15487,
+Sonner 5211/6798/8983, Marteau de la justice 853/5588/5589/10308, Verrouillage
+de sort 19244/19647).
+
+**Choix de périmètre.** Déplacement : guerrier (Charge et Interception, deux
+recharges séparées, désactivables une à une dans la page), voleur (Sprint), mage
+(Transfert), druide (Course, Charge sauvage). Aspect du guépard, Loup fantôme et
+Forme de voyage sont des bascules sans recharge ; paladin, prêtre et démoniste
+n'ont rien. Interruptions : les sorts à effet « Interrupt Cast », plus deux
+étourdissements -- Sonner et Marteau de la justice -- parce qu'ils sont les seuls
+outils du druide ours et du paladin pour arrêter une incantation, et qu'un
+étourdissement posé sur un lanceur lève bien `UNIT_SPELLCAST_INTERRUPTED`. Le
+chasseur n'a aucune interruption en Vanilla ; la page le dit.
+
+**Événements.** Sur Forever, MovementAlert ne s'abonne plus aux trois
+événements de spé/talent ni aux deux de glow (pas de Time Spiral en Vanilla), et
+écoute `SPELLS_CHANGED` à la place : c'est un rang appris qui change la liste.
+InterruptAlert n'enregistre pas `PLAYER_SPECIALIZATION_CHANGED`. Sur retail, les
+abonnements sont strictement les mêmes qu'avant.
+
+**Gates levées.** Les quatre lignes `[AllowLoadGameType standard]` (deux
+modules, deux pages) sont retirées des deux .toc, avec un commentaire qui dit
+pourquoi ces deux-là sont bi-flavor.
+
+**Non vérifié en jeu sur la bêta Forever** -- le test est à la charge de Cruzz.
+Points à regarder en premier : (1) `C_Spell.GetSpellCooldown` sur un rang de
+Charge rend-il `isOnGCD == false` et `timeUntilEndOfStartRecovery` pendant la
+recharge, comme sur retail ; (2) `IsPlayerSpell` rend-il bien vrai pour un rang
+inférieur appris ; (3) l'ID de la variante Félin de Charge sauvage, absent du
+wiki et de Wowhead -- si le client la substitue au talent,
+`C_Spell.GetOverrideSpell(1238122)` la résoudra, sinon il faudra l'ajouter ;
+(4) `/run SuspicionsPack.DEBUG = true` imprime la charge utile réelle de
+`UNIT_SPELLCAST_INTERRUPTED`, qui n'a pas été relue sur ce client.
+
+Fichiers : `SuspicionsPack/Modules/MovementAlert/MovementAlert.lua`,
+`SuspicionsPack/Modules/InterruptAlert/InterruptAlert.lua`,
+`SuspicionsPack_Config/Pages/MovementAlert.lua`,
+`SuspicionsPack_Config/Pages/InterruptAlert.lua`, `SuspicionsPack/Core.lua`
+(ligne de changelog en jeu), les deux .toc, `tasks/wow-api-notes.md` (section
+Forever).
+
+---
+
 ## 2026-10-19 — .toc : 12.1.5 et WoW: Forever (non versionné)
 
 ### Interface : 120105 et 16001 dans les trois .toc
@@ -24,17 +97,18 @@ donc aucun renommage, et aucun redémarrage client imposé aux utilisateurs.
 Forever (type de jeu `camelot`, famille Mainline, moteur 12.1.5, contenu
 Vanilla niveau 60) n'a ni spécialisations, ni M+, ni Bloodlust, ni Silvermoon,
 ni commandes d'artisanat, ni outil LFG, et sa liste de boss PvE est celle de Midnight.
-Les 15 modules qui en dépendent
+Les 13 modules qui en dépendent
 portent `[AllowLoadGameType standard]` dans `SuspicionsPack.toc`, et leurs
 pages d'options le même marqueur dans `SuspicionsPack_Config.toc` (une page
 s'enregistre elle-même, donc une page non chargée n'apparaît pas) :
 AutoBuy, FilterExpansionOnly, AutoPlaystyle, GroupJoinedReminder,
-BloodlustAlert, GatewayAlert, TankMD, FocusTargetMarker, InterruptAlert,
-MovementAlert, SpellEffectAlpha, ReapPredict, PotionAlert,
-SilvermoonMapIcon, AutoRelease.
+BloodlustAlert, GatewayAlert, TankMD, FocusTargetMarker, SpellEffectAlpha,
+ReapPredict, PotionAlert, SilvermoonMapIcon, AutoRelease.
 
-MovementAlert et InterruptAlert restent gated en attendant un rework : leurs tables
-de sorts sont indexées par spécialisation et ne connaissent que les IDs Midnight.
+MovementAlert et InterruptAlert l'ont porté le temps d'une session : leurs tables
+de sorts étaient indexées par spécialisation et ne connaissaient que les IDs
+Midnight. Ils ont depuis une branche par classe, voir l'entrée du même jour
+ci-dessus.
 
 Pourquoi `standard` seul suffit ici : si aucun type listé n'est reconnu par
 le client, la condition est satisfaite — donc un vieux 12.0.x charge tout

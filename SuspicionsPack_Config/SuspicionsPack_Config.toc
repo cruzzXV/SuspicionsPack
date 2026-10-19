@@ -31,6 +31,8 @@ Pages\Categories.lua
 # Pages — one file each. Order within a category is the order in the sidebar.
 # [AllowLoadGameType standard] mirrors the parent .toc: a page is only loaded where
 # its module is, so the sidebar never shows a page for a module that does not exist.
+# InterruptAlert and MovementAlert carry no condition, like their modules: both pages
+# read the module's IS_FOREVER flag and its per-class tables on WoW: Forever.
 Pages\Home.lua
 Pages\Automation.lua
 Pages\AutoRelease.lua [AllowLoadGameType standard]
@@ -41,8 +43,8 @@ Pages\CombatTimer.lua
 Pages\Cursor.lua
 Pages\DeathAlert.lua
 Pages\GatewayAlert.lua [AllowLoadGameType standard]
-Pages\InterruptAlert.lua [AllowLoadGameType standard]
-Pages\MovementAlert.lua [AllowLoadGameType standard]
+Pages\InterruptAlert.lua
+Pages\MovementAlert.lua
 Pages\PotionAlert.lua [AllowLoadGameType standard]
 Pages\ReapPredict.lua [AllowLoadGameType standard]
 Pages\SpellEffectAlpha.lua [AllowLoadGameType standard]

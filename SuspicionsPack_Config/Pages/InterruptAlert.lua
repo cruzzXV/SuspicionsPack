@@ -42,8 +42,19 @@ GUI.RegisterPage{
         -- Dire tout de suite si la spé jouée a un kick du tout. Sacré Paladin,
         -- Discipline et Sacré Prêtre n'en ont pas : sans cette ligne, le module
         -- semblerait simplement cassé pour eux.
-        local sets = SP.InterruptAlert and SP.InterruptAlert.InterruptSets
-        if sets then
+        local IA   = SP.InterruptAlert
+        local sets = IA and IA.InterruptSets
+        if IA and IA.IS_FOREVER then
+            -- WoW: Forever has no specializations: the module resolves by
+            -- class, so the note does too. Hunters are the only class with no
+            -- interrupt at all in Vanilla.
+            local _, cls = UnitClass("player")
+            local byClass = IA.ForeverInterruptSets
+            if cls and byClass and not byClass[cls] then
+                c1:Note("Your class has no interrupt in WoW: Forever, so nothing " ..
+                        "will be announced.")
+            end
+        elseif sets then
             local getSpec = (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization)
                             or _G.GetSpecialization
             local getInfo = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo)
