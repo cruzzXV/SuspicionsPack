@@ -4,6 +4,47 @@
 
 ---
 
+## 2026-10-19 — v2.7.2 : Forever, trois retraits et le micro-menu
+
+### Retirés sur Forever
+
+- **CombatCross** regaté `[AllowLoadGameType standard]`, module et page : son
+  sort de portée est choisi par spécialisation.
+- **Automation** : « Auto accept decor prompt » et « Auto switch to flight
+  form » sont ignorés sur Forever (pas de logement, pas de vol) et leurs
+  interrupteurs n'apparaissent pas. Le module reste chargé, les autres
+  automatismes aussi. Drapeau `Automation.IS_FOREVER`, même test en deux temps
+  que MovementAlert.
+
+### MicroMenuSkin sur Forever
+
+Le skin parcourait une liste figée de noms de boutons. Sur Forever, Blizzard
+construit la barre depuis `MicroMenuMixin:GenerateButtonInfos()`, qui diffère :
+un bouton Legacy en plus, absent de notre liste, et Achievement en moins. Les
+boutons écartés existent quand même en global, donc le skin redimensionnait des
+cadres hors de la barre et ratait celui qui y était.
+
+Le skin lit maintenant les enfants de `MicroMenu` qui ont un `layoutIndex`,
+c'est-à-dire ceux que `AddButton` a réellement gardés, triés dans cet ordre. La
+liste figée ne sert plus que de repli. Le résultat est mis en cache et
+reconstruit à chaque `Activate`, puisque `ApplySkin` tourne sur presque chaque
+`UpdateMicroButtons`.
+
+Forever dessine aussi le cadre de barre d'action autour du micro-menu
+(`MicroMenu.BorderArt` et `.BackgroundArt`, dans
+`Camelot\MainMenuBarMicroMenu.xml`). Ils passent à alpha 0 avec le skin et
+reviennent avec lui ; sans effet sur retail, qui n'a pas ces textures.
+
+**Non testé en jeu.** Avec `SP.DEBUG`, l'activation imprime la liste des
+boutons trouvés, ce qui dira tout de suite si la lecture de la barre tient sur
+le client Forever.
+
+Fichiers : `SuspicionsPack/Modules/MicroMenuSkin/MicroMenuSkin.lua`,
+`SuspicionsPack/Modules/Automation/Automation.lua`,
+`SuspicionsPack_Config/Pages/Automation.lua`, les deux `.toc`.
+
+---
+
 ## 2026-10-19 — v2.7.1 : MovementAlert et InterruptAlert sur WoW: Forever
 
 ### Une branche par classe, à côté de la branche par spécialisation

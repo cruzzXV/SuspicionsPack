@@ -99,6 +99,7 @@ local applying     = false   -- re-entrancy guard
 local pendingApply = false   -- coalescing flag for QueueApply
 local hidPerfBar   = false   -- so the perf bar can be restored
 local hidPVPTex    = false
+local hidBarArt    = false   -- Forever's frame art around the bar, see HideBarArt
 
 -- GetAtlasInfo allocates a table per call and UpdateMicroButtons fires on
 -- every bag/spell/quest/regen change, so results are cached by atlas name.
@@ -359,6 +360,54 @@ local function KillStrayFlashes()
 end
 
 -- ============================================================
+-- The buttons actually in the bar
+--
+-- MICRO_BUTTONS alone was wrong on WoW: Forever. Blizzard builds the bar from
+-- MicroMenuMixin:GenerateButtonInfos(), which differs per client: Forever adds
+-- LegacyMicroButton, which no list of ours knew, and drops Achievement and the
+-- buttons its game rules turn off. A dropped button still exists as a global
+-- (every one is defined in the shared XML), so the old loop skinned and resized
+-- frames that were never in the bar, and missed one that was.
+--
+-- The truth is MicroMenu itself: MicroMenuMixin:AddButton parents each button
+-- it keeps to the bar and gives it a layoutIndex. Excluded ones get neither.
+-- MICRO_BUTTONS stays as the fallback for a build where that does not hold.
+--
+-- Cached: ApplySkin runs from the UpdateMicroButtons hook on nearly every state
+-- change, and GetChildren allocates. Buttons are only added in OnLoad, so the
+-- list is rebuilt once per Activate.
+-- ============================================================
+local buttonCache
+
+local function CollectButtons()
+    local list = {}
+    local mm = _G.MicroMenu
+    if mm and mm.GetChildren then
+        local kids = { mm:GetChildren() }
+        for i = 1, #kids do
+            local b = kids[i]
+            local name = b.GetName and b:GetName()
+            if name and b.layoutIndex and name:find("MicroButton$") then
+                list[#list + 1] = { name = name, button = b }
+            end
+        end
+        table.sort(list, function(a, b) return a.button.layoutIndex < b.button.layoutIndex end)
+    end
+    if #list == 0 then
+        for _, name in ipairs(MICRO_BUTTONS) do
+            local b = _G[name]
+            if b then list[#list + 1] = { name = name, button = b } end
+        end
+    end
+    return list
+end
+
+local function GetButtons()
+    if not buttonCache then buttonCache = CollectButtons() end
+    return buttonCache
+end
+
+-- ============================================================
 -- Skinning
 -- ============================================================
 local ApplySkin   -- forward declaration: QueueApply's closure calls it
@@ -519,6 +568,36 @@ local function SkinButton(button, name, db)
     end
 end
 
+-- WoW: Forever draws the action-bar frame around the micro menu: two textures
+-- on MicroMenu itself (Camelot\MainMenuBarMicroMenu.xml, atlases
+-- UI-HUD-ActionBar-Frame and UI-HUD-ActionBar-IconFrame-Background). Retail
+-- has neither, so this is a no-op there. Left visible, it boxes the flat skin.
+local BAR_ART_KEYS = { "BorderArt", "BackgroundArt" }
+
+local function HideBarArt()
+    local mm = _G.MicroMenu
+    if not mm then return end
+    for _, key in ipairs(BAR_ART_KEYS) do
+        local t = mm[key]
+        if t and t.SetAlpha then
+            t:SetAlpha(0)
+            hidBarArt = true
+        end
+    end
+end
+
+local function RestoreBarArt()
+    if not hidBarArt then return end
+    local mm = _G.MicroMenu
+    if mm then
+        for _, key in ipairs(BAR_ART_KEYS) do
+            local t = mm[key]
+            if t and t.SetAlpha then t:SetAlpha(1) end
+        end
+    end
+    hidBarArt = false
+end
+
 -- The latency/FPS bar drawn over the main menu button. Always hidden -- it
 -- clashes with the flat skin and there's no reason to keep it once skinned.
 -- Alpha + scale rather than :Hide(), which can taint a protected child.
@@ -598,8 +677,8 @@ local function LayoutButtons(db)
     local gap  = Num(db.buttonSpacing,  0)
     local changed = false
 
-    for _, name in ipairs(MICRO_BUTTONS) do
-        local b = _G[name]
+    for _, e in ipairs(GetButtons()) do
+        local b = e.button
         if b then
             -- Native aspect ratio captured once so width tracks height.
             if b._spOrigW == nil then
@@ -655,9 +734,9 @@ RestoreLayout = function()
     local restore = _G.MicroMenu
     if restore then restore:SetAlpha(1) end
 
-    for _, name in ipairs(MICRO_BUTTONS) do
-        local b = _G[name]
-        if b and b._spOrigW then
+    for _, e in ipairs(GetButtons()) do
+        local b = e.button
+        if b._spOrigW then
             b:SetSize(b._spOrigW, b._spOrigH)
         end
     end
@@ -678,13 +757,11 @@ ApplySkin = function()
     if applying then return end
     applying = true
 
-    for _, name in ipairs(MICRO_BUTTONS) do
-        local button = _G[name]
-        if button then
-            SkinButton(button, name, db)
-        end
+    for _, e in ipairs(GetButtons()) do
+        SkinButton(e.button, e.name, db)
     end
     HidePerformanceBar()
+    HideBarArt()
     LayoutButtons(db)
     ApplyAlpha(false)
 
@@ -748,9 +825,9 @@ local function RestoreTexture(tex, button)
 end
 
 local function RemoveSkin()
-    for _, name in ipairs(MICRO_BUTTONS) do
-        local button = _G[name]
-        local bd = button and button._spmm
+    for _, e in ipairs(GetButtons()) do
+        local button = e.button
+        local bd = button._spmm
         if bd then
             bd.fill:Hide()
             bd.top:Hide()
@@ -767,6 +844,7 @@ local function RemoveSkin()
     end
 
     RestoreLayout()
+    RestoreBarArt()
 
     if hidPerfBar then
         local mm = _G.MainMenuMicroButton
@@ -808,6 +886,13 @@ function MMS:Activate()
         -- module the user just switched off.
         local db = GetDB()
         if not (db and db.enabled) then return end
+
+        buttonCache = nil
+        if SP.Debug then
+            local names = {}
+            for _, e in ipairs(GetButtons()) do names[#names + 1] = e.name end
+            SP:Debug("MicroMenuSkin", #names .. " buttons: " .. table.concat(names, ", "))
+        end
 
         ApplySkin()
         KillStrayFlashes()

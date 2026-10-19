@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.7.1"
+SP.VERSION = "2.7.2"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1290,6 +1290,10 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.7.2"] = {
+        { type = "fix", text = "Micro menu skin works on WoW: Forever. It now skins the buttons actually in the bar, including Forever's extra one, and hides the frame Forever draws around it." },
+        { type = "remove", text = "WoW: Forever: Combat cross, Auto accept decor prompt and Auto switch to flight form are no longer offered there. Retail is unchanged." },
+    },
     ["2.7.1"] = {
         { type = "fix", text = "Marked compatible with patch 12.1.5: the pack no longer shows as out of date." },
         { type = "new", text = "WoW: Forever support. The pack loads on the Forever client with the features that make sense there. Everything tied to specializations, Mythic+, Bloodlust, Silvermoon, crafting orders or the group finder stays retail only." },

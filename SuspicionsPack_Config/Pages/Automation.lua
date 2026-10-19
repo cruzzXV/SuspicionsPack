@@ -88,20 +88,26 @@ GUI.RegisterPage{
                     "Needs guild repair permission.",
         }
         c3:EndGate()
-        c3:Toggle{
-            key   = "autoDecorVendor",
-            label = "Auto accept decor prompt",
-            desc  = "Confirms the purchase prompt when buying decoration items.",
-        }
 
-        local c4 = page:Card("Druid")
+        -- Not on WoW: Forever: no housing decor and no flying there, and the
+        -- module skips both features on that client whatever the toggles say.
+        local forever = SP.Automation and SP.Automation.IS_FOREVER
+        if not forever then
+            c3:Toggle{
+                key   = "autoDecorVendor",
+                label = "Auto accept decor prompt",
+                desc  = "Confirms the purchase prompt when buying decoration items.",
+            }
 
-        c4:Toggle{
-            key   = "autoSwitchFlight",
-            label = "Auto switch to flight form",
-            desc  = "Cancels ground Travel Form once flying is allowed, so you can " ..
-                    "take off straight away.",
-        }
+            local c4 = page:Card("Druid")
+
+            c4:Toggle{
+                key   = "autoSwitchFlight",
+                label = "Auto switch to flight form",
+                desc  = "Cancels ground Travel Form once flying is allowed, so you can " ..
+                        "take off straight away.",
+            }
+        end
 
         page:Finish()
     end,

@@ -9,6 +9,14 @@ end
 local Automation = SP:NewSPModule("Automation", "automation")
 SP.Automation = Automation
 
+-- WoW: Forever (game type "camelot"). The constant is nil on retail, hence the
+-- two-step test: `WOW_PROJECT_ID == nil` would just be false and pass silently.
+-- Two features have nothing to act on there and are skipped, toggles hidden:
+--   * decor vendor prompts -- no housing, C_Item.IsDecorItem never says yes;
+--   * flight form switching -- no flying in the 2004 world.
+local IS_FOREVER = (WOW_PROJECT_CAMELOT ~= nil) and (WOW_PROJECT_ID == WOW_PROJECT_CAMELOT)
+Automation.IS_FOREVER = IS_FOREVER   -- read by the options page
+
 -- ============================================================
 -- Local hook guards — module-level so they survive reloads
 -- Each frame tracked individually: if one frame doesn't exist yet when
@@ -473,7 +481,7 @@ function Automation:Activate()
 
     BagsBar:Update()
 
-    if db.autoDecorVendor then
+    if db.autoDecorVendor and not IS_FOREVER then
         SetupAutoDecorVendor()
     end
 
@@ -499,7 +507,7 @@ function Automation:Activate()
     end
 
     -- Druid: auto switch to flight form
-    if db.autoSwitchFlight then
+    if db.autoSwitchFlight and not IS_FOREVER then
         self:RegisterEvent("MOUNT_JOURNAL_USABILITY_CHANGED", "OnFlightFormEvent")
         self:RegisterEvent("PLAYER_REGEN_ENABLED",            "OnFlightFormRegenEnabled")
         self:RegisterEvent("PLAYER_ENTERING_WORLD",           "OnFlightFormEvent")

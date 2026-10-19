@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r
 ## Notes: Collection of QoL features
 ## Author: Cruzz
-## Version: 2.7.1
+## Version: 2.7.2
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## SavedVariables: SuspicionsPackDB
 ## IconTexture: Interface\AddOns\SuspicionsPack\Media\Icons\icon.png
@@ -64,7 +64,7 @@ Modules\MicroMenuSkin\MicroMenuSkin.lua
 Modules\DetailsSkin\DetailsSkin.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\InterruptAlert\InterruptAlert.lua
 Modules\GatewayAlert\GatewayAlert.lua [AllowLoadGameType standard]
-Modules\CombatCross\CombatCross.lua
+Modules\CombatCross\CombatCross.lua [AllowLoadGameType standard]
 Modules\Durability\Durability.lua
 Modules\AutoBuy\AutoBuy.lua [AllowLoadGameType standard]
 Modules\SpellEffectAlpha\SpellEffectAlpha.lua [AllowLoadGameType standard]

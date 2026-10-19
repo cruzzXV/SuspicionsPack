@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r — Options
 ## Notes: Options panel for the pack (SuspicionsPack plugin)
 ## Author: Cruzz
-## Version: 2.7.1
+## Version: 2.7.2
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## Dependencies: SuspicionsPack
 # A VALID but fully transparent texture, not an absent line: the client
@@ -38,7 +38,7 @@ Pages\Automation.lua
 Pages\AutoRelease.lua [AllowLoadGameType standard]
 Pages\TankMD.lua [AllowLoadGameType standard]
 Pages\BloodlustAlert.lua [AllowLoadGameType standard]
-Pages\CombatCross.lua
+Pages\CombatCross.lua [AllowLoadGameType standard]
 Pages\CombatTimer.lua
 Pages\Cursor.lua
 Pages\DeathAlert.lua
