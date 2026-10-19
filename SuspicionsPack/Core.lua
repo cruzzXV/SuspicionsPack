@@ -1214,6 +1214,50 @@ function SP.PrintZoneInfo()
     print(("  subzone    |cffffffff%s|r"):format(h.subZone ~= "" and h.subZone or "-"))
     print(("  instanceID |cffffffff%s|r   uiMapID |cffffffff%s|r   type |cffffffff%s|r")
         :format(tostring(h.instanceID), tostring(h.uiMapID), h.instanceType))
+
+    -- ── Pourquoi ça n'a pas libéré ───────────────────────────
+    --
+    -- Rapport reçu : « j'ai enregistré la zone, ça ne libère pas, aucune erreur
+    -- Lua ». Un harnais rejouant le trajet exact -- lire, enregistrer, mourir --
+    -- passe : la logique est juste. Ce qui échoue, c'est la CORRESPONDANCE, et
+    -- elle échoue en silence par construction, puisque « aucune entrée ne
+    -- correspond » est aussi la réponse normale partout ailleurs dans le jeu.
+    --
+    -- Une entrée déclare jusqu'à trois champs et les exige TOUS. Le sous-lieu et
+    -- la carte sont ceux qui dérivent : un recul de trois mètres, une chute
+    -- d'étage, un knockback, et le sous-lieu lu à la mort n'est plus celui lu
+    -- devant le boss. Rien ne le disait. Maintenant si.
+    local db = SP.GetDB and SP.GetDB().autoRelease
+    if not db then return end
+
+    local zones = db.zones or {}
+    if #zones == 0 then
+        print("  |cffff9955aucun endroit enregistre|r — le bouton « Add this spot » de la page Release and rez")
+        return
+    end
+
+    print(("  %d endroit(s) enregistre(s) :"):format(#zones))
+    for i = 1, #zones do
+        local e = zones[i]
+        local why = {}
+        if e.enabled == false then why[#why + 1] = "desactivee" end
+        if e.instanceID ~= nil and e.instanceID ~= h.instanceID then
+            why[#why + 1] = ("instanceID %s =/= %s"):format(tostring(e.instanceID), tostring(h.instanceID))
+        end
+        if e.uiMapID ~= nil and e.uiMapID ~= h.uiMapID then
+            why[#why + 1] = ("uiMapID %s =/= %s"):format(tostring(e.uiMapID), tostring(h.uiMapID))
+        end
+        if e.subZone ~= nil and e.subZone ~= "" and e.subZone ~= h.subZone then
+            -- Entre guillemets : c'est ici que se cachent les espaces de fin et
+            -- les apostrophes typographiques, qui ne se voient pas autrement.
+            why[#why + 1] = ("subzone \"%s\" =/= \"%s\""):format(tostring(e.subZone), tostring(h.subZone))
+        end
+        if #why == 0 then
+            print(("    |cff55ff55%d. %s — correspond|r"):format(i, e.name or "?"))
+        else
+            print(("    |cffff5555%d. %s — %s|r"):format(i, e.name or "?", table.concat(why, ", ")))
+        end
+    end
 end
 
 function SP:ToggleGUI(input)
@@ -1244,6 +1288,8 @@ SP.Changelog = {
     ["2.7.0"] = {
         { type = "new", text = "Interrupt alert: a line on screen naming the spell you just kicked, with its icon. Your pet's interrupt counts as yours. Off by default, in Combat." },
         { type = "new", text = "Auto Buy: Concentrated Silvermoon Health Potion added to the health potion presets." },
+        { type = "fix", text = "Release and rez: a spot saved inside a dungeon or raid now covers the whole instance. It used to also record the subzone and the map, which change when you get knocked back or fall a floor, so the release quietly never happened." },
+        { type = "new", text = "/spack debug zoneid now compares where you are to every saved spot and names the field that disagrees." },
     },
     ["2.6.7"] = {
         { type = "fix", text = "The movement alert is drawn at the size you set it, at login and every time after. It now re-checks its font each time it appears instead of relying on one pass at startup." },
