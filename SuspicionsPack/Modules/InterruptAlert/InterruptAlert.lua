@@ -44,6 +44,12 @@ local CreateFrame      = CreateFrame
 -- donc une globale absente serait une erreur dure plusieurs fois par seconde.
 local _issecretvalue = issecretvalue or function() return false end
 
+-- WoW: Forever (type de jeu « camelot », Interface 16001). WOW_PROJECT_CAMELOT
+-- vaut 18 là-bas (build 70170, 2026-10-01) et n'existe PAS sur retail : tester
+-- la constante avant de la comparer, sinon `WOW_PROJECT_ID == nil` est
+-- simplement faux et le test passe sans bruit.
+local IS_FOREVER = (WOW_PROJECT_CAMELOT ~= nil) and (WOW_PROJECT_ID == WOW_PROJECT_CAMELOT)
+
 local SP_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 
 -- ============================================================
@@ -128,6 +134,54 @@ local INTERRUPTS = {
 IA.InterruptSets = INTERRUPTS   -- lu par la page GUI pour dire si ta spé kicke
 
 -- ============================================================
+-- WoW: Forever -- quel sort compte comme TON kick, PAR CLASSE
+--
+-- Forever est du Vanilla sur le moteur de Midnight : mêmes événements, mêmes
+-- secrets, mais pas de spécialisation -- ResolveSpecID y répond nil pour
+-- toujours, et la table ci-dessus ne connaît que des IDs Midnight. Celle-ci est
+-- sa jumelle, indexée par le jeton de classe d'UnitClass, lue seulement quand
+-- IS_FOREVER. La branche retail garde son flux à l'identique.
+--
+-- Chaque rang est un sort à part en Vanilla, et UNIT_SPELLCAST_SUCCEEDED porte
+-- l'ID du rang lancé : il faut donc TOUS les rangs dans l'ensemble, pas le
+-- premier. Chaque ID est vérifié sur la branche Forever de Wowhead (bêta,
+-- 2026-10-19) : https://www.wowhead.com/forever/spell=<ID>.
+--
+-- Deux étourdissements sont admis -- Sonner (druide ours) et Marteau de la
+-- justice (paladin) -- parce que ce sont les seuls outils de ces classes pour
+-- arrêter une incantation en Vanilla, et qu'un étourdissement posé sur un
+-- lanceur lève bien UNIT_SPELLCAST_INTERRUPTED. Sur une cible qui ne lançait
+-- rien, rien n'est annoncé : le drapeau expire seul. Le chasseur n'a aucune
+-- interruption en Vanilla (Flèche de dispersion est une désorientation).
+-- ============================================================
+local FOREVER_INTERRUPTS = {
+    -- Volée de coups rangs 1-2 : spell=6552, 6554
+    -- Coup de bouclier rangs 1-3 : spell=72, 1671, 1672
+    WARRIOR = Set(6552, 6554, 72, 1671, 1672),
+    -- Coup de pied rangs 1-4 : spell=1766, 1767, 1768, 1769
+    ROGUE   = Set(1766, 1767, 1768, 1769),
+    -- Contresort, même ID que sur retail : spell=2139
+    MAGE    = Set(COUNTERSPELL),
+    -- Horion de terre rangs 1-7 : spell=8042, 8044, 8045, 8046, 10412, 10413, 10414
+    SHAMAN  = Set(8042, 8044, 8045, 8046, 10412, 10413, 10414),
+    -- Silence (talent Ombre), même ID que sur retail : spell=15487
+    PRIEST  = Set(SILENCE),
+    -- Charge sauvage : talent renuméroté par Forever (spell=1238122, félin et
+    -- ours) et variante Ours de Vanilla (spell=16979) ; la variante Félin
+    -- bondit sans interrompre et son ID n'est pas publié.
+    -- Sonner rangs 1-3 : spell=5211, 6798, 8983
+    DRUID   = Set(1238122, 16979, 5211, 6798, 8983),
+    -- Marteau de la justice rangs 1-4 : spell=853, 5588, 5589, 10308
+    PALADIN = Set(853, 5588, 5589, 10308),
+    -- Verrouillage de sort du chasseur corrompu, rangs 1-2 : spell=19244, 19647.
+    -- Lancé par le familier, donc reçu sur l'unité « pet », déjà écoutée.
+    WARLOCK = Set(19244, 19647),
+}
+
+IA.ForeverInterruptSets = FOREVER_INTERRUPTS   -- idem, par classe, pour la page GUI
+IA.IS_FOREVER           = IS_FOREVER
+
+-- ============================================================
 -- État
 -- ============================================================
 IA.frame     = nil
@@ -163,6 +217,17 @@ local function ResolveSpecID()
 end
 
 function IA:CacheKickSet()
+    if IS_FOREVER then
+        -- Pas de spé à attendre : la classe est connue dès le login, et
+        -- specKnown prend le sens « la classe a répondu ». Le jeton de classe
+        -- du joueur n'est pas secret, mais indexer une table avec un secret
+        -- serait la comparaison interdite : la garde est gratuite.
+        local _, class = UnitClass("player")
+        if _issecretvalue(class) then class = nil end
+        specKnown = class ~= nil
+        kickSet   = class and FOREVER_INTERRUPTS[class] or nil
+        return
+    end
     local specID = ResolveSpecID()
     specKnown = specID ~= nil
     kickSet   = specID and INTERRUPTS[specID] or nil
@@ -444,7 +509,11 @@ function IA:Activate()
     eventFrame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
     eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
 
-    self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", "CacheKickSet")
+    -- Pas de spécialisation sur Forever : la classe ne change pas en session,
+    -- et on ne s'abonne pas à un événement qu'on ne lirait pas.
+    if not IS_FOREVER then
+        self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", "CacheKickSet")
+    end
     self:RegisterEvent("PLAYER_ENTERING_WORLD",         "CacheKickSet")
     self:CacheKickSet()
 end

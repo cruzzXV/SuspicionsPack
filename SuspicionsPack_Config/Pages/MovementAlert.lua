@@ -60,19 +60,33 @@ GUI.RegisterPage{
         -- Only classes with movement abilities get this card.
         local ma      = SP.MovementAlert
         local _, cls  = UnitClass("player")
-        local byClass = ma and ma.MovementAbilities and ma.MovementAbilities[cls]
-        if byClass then
-            local seen, unique = {}, {}
-            for _, spells in pairs(byClass) do
-                for _, sid in ipairs(spells) do
-                    if not seen[sid] then
-                        seen[sid] = true
-                        unique[#unique + 1] = sid
+        local unique  = {}
+        if ma and ma.IS_FOREVER then
+            -- WoW: Forever: one list of ranks per ability, in trainer order.
+            -- Rank 1 is the key the module reads for disabledSpells and
+            -- spellOverrides, so it is the one offered here; the module picks
+            -- the rank you actually know on its own.
+            local byClass = ma.ForeverMovementAbilities and ma.ForeverMovementAbilities[cls]
+            for _, ranks in ipairs(byClass or {}) do
+                unique[#unique + 1] = ranks[1]
+            end
+        else
+            local byClass = ma and ma.MovementAbilities and ma.MovementAbilities[cls]
+            if byClass then
+                local seen = {}
+                for _, spells in pairs(byClass) do
+                    for _, sid in ipairs(spells) do
+                        if not seen[sid] then
+                            seen[sid] = true
+                            unique[#unique + 1] = sid
+                        end
                     end
                 end
+                table.sort(unique)
             end
-            table.sort(unique)
-
+        end
+        -- The card itself is built the same way from either list.
+        do
             if #unique > 0 then
                 db.disabledSpells  = db.disabledSpells  or {}
                 -- The module has always read this table; nothing ever wrote to

@@ -99,6 +99,79 @@ local MOVEMENT_ABILITIES = {
 MA.MovementAbilities = MOVEMENT_ABILITIES
 
 -- ============================================================
+-- WoW: Forever -- résolution PAR CLASSE, pas par spécialisation
+--
+-- Forever (type de jeu « camelot », Interface 16001) est du contenu Vanilla sur
+-- le moteur de Midnight : mêmes API, mêmes événements, mêmes secrets, mais
+-- AUCUNE spécialisation -- GetSpecialization y répond nil ou 0, et la table
+-- ci-dessus, indexée par specID et peuplée d'IDs Midnight, n'y connaît rien.
+-- Ce bloc est sa jumelle pour ce client. Il n'est lu que si IS_FOREVER ; la
+-- branche retail ne le touche pas et garde son flux à l'identique.
+--
+-- WOW_PROJECT_CAMELOT vaut 18 sur Forever (build 70170, 2026-10-01) et n'existe
+-- PAS sur retail : tester la constante avant de la comparer, sinon
+-- `WOW_PROJECT_ID == nil` est simplement faux et le test passe sans bruit.
+-- ============================================================
+local IS_FOREVER = (WOW_PROJECT_CAMELOT ~= nil) and (WOW_PROJECT_ID == WOW_PROJECT_CAMELOT)
+
+-- Une capacité = UNE liste d'IDs, rang 1 en tête, rangs croissants ensuite. En
+-- Vanilla chaque rang est un sort distinct : le joueur lance l'ID du rang qu'il
+-- a sur sa barre, et c'est cet ID dont la recharge est sûre. Le premier ID est
+-- la CLÉ stable (disabledSpells, spellOverrides, nom et icône dans la page
+-- d'options) ; le dernier rang connu est l'ID interrogé.
+--
+-- Chaque ID est vérifié sur la branche Forever de Wowhead (bêta, 2026-10-19) :
+-- https://www.wowhead.com/forever/spell=<ID>. Les classes absentes n'ont pas
+-- de déplacement à recharge en Vanilla : Aspect du guépard, Loup fantôme et
+-- Forme de voyage sont des bascules sans recharge, et paladin, prêtre et
+-- démoniste n'ont rien.
+local FOREVER_MOVEMENT_ABILITIES = {
+    WARRIOR = {
+        -- Charge : hors combat, Posture de combat, 15 s.
+        -- https://www.wowhead.com/forever/spell=100   rang 1
+        -- https://www.wowhead.com/forever/spell=6178  rang 2
+        -- https://www.wowhead.com/forever/spell=11578 rang 3
+        { 100, 6178, 11578 },
+        -- Interception : en combat, Posture berserker, 30 s. Les deux sont
+        -- listées parce que leurs recharges sont séparées ; la page d'options
+        -- permet d'en désactiver une.
+        -- https://www.wowhead.com/forever/spell=20252 rang 1
+        -- https://www.wowhead.com/forever/spell=20616 rang 2
+        -- https://www.wowhead.com/forever/spell=20617 rang 3
+        { 20252, 20616, 20617 },
+    },
+    ROGUE = {
+        -- Sprint, 5 min.
+        -- https://www.wowhead.com/forever/spell=2983  rang 1
+        -- https://www.wowhead.com/forever/spell=8696  rang 2
+        -- https://www.wowhead.com/forever/spell=11305 rang 3
+        { 2983, 8696, 11305 },
+    },
+    MAGE = {
+        -- Transfert, 15 s, même ID que sur retail.
+        -- https://www.wowhead.com/forever/spell=1953
+        { 1953 },
+    },
+    DRUID = {
+        -- Course (Forme de félin), 5 min.
+        -- https://www.wowhead.com/forever/spell=1850 rang 1
+        -- https://www.wowhead.com/forever/spell=9821 rang 2
+        { 1850, 9821 },
+        -- Charge sauvage, talent Combat farouche, 15 s. Forever a RENUMÉROTÉ
+        -- le talent : 1238122 est lançable en félin comme en ours, et la
+        -- variante Ours 16979 de Vanilla existe toujours. L'ID de la variante
+        -- Félin (30 s, « bondit derrière la cible ») n'est publié ni sur le
+        -- wiki ni sur Wowhead ; si le client la substitue au talent,
+        -- C_Spell.GetOverrideSpell la résoudra. À vérifier sur la bêta.
+        -- https://www.wowhead.com/forever/spell=1238122
+        -- https://www.wowhead.com/forever/spell=16979
+        { 1238122, 16979 },
+    },
+}
+MA.ForeverMovementAbilities = FOREVER_MOVEMENT_ABILITIES
+MA.IS_FOREVER               = IS_FOREVER   -- lu par la page d'options
+
+-- ============================================================
 -- Buff-triggered display
 -- ============================================================
 local BUFF_ACTIVE_SPELLS = {
@@ -164,6 +237,8 @@ local castFilterExpiry = 0
 
 local function RefreshCastFilters()
     for k in pairs(castFilters) do castFilters[k] = nil end
+    -- Les filtres servent le Time Spiral, qui n'existe pas en Vanilla.
+    if IS_FOREVER then return end
     local _, class = UnitClass("player")
     local classData = MOVEMENT_ABILITIES[class]
     if not classData or not classData.filter then return end
@@ -177,9 +252,65 @@ local function RefreshCastFilters()
 end
 
 -- ============================================================
+-- Spell list builder -- WoW: Forever
+--
+-- Même forme de sortie que BuildMovementSpellList ci-dessous, pour que
+-- CheckMovementCooldown n'ait rien à savoir du client : spellId porte le nom
+-- et l'icône (la clé, rang 1), baseSpellId le rang réellement connu dont la
+-- recharge est lue. Pas de résolution d'override ni de filtre de talent ici :
+-- il n'y a ni talent qui remplace un sort, ni Time Spiral en Vanilla.
+--
+-- Défini AVANT BuildMovementSpellList, qui l'appelle : une local définie plus
+-- bas serait nil au moment de l'appel (règle maison, tasks/lessons.md).
+-- ============================================================
+local function BuildForeverMovementSpellList()
+    local _, class = UnitClass("player")
+    -- La classe du joueur n'est pas secrète, mais indexer une table avec un
+    -- secret serait la comparaison interdite : la garde est gratuite.
+    if _issecretvalue(class) then return {} end
+    local abilities = class and FOREVER_MOVEMENT_ABILITIES[class]
+    if not abilities then return {} end
+
+    local db        = GetDB()
+    local disabled  = db.disabledSpells or {}
+    local overrides = db.spellOverrides or {}
+
+    local result = {}
+    for _, ranks in ipairs(abilities) do
+        local keyId    = ranks[1]
+        local override = overrides[keyId]
+        if not disabled[keyId] and not (override and override.enabled == false) then
+            -- Le DERNIER rang connu : c'est celui sur la barre d'action, donc
+            -- celui dont la recharge est sûre. Les rangs inférieurs restent
+            -- appris -- la CVar ShowAllSpellRanks (défaut 0) ne fait que les
+            -- cacher du grimoire.
+            local knownId
+            for i = 1, #ranks do
+                if IsPlayerSpell(ranks[i]) then knownId = ranks[i] end
+            end
+            if knownId then
+                local info = C_Spell.GetSpellInfo(keyId)
+                if info then
+                    table.insert(result, {
+                        spellId     = keyId,
+                        baseSpellId = (knownId ~= keyId) and knownId or nil,
+                        spellName   = info.name,
+                        customText  = override and override.customText ~= ""
+                                      and override.customText or nil,
+                    })
+                end
+            end
+        end
+    end
+    return result
+end
+
+-- ============================================================
 -- Spell list builder
 -- ============================================================
 local function BuildMovementSpellList()
+    if IS_FOREVER then return BuildForeverMovementSpellList() end
+
     local _, class = UnitClass("player")
     local spec = GetSpecialization()
     if not spec then return {} end
@@ -278,6 +409,9 @@ end
 
 
 local function GetGlowIgnoreList()
+    -- Pas de spé ni de glow à ignorer en Vanilla, et GetSpecialization n'y est
+    -- pas une API à appeler sans filet.
+    if IS_FOREVER then return {} end
     local _, class = UnitClass("player")
     local specId   = GetSpecialization() and select(1, GetSpecializationInfo(GetSpecialization()))
     local byClass  = GLOW_IGNORE_SPECS[class]
@@ -625,6 +759,7 @@ local function OnEvent(self, event, ...)
         or event == "PLAYER_SPECIALIZATION_CHANGED"
         or event == "PLAYER_TALENT_UPDATE"
         or event == "TRAIT_CONFIG_UPDATED"
+        or event == "SPELLS_CHANGED"          -- Forever seulement, voir Activate
     then
         ApplyStyles()
 
@@ -789,11 +924,20 @@ function MA:Activate()
     -- No OnUpdate: the ticker is armed on demand by ArmTick and
     -- unsubscribes itself when nothing is being counted down.
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
-    f:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    f:RegisterEvent("PLAYER_TALENT_UPDATE")
-    f:RegisterEvent("TRAIT_CONFIG_UPDATED")
-    f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
-    f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE")
+    if IS_FOREVER then
+        -- Pas de spécialisation, pas de talent qui remplace un sort, pas de
+        -- Time Spiral : les trois événements de spé/talent et les deux de glow
+        -- n'ont rien à dire ici, et on ne s'abonne pas à ce qu'on ne lit pas.
+        -- Ce qui change la liste en Vanilla, c'est un RANG appris, et c'est
+        -- SPELLS_CHANGED qui le signale, sur tous les clients.
+        f:RegisterEvent("SPELLS_CHANGED")
+    else
+        f:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+        f:RegisterEvent("PLAYER_TALENT_UPDATE")
+        f:RegisterEvent("TRAIT_CONFIG_UPDATED")
+        f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
+        f:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE")
+    end
     f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
     f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
     f:RegisterUnitEvent("UNIT_AURA", "player")
