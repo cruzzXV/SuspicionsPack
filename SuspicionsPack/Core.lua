@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.7.0"
+SP.VERSION = "2.7.1"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1290,12 +1290,17 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.7.1"] = {
+        { type = "fix", text = "Marked compatible with patch 12.1.5: the pack no longer shows as out of date." },
+        { type = "new", text = "WoW: Forever support. The pack loads on the Forever client with the features that make sense there. Everything tied to specializations, Mythic+, Bloodlust, Silvermoon, crafting orders or the group finder stays retail only." },
+        { type = "new", text = "Movement alert and Interrupt alert work on WoW: Forever. With no specializations there, both follow your class: Charge, Intercept, Sprint, Blink, Dash and Feral Charge for the countdown; Kick, Pummel, Shield Bash, Counterspell, Earth Shock, Silence, Feral Charge, Bash, Hammer of Justice and the felhunter's Spell Lock for the kick line, every rank included." },
+        { type = "new", text = "Details skin on WoW: Forever: the \"The War Within\" look by Karl-Heinz Schneider, under Details options > Skins. Retail keeps using the original addon." },
+        { type = "fix", text = "Release and rez: a spot saved inside a dungeon or raid now covers the whole instance. It used to also record the subzone and the map, which change when you get knocked back or fall a floor, so the release quietly never happened." },
+        { type = "new", text = "/spack debug zoneid now compares where you are to every saved spot and names the field that disagrees." },
+    },
     ["2.7.0"] = {
         { type = "new", text = "Interrupt alert: a line on screen naming the spell you just kicked, with its icon. Your pet's interrupt counts as yours. Off by default, in Combat." },
         { type = "new", text = "Auto Buy: Concentrated Silvermoon Health Potion added to the health potion presets." },
-        { type = "fix", text = "Release and rez: a spot saved inside a dungeon or raid now covers the whole instance. It used to also record the subzone and the map, which change when you get knocked back or fall a floor, so the release quietly never happened." },
-        { type = "new", text = "/spack debug zoneid now compares where you are to every saved spot and names the field that disagrees." },
-        { type = "new", text = "Movement alert and Interrupt alert work on WoW: Forever. With no specializations there, both follow your class: Charge, Intercept, Sprint, Blink, Dash and Feral Charge for the countdown; Kick, Pummel, Shield Bash, Counterspell, Earth Shock, Silence, Feral Charge, Bash, Hammer of Justice and the felhunter's Spell Lock for the kick line, every rank included." },
     },
     ["2.6.7"] = {
         { type = "fix", text = "The movement alert is drawn at the size you set it, at login and every time after. It now re-checks its font each time it appears instead of relying on one pass at startup." },

@@ -4,7 +4,7 @@
 
 ---
 
-## 2026-10-19 — MovementAlert et InterruptAlert sur WoW: Forever (non versionné)
+## 2026-10-19 — v2.7.1 : MovementAlert et InterruptAlert sur WoW: Forever
 
 ### Une branche par classe, à côté de la branche par spécialisation
 
@@ -77,7 +77,7 @@ Forever).
 
 ---
 
-## 2026-10-19 — .toc : 12.1.5 et WoW: Forever (non versionné)
+## 2026-10-19 — v2.7.1 : .toc 12.1.5 et WoW: Forever, skin Details
 
 ### Interface : 120105 et 16001 dans les trois .toc
 

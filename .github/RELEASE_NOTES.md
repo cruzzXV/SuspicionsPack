@@ -1,22 +1,26 @@
-## Nouveau — Alerte d'interruption
+## 12.1.5
 
-« Interrompu [icône] Frappe de l'ombre » à l'écran quand tu kickes, avec l'icône
-du sort interrompu. Le kick de ton familier compte comme le tien.
+Le pack est marqué compatible 12.1.5 et n'apparaît plus comme obsolète.
 
-Coupé par défaut, dans Combat. Texte, couleur, police, durée et position se
-règlent dans les options, et le bouton d'aperçu montre le rendu sans attendre un
-pull.
+## WoW: Forever
 
-Le combat log étant fermé aux addons depuis la 12.1, l'alerte déduit ton kick en
-recoupant ton lancer de sort avec l'interruption qui suit — assez court pour ne
-pas s'attribuer celui d'un allié.
+Le pack se charge sur le client Forever avec les fonctions qui y ont un sens.
+Tout ce qui tient aux spécialisations, au M+, au Bloodlust, à Lune-d'Argent,
+aux commandes d'artisanat ou à l'outil de recherche de groupe reste réservé au
+retail.
 
-## Auto Buy
+L'alerte de déplacement et l'alerte d'interruption y suivent ta classe : Charge,
+Interception, Sprint, Transfert, Course et Charge sauvage pour le compte à
+rebours ; Coup de pied, Volée de coups, Coup de bouclier, Contresort, Horion de
+terre, Silence, Sonner, Marteau de la justice et le Verrouillage de sort du
+chasseur corrompu pour la ligne de kick, tous rangs compris.
 
-La Potion de soin concentrée de Lune-d'Argent rejoint les préréglages de potions
-de soin.
+Un skin Details « The War Within » (de Karl-Heinz Schneider) est ajouté sur
+Forever, dans Options Details > Skins. Le retail garde l'addon d'origine.
 
-## La taille de l'alerte de déplacement
+## Release and rez
 
-Rappel de la 2.6.7 pour qui l'aurait sautée : elle se revérifie à chaque
-affichage au lieu de compter sur une seule passe au démarrage.
+Un endroit enregistré dans un donjon ou un raid couvre désormais toute
+l'instance. Le sous-lieu et la carte changeaient dès qu'on reculait ou qu'on
+tombait d'un étage, et la libération n'avait jamais lieu. `/spack debug zoneid`
+compare ta position à chaque endroit enregistré et nomme le champ qui diffère.
