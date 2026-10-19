@@ -4,6 +4,62 @@
 
 ---
 
+## 2026-10-19 — .toc : 12.1.5 et WoW: Forever (non versionné)
+
+### Interface : 120105 et 16001 dans les trois .toc
+
+Midnight 12.1.5 est live depuis le 13 octobre et sa valeur `120105` manquait :
+les trois addons étaient marqués obsolètes. Ajouté `120105` et `16001` (WoW:
+Forever, bêta) à `SuspicionsPack.toc`, `SuspicionsPack_Config.toc` et
+`SuspicionsPackClassIcons.toc`.
+
+### Single TOC + gating par ligne, pas de fichiers suffixés
+
+La recommandation du wiki (page TOC format, 17 octobre) et la pratique
+d'ElvUI / LuckyoneUI / DBM / BigWigs depuis le 18 septembre : UN seul
+`Addon.toc`, une ligne `## Interface:` multi-versions, et des conditions
+`[AllowLoadGameType …]` en fin de ligne. Le pack était déjà en single TOC,
+donc aucun renommage, et aucun redémarrage client imposé aux utilisateurs.
+
+Forever (type de jeu `camelot`, famille Mainline, moteur 12.1.5, contenu
+Vanilla niveau 60) n'a ni spécialisations, ni M+, ni Bloodlust, ni Silvermoon,
+ni commandes d'artisanat, ni outil LFG, et sa liste de boss PvE est celle de Midnight.
+Les 15 modules qui en dépendent
+portent `[AllowLoadGameType standard]` dans `SuspicionsPack.toc`, et leurs
+pages d'options le même marqueur dans `SuspicionsPack_Config.toc` (une page
+s'enregistre elle-même, donc une page non chargée n'apparaît pas) :
+AutoBuy, FilterExpansionOnly, AutoPlaystyle, GroupJoinedReminder,
+BloodlustAlert, GatewayAlert, TankMD, FocusTargetMarker, InterruptAlert,
+MovementAlert, SpellEffectAlpha, ReapPredict, PotionAlert,
+SilvermoonMapIcon, AutoRelease.
+
+MovementAlert et InterruptAlert restent gated en attendant un rework : leurs tables
+de sorts sont indexées par spécialisation et ne connaissent que les IDs Midnight.
+
+Pourquoi `standard` seul suffit ici : si aucun type listé n'est reconnu par
+le client, la condition est satisfaite — donc un vieux 12.0.x charge tout
+comme avant. Le piège inverse (une ligne « Forever seulement ») exigerait
+`[AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]` ; le pack
+n'en a pas.
+
+**Non vérifié en jeu sur la bêta Forever.** Les 17 modules restants
+(Automation, Cursor, Drawer, CopyTooltip, FastLoot, CVars, CombatTimer,
+AutoInvite, DeathAlert, WhisperAlert, Performance,
+EnhancedObjectiveText, CleanObjectiveTrackerHeader, MicroMenuSkin, Durability,
+CraftShopper, CombatCross — ces deux derniers gardés sur Forever à la
+demande de Cruzz, bien que leurs tables soient Midnight : sort de portée par
+spécialisation, commandes d'artisanat)
+sont chargés sur Forever sans avoir été testés ; MicroMenuSkin est le plus
+exposé (boutons du micro-menu différents). La valeur d'Interface de la
+version de sortie du 4 novembre n'est pas publiée : revérifier `16001` ce
+jour-là. Notes complètes : `tasks/wow-api-notes.md`, section TOC.
+
+Fichiers : `SuspicionsPack/SuspicionsPack.toc`,
+`SuspicionsPack_Config/SuspicionsPack_Config.toc`,
+`SuspicionsPackClassIcons/SuspicionsPackClassIcons.toc`, `tasks/wow-api-notes.md`.
+
+---
+
 ## 2026-08-15 — v2.7.0
 
 ### Nouveau : alerte d'interruption

@@ -141,7 +141,8 @@ GUI.RegisterPage{
 
         c2:ButtonRow{
             text = "Add this spot",
-            desc = "Saves the current zone, subzone and IDs to the list below.",
+            desc = "In a dungeon or raid, saves the whole instance. Outside one, saves the "
+                   .. "current map and subzone.",
             width = 120,
             onClick = function()
                 local h = ReadNow()
@@ -150,13 +151,38 @@ GUI.RegisterPage{
                 -- including mid-encounter. The module refuses those; refuse to
                 -- create one in the first place.
                 if not (h.instanceID or h.uiMapID or (h.subZone or "") ~= "") then return end
-                db.zones[#db.zones + 1] = {
-                    name       = (h.subZone ~= "" and h.subZone) or h.zone or "Spot",
-                    instanceID = h.instanceID,
-                    uiMapID    = h.uiMapID,
-                    subZone    = h.subZone ~= "" and h.subZone or nil,
-                    enabled    = true,
-                }
+
+                -- DANS UNE INSTANCE, ON N'ENREGISTRE QUE L'INSTANCE.
+                --
+                -- Cette version enregistrait les trois champs, et EntryMatches
+                -- les exige TOUS. C'est l'entrée la plus étroite possible, alors
+                -- que l'intention de quelqu'un qui appuie devant un boss est
+                -- « ici, ce boss ». Le sous-lieu et la carte sont précisément
+                -- les deux qui dérivent quand on meurt : un knockback, un recul
+                -- de trois mètres, une chute d'étage -- et beaucoup de raids ont
+                -- une carte par étage. La correspondance échouait alors sans
+                -- erreur et sans indice, ce qui a valu un rapport de bug
+                -- « ça ne libère pas, aucune erreur Lua ».
+                --
+                -- DEHORS, C'EST L'INVERSE. GetInstanceInfo rend quand même un
+                -- instanceID en extérieur : celui du CONTINENT. Une entrée
+                -- dessus libérerait sur la moitié de la carte du monde. Hors
+                -- instance, on garde donc la carte et le sous-lieu, qui sont la
+                -- lecture étroite et sûre.
+                local inInstance = h.instanceType == "party" or h.instanceType == "raid"
+                                   or h.instanceType == "scenario" or h.instanceType == "pvp"
+                                   or h.instanceType == "arena"
+
+                local entry = { enabled = true }
+                if inInstance and h.instanceID then
+                    entry.name       = h.instanceName ~= "" and h.instanceName or h.zone or "Instance"
+                    entry.instanceID = h.instanceID
+                else
+                    entry.name    = (h.subZone ~= "" and h.subZone) or h.zone or "Spot"
+                    entry.uiMapID = h.uiMapID
+                    entry.subZone = h.subZone ~= "" and h.subZone or nil
+                end
+                db.zones[#db.zones + 1] = entry
                 Rebuild()
             end,
         }
@@ -172,7 +198,7 @@ GUI.RegisterPage{
 
         -- ---- the list ------------------------------------------------------
         local c3 = page:Card("Release at these spots",
-            #db.zones > 0 and "Checked in order. A spot saved without a subzone covers the whole raid."
+            #db.zones > 0 and "Checked in order. A spot saved inside a dungeon or raid covers the whole instance."
                           or nil)
         if #db.zones == 0 then
             c3:Note("No spots saved. Stand somewhere releasing is preferable to waiting " ..

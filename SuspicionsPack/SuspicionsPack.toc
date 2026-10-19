@@ -1,4 +1,4 @@
-## Interface: 120001, 120005, 120007, 120100
+## Interface: 120001, 120005, 120007, 120100, 120105, 16001
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r
 ## Notes: Collection of QoL features
 ## Author: Cruzz
@@ -28,38 +28,41 @@ Core\Migration.lua
 Core\Module.lua
 
 # Modules — each calls SP:NewModule() so they must load after Core.lua
+# [AllowLoadGameType standard] = Midnight only. WoW: Forever (game type "camelot",
+# Interface 16001, Vanilla content on the Midnight engine) skips those files: no specs,
+# no M+, no Bloodlust, no Silvermoon, no crafting orders, no LFG tool there.
 Modules\Drawer\Drawer.lua
 Modules\Cursor\Cursor.lua
 Modules\CopyTooltip\CopyTooltip.lua
 Modules\FastLoot\FastLoot.lua
-Modules\FilterExpansionOnly\FilterExpansionOnly.lua
+Modules\FilterExpansionOnly\FilterExpansionOnly.lua [AllowLoadGameType standard]
 Modules\CVars\CVars.lua
 Modules\Automation\Automation.lua
 Modules\CombatTimer\CombatTimer.lua
-Modules\BloodlustAlert\BloodlustAlert.lua
-Modules\PotionAlert\PotionAlert.lua
+Modules\BloodlustAlert\BloodlustAlert.lua [AllowLoadGameType standard]
+Modules\PotionAlert\PotionAlert.lua [AllowLoadGameType standard]
 Modules\AutoInvite\AutoInvite.lua
-Modules\AutoRelease\AutoRelease.lua
-Modules\TankMD\TankMD.lua
-Modules\FocusTargetMarker\FocusTargetMarker.lua
+Modules\AutoRelease\AutoRelease.lua [AllowLoadGameType standard]
+Modules\TankMD\TankMD.lua [AllowLoadGameType standard]
+Modules\FocusTargetMarker\FocusTargetMarker.lua [AllowLoadGameType standard]
 Modules\DeathAlert\DeathAlert.lua
 Modules\CraftShopper\CraftShopper.lua
 Modules\WhisperAlert\WhisperAlert.lua
-Modules\SilvermoonMapIcon\SilvermoonMapIcon.lua
-Modules\GroupJoinedReminder\GroupJoinedReminder.lua
-Modules\MovementAlert\MovementAlert.lua
-Modules\AutoPlaystyle\AutoPlaystyle.lua
+Modules\SilvermoonMapIcon\SilvermoonMapIcon.lua [AllowLoadGameType standard]
+Modules\GroupJoinedReminder\GroupJoinedReminder.lua [AllowLoadGameType standard]
+Modules\MovementAlert\MovementAlert.lua [AllowLoadGameType standard]
+Modules\AutoPlaystyle\AutoPlaystyle.lua [AllowLoadGameType standard]
 Modules\Performance\Performance.lua
 Modules\EnhancedObjectiveText\EnhancedObjectiveText.lua
 Modules\CleanObjectiveTrackerHeader\CleanObjectiveTrackerHeader.lua
 Modules\MicroMenuSkin\MicroMenuSkin.lua
-Modules\InterruptAlert\InterruptAlert.lua
-Modules\GatewayAlert\GatewayAlert.lua
+Modules\InterruptAlert\InterruptAlert.lua [AllowLoadGameType standard]
+Modules\GatewayAlert\GatewayAlert.lua [AllowLoadGameType standard]
 Modules\CombatCross\CombatCross.lua
 Modules\Durability\Durability.lua
-Modules\AutoBuy\AutoBuy.lua
-Modules\SpellEffectAlpha\SpellEffectAlpha.lua
-Modules\ReapPredict\ReapPredict.lua
+Modules\AutoBuy\AutoBuy.lua [AllowLoadGameType standard]
+Modules\SpellEffectAlpha\SpellEffectAlpha.lua [AllowLoadGameType standard]
+Modules\ReapPredict\ReapPredict.lua [AllowLoadGameType standard]
 
 # Minimap Button module
 Core\MinimapButton.lua
