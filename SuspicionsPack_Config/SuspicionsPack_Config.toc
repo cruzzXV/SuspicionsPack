@@ -1,4 +1,4 @@
-## Interface: 120001, 120005, 120007, 120100
+## Interface: 120001, 120005, 120007, 120100, 120105, 16001
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r — Options
 ## Notes: Options panel for the pack (SuspicionsPack plugin)
 ## Author: Cruzz
@@ -29,26 +29,28 @@ Core\Shell.lua
 Pages\Categories.lua
 
 # Pages — one file each. Order within a category is the order in the sidebar.
+# [AllowLoadGameType standard] mirrors the parent .toc: a page is only loaded where
+# its module is, so the sidebar never shows a page for a module that does not exist.
 Pages\Home.lua
 Pages\Automation.lua
-Pages\AutoRelease.lua
-Pages\TankMD.lua
-Pages\BloodlustAlert.lua
+Pages\AutoRelease.lua [AllowLoadGameType standard]
+Pages\TankMD.lua [AllowLoadGameType standard]
+Pages\BloodlustAlert.lua [AllowLoadGameType standard]
 Pages\CombatCross.lua
 Pages\CombatTimer.lua
 Pages\Cursor.lua
 Pages\DeathAlert.lua
-Pages\GatewayAlert.lua
-Pages\InterruptAlert.lua
-Pages\MovementAlert.lua
-Pages\PotionAlert.lua
-Pages\ReapPredict.lua
-Pages\SpellEffectAlpha.lua
-Pages\FocusTargetMarker.lua
-Pages\GroupJoinedReminder.lua
-Pages\AutoPlaystyle.lua
-Pages\FilterExpansionOnly.lua
-Pages\AutoBuy.lua
+Pages\GatewayAlert.lua [AllowLoadGameType standard]
+Pages\InterruptAlert.lua [AllowLoadGameType standard]
+Pages\MovementAlert.lua [AllowLoadGameType standard]
+Pages\PotionAlert.lua [AllowLoadGameType standard]
+Pages\ReapPredict.lua [AllowLoadGameType standard]
+Pages\SpellEffectAlpha.lua [AllowLoadGameType standard]
+Pages\FocusTargetMarker.lua [AllowLoadGameType standard]
+Pages\GroupJoinedReminder.lua [AllowLoadGameType standard]
+Pages\AutoPlaystyle.lua [AllowLoadGameType standard]
+Pages\FilterExpansionOnly.lua [AllowLoadGameType standard]
+Pages\AutoBuy.lua [AllowLoadGameType standard]
 Pages\CraftShopper.lua
 Pages\FastLoot.lua
 Pages\Durability.lua
@@ -58,7 +60,8 @@ Pages\CleanObjectiveHeader.lua
 Pages\CopyTooltip.lua
 Pages\EnhancedObjectiveText.lua
 Pages\MicroMenuSkin.lua
+Pages\DetailsSkin.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\Drawer.lua
 Pages\Performance.lua
-Pages\SilvermoonMapIcon.lua
+Pages\SilvermoonMapIcon.lua [AllowLoadGameType standard]
 Pages\CVars.lua

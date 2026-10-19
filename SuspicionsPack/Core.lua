@@ -554,6 +554,11 @@ local DEFAULTS = {
         cleanObjectiveTrackerHeader = {
             enabled = false,
         },
+        -- Forever only (see the .toc gate). On by default: installing a skin only
+        -- adds an entry to Details' skin list, nothing changes until it is picked.
+        detailsSkin = {
+            enabled = true,
+        },
         microMenuSkin = {
             enabled        = false,
             iconsPerRow    = 0,
