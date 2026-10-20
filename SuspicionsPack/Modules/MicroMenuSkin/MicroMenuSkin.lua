@@ -23,7 +23,6 @@ SP.MicroMenuSkin = MMS
 local _G             = _G
 local hooksecurefunc = hooksecurefunc
 local C_Timer        = C_Timer
-local C_Texture      = C_Texture
 local ipairs         = ipairs
 local type           = type
 
@@ -96,91 +95,86 @@ end
 local hookedUpdate = false   -- hooksecurefunc("UpdateMicroButtons") installed
 local hookedPulse  = false   -- hooksecurefunc("MicroButtonPulse") installed
 local applying     = false   -- re-entrancy guard
-local pendingApply = false   -- coalescing flag for QueueApply
 local hidPerfBar   = false   -- so the perf bar can be restored
 local hidPVPTex    = false
 local hidBarArt    = false   -- Forever's frame art around the bar, see HideBarArt
-
--- GetAtlasInfo allocates a table per call and UpdateMicroButtons fires on
--- every bag/spell/quest/regen change, so results are cached by atlas name.
--- Atlas definitions are static for a session, so this never goes stale.
-local atlasInfoCache = {}
-
-local function GetCachedAtlasInfo(atlas)
-    local info = atlasInfoCache[atlas]
-    if info == nil then
-        info = (C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)) or false
-        atlasInfoCache[atlas] = info
-    end
-    return info or nil
-end
 
 -- ============================================================
 -- Texture helpers
 -- ============================================================
 
+-- Re-entry guard shared by every SetPoint pin (see PinArt): set while the
+-- skin itself is anchoring something, so its own calls are not taken for
+-- Blizzard moving the art.
+local pinning = false
+
 -- Anchors a texture inside a frame with a uniform inset.
 local function SetInside(tex, frame, inset)
     if not tex then return end
     inset = inset or 0
+    local was = pinning
+    pinning = true
     tex:ClearAllPoints()
     tex:SetPoint("TOPLEFT",     frame, "TOPLEFT",      inset, -inset)
     tex:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset,  inset)
+    pinning = was
 end
 
 -- Crops a texture inward by `zoom` (0..0.45) so the glyph fills the square.
 --
--- Retail micro buttons use atlas textures. SetTexCoord after SetAtlas would
--- discard the atlas sub-rect and show the whole packed sheet, so the atlas is
--- resolved to file + UVs first and the crop applied inside those UVs.
+-- The crop is taken INSIDE the rect the texture is showing, read back with
+-- GetTexCoord, and the file is never touched. For an atlas that rect is the
+-- icon's sub-rect of the packed sheet, so cropping inside it is always right.
 --
--- Atlas resolution is deliberately re-probed on every call:
---   * GetAtlas() returns the live atlas whenever Blizzard just set one, so
---     state-dependent art (main menu update indicator, character portrait)
---     stays current instead of freezing on the first atlas we ever saw.
---   * GetAtlas() returns nil right after WE call SetTexture(), so the cached
---     name is what we fall back on -- without it we would crop the raw sheet
---     and corrupt the icon permanently.
--- `false` in the cache means "probed, genuinely not atlas-based", and is
--- treated as nil so a texture Blizzard populates late still gets picked up.
+-- The previous version swapped the atlas for its file and remembered the atlas
+-- name to find the sub-rect again. When GetAtlas() came back empty and no name
+-- was remembered, it fell through to a crop of 0..1 -- the whole sheet. On WoW:
+-- Forever that showed every micro menu icon shrunk into each button as soon as
+-- a hover or click re-ran the crop (reported 2026-10-20, with a screenshot).
+--
+-- Idempotent across passes: `_spOut` is the rect we set last. If the texture
+-- still shows exactly that, the native rect is the one recorded before; if it
+-- shows anything else, Blizzard has re-set the art (new atlas, new file, a
+-- state change), and what is there now is the new native rect.
+local UV_EPSILON = 1e-4
+
+local function SameRect(rect, l, r, t, b)
+    return rect ~= nil
+        and math.abs(rect[1] - l) < UV_EPSILON and math.abs(rect[2] - r) < UV_EPSILON
+        and math.abs(rect[3] - t) < UV_EPSILON and math.abs(rect[4] - b) < UV_EPSILON
+end
+
 local function ZoomTexture(tex, zoom)
-    if not tex then return end
+    if not (tex and tex.GetTexCoord) then return end
 
-    local live = tex.GetAtlas and tex:GetAtlas()
-    if live then tex._spAtlas = live end
+    -- GetTexCoord returns the four corners: UL, LL, UR, LR. The art here is
+    -- never rotated, so UL gives left/top and LR gives right/bottom.
+    local ulx, uly, _, _, _, _, lrx, lry = tex:GetTexCoord()
+    if not ulx then return end
 
-    local atlas = tex._spAtlas
-    if atlas == false then atlas = nil end
-
-    if not zoom or zoom <= 0 then
-        if atlas then
-            tex:SetAtlas(atlas)
-        else
-            tex:SetTexCoord(0, 1, 0, 1)
-        end
-        return
+    local native = tex._spUV
+    if not native then
+        native = {}
+        tex._spUV = native
+    end
+    if not SameRect(tex._spOut, ulx, lrx, uly, lry) then
+        native[1], native[2], native[3], native[4] = ulx, lrx, uly, lry
     end
 
-    if atlas then
-        local info = GetCachedAtlasInfo(atlas)
-        if info then
-            local l = info.leftTexCoord   or 0
-            local r = info.rightTexCoord  or 1
-            local t = info.topTexCoord    or 0
-            local b = info.bottomTexCoord or 1
-            local dx = (r - l) * zoom
-            local dy = (b - t) * zoom
-            local file = info.file or info.filename
-            if file then tex:SetTexture(file) end
-            tex:SetTexCoord(l + dx, r - dx, t + dy, b - dy)
-        end
-        -- Atlas known but no info: leave the UVs alone rather than cropping
-        -- the whole sheet.
-        return
+    local l, r, t, b = native[1], native[2], native[3], native[4]
+    if zoom and zoom > 0 then
+        local dx, dy = (r - l) * zoom, (b - t) * zoom
+        l, r, t, b = l + dx, r - dx, t + dy, b - dy
     end
+    tex:SetTexCoord(l, r, t, b)
 
-    if tex.GetAtlas then tex._spAtlas = false end
-    tex:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
+    -- Reused, not reallocated: this runs on nearly every UpdateMicroButtons.
+    local out = tex._spOut
+    if not out then
+        out = {}
+        tex._spOut = out
+    end
+    out[1], out[2], out[3], out[4] = l, r, t, b
 end
 
 -- Creates (once) the 5 textures that make up our backdrop: a fill plus four
@@ -410,8 +404,7 @@ end
 -- ============================================================
 -- Skinning
 -- ============================================================
-local ApplySkin   -- forward declaration: QueueApply's closure calls it
-local QueueApply
+local ApplySkin   -- forward declaration: defined after the layout helpers it uses
 
 -- Re-applies just the icon: inset, crop, desaturation, highlight wash.
 --
@@ -421,18 +414,51 @@ local QueueApply
 -- drives the file-streaming indicator), and each of those calls wipes our
 -- crop. Re-cropping a frame later showed one frame of raw Blizzard art every
 -- single second, which is what read as the game menu button blinking.
+-- Whether the cursor is on this button right now. A full pass runs from
+-- UpdateMicroButtons, which a click on a button that opens a window triggers
+-- while the cursor is still on it: everything a pass paints must agree with
+-- what the hover handlers painted, or the click visibly undoes the hover.
+local function IsHovered(button)
+    if not (button.IsMouseOver and button:IsMouseOver()) then return false end
+    return not (button.IsEnabled and not button:IsEnabled())
+end
+
 local function ApplyNormal(button, db)
     local tex = button.GetNormalTexture and button:GetNormalTexture()
     if not tex then return end
     SetInside(tex, button, Num(db.iconInset, 2))
     ZoomTexture(tex, Num(db.iconZoom, 0.10))
-    tex:SetDesaturated(db.desaturate and true or false)
+    -- Coloured back in under the cursor, like OnEnterButton does.
+    tex:SetDesaturated((db.desaturate and not IsHovered(button)) and true or false)
     tex:SetAlpha(1)
+end
+
+-- The pressed state shows the button's resting art, tinted. Blizzard's "-Down"
+-- atlas is the same glyph drawn pressed in, a pixel off: on its own beveled
+-- button that reads as a press, on the flat skin as the icon twitching on every
+-- click. ElvUI makes the same choice. The atlas name comes from the button's
+-- textureName (LoadMicroButtonTextures builds "UI-HUD-MicroMenu-<name>-Up"),
+-- and is checked once, so a button without one keeps Blizzard's art.
+local upAtlasOk = {}
+
+local function UpAtlas(button)
+    local name = button.textureName
+    if type(name) ~= "string" then return nil end
+    local atlas = "UI-HUD-MicroMenu-" .. name .. "-Up"
+    local ok = upAtlasOk[atlas]
+    if ok == nil then
+        ok = (C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)) and true or false
+        upAtlasOk[atlas] = ok
+    end
+    return ok and atlas or nil
 end
 
 local function ApplyPushed(button, db)
     local tex = button.GetPushedTexture and button:GetPushedTexture()
     if not tex then return end
+    -- Before the crop: ZoomTexture reads the rect back and sees new art.
+    local up = UpAtlas(button)
+    if up then tex:SetAtlas(up) end
     SetInside(tex, button, Num(db.iconInset, 2))
     ZoomTexture(tex, Num(db.iconZoom, 0.10))
     local hr, hg, hb = Col(db.hoverColor, 0.90, 0.06, 0.22, 1)
@@ -452,6 +478,8 @@ local function ApplyHighlight(button, db)
     local tex = button.GetHighlightTexture and button:GetHighlightTexture()
     if not tex then return end
     tex:SetColorTexture(1, 1, 1, Num(db.highlightAlpha, 0.20))
+    -- SetPushed passes "ADD" to SetHighlightAtlas; the flat wash is BLEND.
+    tex:SetBlendMode("BLEND")
     SetInside(tex, button, Num(db.iconInset, 2))
 end
 
@@ -460,6 +488,179 @@ local function ReskinIcon(button, db)
     ApplyPushed(button, db)
     ApplyDisabled(button, db)
     ApplyHighlight(button, db)
+end
+
+-- What a button looks like right now, for the hover/click report on WoW:
+-- Forever. Only built when SP.DEBUG is on: GetTexCoord alone returns 8 values.
+-- Size and position, rounded to the pixel: "WxH@left,bottom".
+local function Rect(region)
+    if not (region and region.GetLeft) then return "-" end
+    local l, b = region:GetLeft(), region:GetBottom()
+    if not (l and b) then return "unplaced" end
+    return ("%.1fx%.1f@%.1f,%.1f"):format(region:GetWidth(), region:GetHeight(), l, b)
+end
+
+-- Short UVs: left,right,top,bottom from the 8-value GetTexCoord.
+local function UV(tex)
+    if not (tex and tex.GetTexCoord) then return "-" end
+    local ulx, uly, _, _, _, _, lrx, lry = tex:GetTexCoord()
+    if not ulx then return "-" end
+    return ("%.3f,%.3f,%.3f,%.3f"):format(ulx, lrx, uly, lry)
+end
+
+local function DescribeButton(button, event)
+    local n = button.GetNormalTexture and button:GetNormalTexture()
+    local p = button.GetPushedTexture and button:GetPushedTexture()
+    local h = button.GetHighlightTexture and button:GetHighlightTexture()
+    local mm = _G.MicroMenu
+    local extra = ""
+    local portrait = button.Portrait
+    if portrait then extra = " | portrait " .. Rect(portrait) end
+    if button.Emblem then extra = extra .. " | emblem " .. Rect(button.Emblem) end
+    return ("%s %s state=%s btn=%s | normal %s uv=%s a=%.2f %s | pushed %s uv=%s %s | hl %s a=%.2f | bar=%s a=%.2f" .. extra):format(
+        button:GetName() or "?", event,
+        tostring(button.GetButtonState and button:GetButtonState()), Rect(button),
+        tostring(n and n.GetAtlas and n:GetAtlas()), UV(n), n and n:GetAlpha() or -1, Rect(n),
+        tostring(p and p.GetAtlas and p:GetAtlas()), UV(p), Rect(p),
+        tostring(h and h:GetBlendMode()), h and h:GetAlpha() or -1,
+        Rect(mm), mm and mm:GetAlpha() or -1)
+end
+
+-- Post-hooked on OnEnter, OnMouseDown and OnMouseUp. With SP.DEBUG, prints
+-- what the button looks like at that moment, BEFORE anything below touches it.
+--
+-- On mouse down and up it then re-applies the icon. The press swaps the
+-- button to its pushed texture (SetButtonState "PUSHED"), and every button was
+-- reported to twitch at that moment; re-cropping right after Blizzard, in the
+-- same frame, holds whatever the press resets. This used to also undo the
+-- hover state (desaturation back on under the cursor); ApplyNormal now reads
+-- the hover itself, so it is safe. Not on enter: nothing there needs it.
+local function TraceButton(event)
+    local reapply = (event == "down" or event == "up")
+    return function(button)
+        if SP.DEBUG then SP:Debug("MicroMenuSkin", DescribeButton(button, event)) end
+        if reapply and not applying then
+            local db = GetDB()
+            if db and db.enabled then ReskinIcon(button, db) end
+        end
+    end
+end
+local TraceOnEnter, TraceOnDown, TraceOnUp =
+    TraceButton("enter"), TraceButton("down"), TraceButton("up")
+
+-- ============================================================
+-- Pinning art where the skin put it
+--
+-- Blizzard re-anchors parts of a micro button with its own fixed offsets, made
+-- for its 32x40 beveled button. On the skinned button each of those reads as
+-- the button twitching on a click:
+--   * CharacterMicroButtonMixin:SetPushed / SetNormal re-anchor the portrait
+--     with FIXED 7 px insets (TOPLEFT 7,-7 / BOTTOMRIGHT -6,5 pushed, -7,7
+--     normal), which shrinks it into a stamp on a smaller button (screenshot,
+--     2026-10-20);
+--   * GuildMicroButtonMixin moves the tabard emblem the same way;
+--   * the icon textures themselves come back anchored to the whole button
+--     between two clicks, then the skin re-insets them on the click: traces
+--     showed 23.2x29 at rest and 17.2x23 after a click, on every button. Our
+--     own code never anchors them that way, and no setter we hook fires, so
+--     something re-anchors them directly.
+-- Post-hooks on the caller (SetPushed...) did not hold. Each region is pinned
+-- at the source instead, on its own SetPoint / SetAllPoints: whoever moves it,
+-- by whatever path, it is put back in the same call. With SP.DEBUG, a move of
+-- an icon texture also prints who made it.
+--
+-- `pinning` is the shared re-entry guard (see SetInside, which holds it too).
+-- ============================================================
+
+local function PlacePortrait(button, portrait)
+    if pinning then return end
+    local db = GetDB()
+    if not (db and db.enabled) then return end
+    SetInside(portrait, button, Num(db.iconInset, 2))
+end
+
+local function PlaceEmblem(button, emblem)
+    if pinning then return end
+    local db = GetDB()
+    if not (db and db.enabled) then return end
+    pinning = true
+    -- Blizzard's resting spot (GuildMicroButtonMixin:SetNormal).
+    emblem:ClearAllPoints()
+    emblem:SetPoint("CENTER", button, "CENTER", 0, 2)
+    pinning = false
+end
+
+-- Normal, pushed, disabled and highlight textures: the icon's inset.
+local function PlaceStateTexture(button, tex, kind)
+    if pinning then return end
+    local db = GetDB()
+    if not (db and db.enabled) then return end
+    if SP.DEBUG and debugstack then
+        local from = (debugstack(3, 2, 0) or "?"):gsub("\n", " | ")
+        SP:Debug("MicroMenuSkin", ("%s %s re-anchored by: %s"):format(
+            button:GetName() or "?", kind, from))
+    end
+    SetInside(tex, button, Num(db.iconInset, 2))
+end
+
+local STATE_TEXTURES = {
+    { "normal",    "GetNormalTexture" },
+    { "pushed",    "GetPushedTexture" },
+    { "disabled",  "GetDisabledTexture" },
+    { "highlight", "GetHighlightTexture" },
+}
+
+local function PinArt(button)
+    if button._spmmArtPinned then return end
+    button._spmmArtPinned = true
+
+    if button == _G.CharacterMicroButton then
+        local portrait = _G.MicroButtonPortrait or button.Portrait
+        if portrait and portrait.SetPoint then
+            hooksecurefunc(portrait, "SetPoint", function() PlacePortrait(button, portrait) end)
+        end
+    end
+
+    local emblem = button.Emblem
+    if emblem and emblem.SetPoint then
+        hooksecurefunc(emblem, "SetPoint", function() PlaceEmblem(button, emblem) end)
+    end
+
+    for _, s in ipairs(STATE_TEXTURES) do
+        local getter = button[s[2]]
+        local tex = getter and getter(button)
+        if tex and tex.SetPoint then
+            local kind = s[1]
+            local function Back() PlaceStateTexture(button, tex, kind) end
+            hooksecurefunc(tex, "SetPoint", Back)
+            if tex.SetAllPoints then hooksecurefunc(tex, "SetAllPoints", Back) end
+        end
+    end
+end
+
+-- Post-hooked on every button's SetPushed and SetNormal, so it runs after the
+-- whole of Blizzard's body. Undoes the pressed look meant for Blizzard's
+-- beveled buttons: the highlight halves to 0.5 and turns additive in
+-- SetPushed, back to 1 and BLEND in SetNormal -- the wash pulsed on every
+-- click. The portrait and the emblem are re-placed here too, in case their
+-- own pin was installed after Blizzard last moved them.
+-- Nothing else: no re-skin, so the hover state painted by OnEnterButton holds.
+local function PinPressArt(button)
+    local db = GetDB()
+    if not (db and db.enabled) then return end
+
+    local hl = button.GetHighlightTexture and button:GetHighlightTexture()
+    if hl then
+        hl:SetBlendMode("BLEND")
+        hl:SetAlpha(1)
+    end
+
+    if button == _G.CharacterMicroButton then
+        local portrait = _G.MicroButtonPortrait or button.Portrait
+        if portrait then PlacePortrait(button, portrait) end
+        if button.PortraitMask then button.PortraitMask:Hide() end
+    end
+    if button.Emblem then PlaceEmblem(button, button.Emblem) end
 end
 
 -- One handler per setter, so a hook only redoes the texture that setter just
@@ -495,7 +696,15 @@ local function SkinButton(button, name, db)
     local br, bg, bb, ba = Col(db.backdropColor, 0.06, 0.06, 0.06, 0.85)
     bd.fill:SetColorTexture(br, bg, bb, ba)
     LayoutBackdrop(bd, button, Num(db.borderSize, 1))
-    local er, eg, eb, ea = Col(db.borderColor, 0, 0, 0, 1)
+    -- The hover accent stays on the button under the cursor. This pass runs on
+    -- every click that opens a window, and repainting the resting colour there
+    -- was the border flashing off mid-click.
+    local er, eg, eb, ea
+    if IsHovered(button) then
+        er, eg, eb, ea = Col(db.hoverColor, 0.90, 0.06, 0.22, 1)
+    else
+        er, eg, eb, ea = Col(db.borderColor, 0, 0, 0, 1)
+    end
     SetBorderColor(button, er, eg, eb, ea)
 
     bd.fill:SetShown(db.showBackdrop ~= false)
@@ -520,11 +729,13 @@ local function SkinButton(button, name, db)
 
     button:SetHitRectInsets(0, 0, 0, 0)
 
-    -- Character button carries a 3D portrait instead of a glyph.
+    -- Character button carries a 3D portrait instead of a glyph; it and the
+    -- guild emblem are pinned where they belong, see PinArt.
     if name == "CharacterMicroButton" then
         local portrait = _G.MicroButtonPortrait or button.Portrait
-        if portrait then SetInside(portrait, button, inset) end
+        if portrait then PlacePortrait(button, portrait) end
     end
+    PinArt(button)
 
     -- PVP button has a faction texture layered on top.
     if name == "PVPMicroButton" and _G.PVPMicroButtonTexture then
@@ -537,6 +748,10 @@ local function SkinButton(button, name, db)
         button._spmmHooked = true
         button:HookScript("OnEnter", OnEnterButton)
         button:HookScript("OnLeave", OnLeaveButton)
+        -- Debug traces only, see TraceButton.
+        button:HookScript("OnEnter",     TraceOnEnter)
+        button:HookScript("OnMouseDown", TraceOnDown)
+        button:HookScript("OnMouseUp",   TraceOnUp)
     end
 
     -- Blizzard rewrites button art outside of UpdateMicroButtons, so every
@@ -558,13 +773,10 @@ local function SkinButton(button, name, db)
             end
         end
 
-        -- Character button swaps its portrait rather than an atlas, and
-        -- CharacterMicroButtonMixin overrides SetNormal/SetPushed without
-        -- touching any atlas setter, so those need their own hook.
-        if name == "CharacterMicroButton" then
-            if button.SetPushed then hooksecurefunc(button, "SetPushed", QueueApply) end
-            if button.SetNormal then hooksecurefunc(button, "SetNormal", QueueApply) end
-        end
+        -- Every button: SetPushed / SetNormal change the highlight on all of
+        -- them, and move art on Character and Guild. Synchronous, see PinPressArt.
+        if button.SetPushed then hooksecurefunc(button, "SetPushed", PinPressArt) end
+        if button.SetNormal then hooksecurefunc(button, "SetNormal", PinPressArt) end
     end
 end
 
@@ -687,6 +899,10 @@ local function LayoutButtons(db)
             end
             local ratio = (b._spOrigH and b._spOrigH > 0) and (b._spOrigW / b._spOrigH) or 1
             if not ApproxEq(b:GetHeight(), size) then
+                if SP.DEBUG then
+                    SP:Debug("MicroMenuSkin", ("resize %s from %.1fx%.1f to %.1fx%.1f"):format(
+                        e.name, b:GetWidth(), b:GetHeight(), size * ratio, size))
+                end
                 b:SetSize(size * ratio, size)
                 changed = true
             end
@@ -724,7 +940,13 @@ local function LayoutButtons(db)
         changed = true
     end
 
-    if changed then RelayoutMicroMenu(mm) end
+    if changed then
+        if SP.DEBUG then
+            SP:Debug("MicroMenuSkin", ("relayout: bar %s, padding %s/%s, stride %s"):format(
+                Rect(mm), tostring(mm.childXPadding), tostring(mm.childYPadding), tostring(mm.stride)))
+        end
+        RelayoutMicroMenu(mm)
+    end
     MMS.layoutApplied = true
 end
 
@@ -763,7 +985,10 @@ ApplySkin = function()
     HidePerformanceBar()
     HideBarArt()
     LayoutButtons(db)
-    ApplyAlpha(false)
+    -- Not ApplyAlpha(false): with "full opacity on mouseover", a click under
+    -- the cursor dropped the whole bar back to its faded opacity.
+    local mm = _G.MicroMenu
+    ApplyAlpha(mm and mm.IsMouseOver and mm:IsMouseOver())
 
     applying = false
 end
@@ -782,23 +1007,8 @@ end
 local function ApplyNow()
     local db = GetDB()
     if db and db.enabled then
-        pendingApply = false
         ApplySkin()
     end
-end
-
--- Deferred + coalesced path, used by the per-button setter hooks. Those fire
--- from inside UpdateMicroButton (so ApplyNow is about to run anyway) and can
--- fire in bursts, so a frame of delay is the right trade here.
-QueueApply = function()
-    if pendingApply then return end
-    pendingApply = true
-    C_Timer.After(0, function()
-        if not pendingApply then return end
-        pendingApply = false
-        local db = GetDB()
-        if db and db.enabled then ApplySkin() end
-    end)
 end
 
 MMS.ApplySkin = ApplySkin
@@ -812,11 +1022,16 @@ MMS.ApplySkin = ApplySkin
 -- ============================================================
 local function RestoreTexture(tex, button)
     if not tex then return end
-    if tex._spAtlas then
-        tex:SetAtlas(tex._spAtlas)
-    else
-        tex:SetTexCoord(0, 1, 0, 1)
+    -- Back to the native rect ZoomTexture recorded. Only when the texture still
+    -- shows our crop: if Blizzard re-set it since, its rect is already native.
+    local native, out = tex._spUV, tex._spOut
+    if native and out and tex.GetTexCoord then
+        local ulx, uly, _, _, _, _, lrx, lry = tex:GetTexCoord()
+        if ulx and SameRect(out, ulx, lrx, uly, lry) then
+            tex:SetTexCoord(native[1], native[2], native[3], native[4])
+        end
     end
+    tex._spOut = nil
     tex:SetDesaturated(false)
     tex:SetVertexColor(1, 1, 1, 1)
     tex:SetAlpha(1)

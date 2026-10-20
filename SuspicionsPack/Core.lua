@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.7.2"
+SP.VERSION = "2.7.3"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -558,6 +558,47 @@ local DEFAULTS = {
         -- adds an entry to Details' skin list, nothing changes until it is picked.
         detailsSkin = {
             enabled = true,
+        },
+        -- 3D models in place of the flat portraits. Off by default: models
+        -- cost GPU, and it reshapes every unit frame the moment it turns on.
+        animatedPortraits = {
+            enabled            = false,
+            -- where
+            showPlayer         = true,
+            showTarget         = true,
+            showFocus          = true,
+            showPet            = true,
+            showTargetTarget   = true,
+            showParty          = true,
+            showBoss           = true,
+            showNPC            = true,   -- quest, gossip, merchant, trainer windows
+            showWindows        = true,   -- character, inspect, dressing room, trade
+            showOther          = true,
+            -- framing
+            size               = 80,     -- % of the round portrait the face fills (camera)
+            frameFill          = 90,     -- % of the circle the model square reaches
+            zoom               = 100,    -- % portrait zoom: 100 = face, lower = more body
+            rotation           = 0,      -- degrees
+            mirrorTargetSide   = false,  -- faces look at each other
+            faceTurn           = 25,     -- degrees each side turns inward
+            offsetX            = 0,      -- hundredths of a yard
+            offsetY            = 0,
+            modelAlpha         = 100,
+            -- background
+            background         = true,
+            edgeFade           = true,
+            backgroundStyle    = "dark", -- "dark" | "unitclass" | "theme" | "custom"
+            backgroundColor    = { 0.04, 0.04, 0.06 },
+            backgroundAlpha    = 100,
+            -- motion
+            animate            = true,
+            animation          = 0,      -- AnimationData ID, 0 = Stand
+            npcTalk            = true,
+            -- behaviour
+            keepFlatWhenTinted = true,   -- dead, ghost, tapped, offline: game's picture
+            pauseInCombat      = false,
+            flatInCombat       = false,
+            minSize            = 30,     -- smaller portraits stay flat
         },
         microMenuSkin = {
             enabled        = false,
@@ -1273,6 +1314,11 @@ function SP:ToggleGUI(input)
         SP.PrintZoneInfo()
         return
     end
+    if arg == "debug portraits" or arg == "portraits" then
+        if SP.AnimatedPortraits and SP.AnimatedPortraits.DebugDump then SP.AnimatedPortraits.DebugDump()
+        else print("SuspicionsPack: the animated portraits module is not loaded.") end
+        return
+    end
     if arg == "debug trail" or arg == "trail" then
         if SP.Cursor and SP.Cursor.DebugTrail then SP.Cursor.DebugTrail()
         else print("SuspicionsPack: the cursor module is not loaded.") end
@@ -1290,6 +1336,11 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.7.3"] = {
+        { type = "new", text = "Animated portraits: living 3D models instead of the flat portraits on your unit frames, your party, the NPCs you talk to and the character windows. Off by default, in Interface, with options for each frame, framing, background, animation and combat." },
+        { type = "fix", text = "Micro menu skin: icons no longer turn into the whole icon sheet on hover or click." },
+        { type = "fix", text = "Micro menu skin: buttons no longer twitch when clicked, and clicking keeps the hover border, colour and opacity." },
+    },
     ["2.7.2"] = {
         { type = "fix", text = "Micro menu skin works on WoW: Forever. It now skins the buttons actually in the bar, including Forever's extra one, and hides the frame Forever draws around it." },
         { type = "remove", text = "WoW: Forever: Combat cross, Auto accept decor prompt and Auto switch to flight form are no longer offered there. Retail is unchanged." },

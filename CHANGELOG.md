@@ -4,6 +4,198 @@
 
 ---
 
+## 2026-10-20 — v2.7.3 : nouveau module, portraits animés
+
+Des modèles 3D vivants à la place des portraits plats : cadres d'unité,
+groupe, PNJ à qui l'on parle, fenêtres qui affichent un personnage. Coupé par
+défaut, catégorie Interface. Chargé sur Midnight et sur Forever, sans gate.
+
+**Le principe.** Le jeu dessine chaque portrait par
+`SetPortraitTexture(texture, unit)`, qui est accroché ; chaque texture reçoit
+son propre `PlayerModel` posé dessus, et l'image plate devient invisible tant
+que le modèle s'affiche. Un disque derrière et un fondu sur les bords masquent
+les coins carrés du modèle sur les portraits ronds ; sur un cadre d'unité, les
+trois cadres passent une strate en dessous pour que l'anneau et le badge de
+niveau restent dessus. La texture de fondu est générée pour le pack
+(`Media/Portraits/fade.tga`, profil radial).
+
+**Ce qui est amélioré.**
+- Intégré au cycle de vie du pack (`Activate` idempotent, `Deactivate` remet
+  toutes les images plates), à sa page d'options et à `/spack debug portraits`.
+  Plus de fenêtre, de slash, de bouton minimap ni de locales à part.
+- Un interrupteur par cadre au lieu de trois catégories : joueur, cible,
+  focus, familier, cible de la cible, groupe, boss et arène, autres cadres,
+  fenêtres de PNJ, fenêtres de personnage. Un portrait du joueur dans la
+  fenêtre de personnage compte comme fenêtre, plus comme « joueur ».
+- Cadrage : taille du visage 60 à 130 % (l'original bridait à 70-85), zoom de
+  portrait, rotation, visages tournés l'un vers l'autre, décalages, opacité
+  du modèle.
+- Anneau noir entre le modèle et le cadre doré (capture de Cruzz) : le carré
+  du modèle était bloqué à 80 % du cercle, `min(taille du visage, 0.80)`, et le
+  disque sombre se voyait dans l'écart. Deux réglages séparés désormais :
+  `frameFill` (« Reach the frame », 70 à 100 %, 90 par défaut) fixe jusqu'où
+  le carré s'étend vers l'anneau, et `size` ne bouge plus que la caméra. Sur
+  un portrait de 58 px, l'écart passe d'environ 6 px à 3 px par côté à 90 %, et
+  à 0 à 100 %. Au-delà d'environ 90 %, les coins du carré peuvent dépasser de
+  l'anneau en diagonale, là où se trouvent souvent les barres et le badge de
+  niveau. Les fenêtres gardent 70 %, car aucun anneau ne cache leurs coins.
+- « Faces look at each other » (clé `mirrorTargetSide`, gardée) : la première
+  version inversait seulement le signe de la rotation, donc à la rotation par
+  défaut de 0 elle ne faisait rien — signalé par Cruzz. Chaque côté tourne
+  désormais vers l'intérieur de `faceTurn` degrés (25 par défaut) : joueur,
+  familier et groupe vers la droite, cible, focus et boss vers la gauche, en
+  miroir de la rotation choisie. Le sens suppose qu'un `SetFacing` positif
+  tourne le visage vers la droite de l'écran ; une valeur négative du curseur
+  inverse si ce client tourne dans l'autre sens.
+- Fond : disque et fondu séparables, couleur sombre, de la classe de l'unité,
+  du thème ou personnalisée, avec opacité.
+- Animation : animer ou figer, animation choisie, PNJ qui parlent pendant le
+  dialogue, immobiles en combat. Le gel passe par `SetPaused`, avec repli sur
+  `FreezeAnimation` si ce type de modèle ne l'a pas.
+- Comportement : garder l'image du jeu pour un mort, un fantôme, une unité
+  prise ou hors ligne, ou garder le modèle ; images plates en combat ; taille
+  minimale réglable.
+- À l'activation, les portraits déjà à l'écran sont redemandés au jeu (hors
+  combat), au lieu d'attendre son prochain redessin.
+- Activer le module depuis sa page affiche l'invite de rechargement du pack
+  (`SP.CreateReloadPrompt`, jusqu'ici jamais appelée) : Cruzz a constaté qu'il
+  faut un `/reload` pour que les portraits changent. Branchée en enveloppant
+  le `onToggle` de l'interrupteur principal, comme le fait `Page:Gate`.
+
+Toutes les valeurs lues sur une unité passent par `issecretvalue` avant toute
+comparaison, comme dans l'original.
+
+**Non testé en jeu**, ni sur Forever ni sur Midnight. Points à regarder :
+l'existence de `SetPaused`, `SetFacing` et `FreezeAnimation` sur un
+`PlayerModel` de ce client, les identifiants d'animation (0 debout, 60 parler,
+69 danser, 4 marcher, 5 courir), et les chemins des portraits de la passe
+d'activation.
+
+Fichiers : `SuspicionsPack/Modules/AnimatedPortraits/AnimatedPortraits.lua`,
+`SuspicionsPack_Config/Pages/AnimatedPortraits.lua`,
+`SuspicionsPack/Media/Portraits/fade.tga`, `SuspicionsPack/Core.lua`
+(défauts `animatedPortraits`, sous-commande `/spack debug portraits`), les deux
+`.toc`.
+
+---
+
+## 2026-10-20 — v2.7.3 : MicroMenuSkin, la planche entière dans chaque bouton
+
+Rapport de Cruzz après la 2.7.2, capture à l'appui : au survol ou au clic,
+chaque bouton du micro-menu affiche « plein de petites icônes ». C'est la
+planche d'atlas de Blizzard tout entière, réduite dans un bouton.
+
+**La cause.** `ZoomTexture` recadrait l'icône en remplaçant l'atlas par son
+fichier, puis retenait le nom de l'atlas pour retrouver le sous-rectangle aux
+passes suivantes. Quand `GetAtlas()` ne renvoyait rien et qu'aucun nom n'était
+retenu, la fonction tombait dans sa dernière branche : un recadrage relatif à
+0..1, c'est-à-dire à la planche entière. Le commentaire du code décrivait déjà
+ce risque ; le chemin restait ouvert.
+
+**Le correctif.** Le recadrage se fait désormais DANS le rectangle que la
+texture affiche réellement, relu par `GetTexCoord`, et le fichier n'est plus
+jamais changé. Le rectangle d'origine est retenu par texture (`_spUV`), et
+`_spOut` garde le dernier rectangle posé par le skin : si la texture montre
+encore exactement celui-là, l'origine est celle déjà retenue ; sinon Blizzard a
+réécrit l'art et ce qu'elle montre est la nouvelle origine. Plus aucun nom
+d'atlas, plus de `GetAtlasInfo`, plus de cache. La restauration remet le
+rectangle d'origine, et seulement si Blizzard n'a pas réécrit l'art entre-temps.
+
+Vérifié par une transcription ligne à ligne en JavaScript sur une texture
+simulée (huit scénarios : première passe, passes répétées, art réinitialisé,
+changement d'atlas, zoom à 0, deux cas de restauration, 50 passes mêlées) :
+l'icône ne dépasse jamais la largeur d'une icône. **Non testé en jeu.**
+
+En plus : `OnEnter`, `OnMouseDown` et `OnMouseUp` réappliquent l'icône après
+Blizzard, et avec `SP.DEBUG` chaque événement imprime l'état du bouton (état,
+atlas, texture, alpha et coordonnées de l'icône, surbrillance).
+
+**Les boutons tressaillaient au clic** (rapport de Cruzz). Trois sauts d'un
+pixel, tous voulus par Blizzard pour son bouton en relief :
+- l'état enfoncé affiche l'atlas `-Down`, la même icône dessinée enfoncée et
+  décalée. Il affiche maintenant l'atlas `-Up` du bouton (nom tiré de
+  `button.textureName`, existence vérifiée une fois), teinté comme avant —
+  le choix d'ElvUI ;
+- `CharacterMicroButtonMixin:SetPushed/SetNormal` déplace le portrait, et le
+  skin le remettait en place une image plus tard via `QueueApply` : c'était
+  le saut visible. Remis en place dans la même image (`PinPressArt`) ;
+- `GuildMicroButtonMixin` déplace l'emblème de guilde de la même façon ; il
+  est épinglé à sa position de repos.
+`QueueApply` et son drapeau n'avaient plus d'appelant et sont retirés.
+
+**Ça tressaillait encore** (deuxième rapport). En suivant tout ce qu'un clic
+déclenche : un clic qui ouvre une fenêtre fait appeler `UpdateMicroButtons`,
+et le skin repasse sur toute la barre (`ApplySkin`) alors que le curseur est
+toujours sur le bouton. Cette passe défaisait l'état de survol :
+- la bordure était repeinte avec la couleur de repos : l'accent de survol
+  s'éteignait au clic, **avec les réglages par défaut** ;
+- `ApplyAlpha(false)` faisait retomber toute la barre à son opacité estompée
+  sous le curseur, avec « Full opacity on mouseover » ;
+- l'icône redevenait grise sous le curseur, avec « Desaturate icons ».
+La passe lit maintenant le survol (`IsHovered`, `MicroMenu:IsMouseOver()`) et
+peint la même chose que les gestionnaires de survol.
+
+Aussi : `SetPushed` passe la surbrillance en additif à 50 %, `SetNormal` la
+remet en normal à 100 %, d'où une pulsation de la lueur à chaque clic.
+`PinPressArt` est désormais posé sur tous les boutons et la garde constante.
+Enfin, les réapplications ajoutées au survol et au clic (avant de trouver la
+vraie cause des petites icônes) refaisaient tout le skin et remettaient le
+gris sous le curseur : elles ne font plus que tracer en mode debug.
+
+**Troisième rapport, avec traces.** Sur `TalentMicroButton` (état PUSHED,
+fenêtre ouverte), l'enfoncement et le relâchement montrent un état identique :
+atlas `UI-HUD-MicroMenu-SpecTalents-Up`, fichier `8200846` partagé avec le
+grimoire, UV `0.080..0.920`, alpha 1, surbrillance BLEND à 1. Deux faits :
+l'icône elle-même ne bouge pas, et sur ce client les UV d'un atlas lus par
+`GetTexCoord` sont relatifs au sous-rectangle (0..1), ce qui confirme le
+nouveau `ZoomTexture`. Les traces ne montraient ni taille, ni position, ni
+l'image enfoncée : elles ajoutent maintenant le rectangle du bouton, de
+l'icône, de l'image enfoncée et de la barre, et une ligne à chaque
+redimensionnement (`resize`) ou re-disposition (`relayout`) faite par le skin.
+
+**La cause, enfin (captures avant/pendant le clic).** C'est le bouton
+personnage : au clic, son portrait se réduit dans le coin et laisse voir
+l'icône dessous. `CharacterMicroButtonMixin:SetPushed/SetNormal` ré-ancrent
+le portrait avec des marges FIXES de 7 px (`TOPLEFT 7,-7`, `BOTTOMRIGHT -6,5`
+enfoncé, `-7,7` au repos), prévues pour le bouton de 32 × 40 de Blizzard ; sur
+un bouton skinné plus petit, ça donne un timbre. Le post-hook sur `SetPushed`
+ne tenait pas sur ce client. Le portrait est désormais épinglé à la source :
+`hooksecurefunc(portrait, "SetPoint", …)` le remet en place à chaque
+déplacement, quel que soit le chemin, avec un garde `pinning` contre la
+récursion. Même traitement pour l'emblème de guilde. Les traces affichent en
+plus le rectangle du portrait et de l'emblème.
+
+**Pas seulement le portrait** : Cruzz précise que tous les boutons
+tressaillent quand on clique dessus. Le portrait était un cas visible, pas la
+cause commune. Pendant le clic, le bouton affiche son image enfoncée, que les
+traces ne mesuraient pas avant ce jour. En attendant les traces de cette
+image, l'icône est réappliquée juste après l'enfoncement et le relâchement,
+dans la même image : ça tient si le changement d'état réinitialise l'image
+enfoncée. C'est sans risque maintenant que `ApplyNormal` lit le survol. Les
+traces notent l'état avant cette réapplication. **Cause non confirmée.**
+
+**Traces avec positions (bouton Quêtes).** Au repos, l'icône occupe tout le
+bouton, 23,2 × 29 ; juste après un clic, elle est rentrée de 3 px de chaque
+côté, 17,2 × 23 — la marge d'icône de Cruzz. Le tressaillement est ce
+va-et-vient. Le skin applique toujours la marge et n'ancre jamais ces
+textures sur tout le bouton : quelque chose côté Blizzard les ré-ancre entre
+deux passes, sans passer par les setters surveillés. Correctif sur le modèle
+du portrait : les textures normale, enfoncée, désactivée et de surbrillance
+sont épinglées à leur propre `SetPoint`/`SetAllPoints`. Le garde `pinning`
+vit désormais avec `SetInside`, pour que les placements du skin ne soient
+jamais pris pour ceux de Blizzard. En mode debug, chaque ré-ancrage imprime
+l'appelant (`debugstack`). Si l'icône reste pleine taille au repos sans
+qu'aucune ligne « re-anchored by » n'apparaisse, le ré-ancrage vient du moteur
+et non du Lua. À noter aussi : les deux tests précédents de Cruzz tournaient
+sur une copie installée antérieure aux correctifs.
+
+**Confirmé en jeu par Cruzz sur la bêta Forever (2026-10-20) : les boutons
+ne tressaillent plus.**
+
+Fichier : `SuspicionsPack/Modules/MicroMenuSkin/MicroMenuSkin.lua`.
+
+---
+
 ## 2026-10-19 — v2.7.2 : Forever, trois retraits et le micro-menu
 
 ### Retirés sur Forever

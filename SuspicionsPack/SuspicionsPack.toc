@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r
 ## Notes: Collection of QoL features
 ## Author: Cruzz
-## Version: 2.7.2
+## Version: 2.7.3
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## SavedVariables: SuspicionsPackDB
 ## IconTexture: Interface\AddOns\SuspicionsPack\Media\Icons\icon.png
@@ -59,6 +59,7 @@ Modules\Performance\Performance.lua
 Modules\EnhancedObjectiveText\EnhancedObjectiveText.lua
 Modules\CleanObjectiveTrackerHeader\CleanObjectiveTrackerHeader.lua
 Modules\MicroMenuSkin\MicroMenuSkin.lua
+Modules\AnimatedPortraits\AnimatedPortraits.lua
 # Forever only: a Details! skin for the Vanilla-content client. Both directives are
 # needed: retail does not recognise "camelot", and an unrecognised list counts as satisfied.
 Modules\DetailsSkin\DetailsSkin.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]

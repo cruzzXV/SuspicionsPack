@@ -1,10 +1,17 @@
-## Micro-menu sur WoW: Forever
+## Nouveau — Portraits animés
 
-Le skin du micro-menu fonctionne sur Forever. Il suit maintenant les boutons
-réellement présents dans la barre, y compris celui que Forever ajoute, et masque
-le cadre que Forever dessine autour.
+Des modèles 3D vivants à la place des portraits plats : tes cadres d'unité, ton
+groupe, les PNJ à qui tu parles et les fenêtres de personnage. L'image plate
+revient d'elle-même quand un modèle ne peut pas s'afficher.
 
-## Retirés sur Forever
+Coupé par défaut, dans Interface. Un interrupteur par cadre, le cadrage (taille,
+zoom, rotation, visages tournés l'un vers l'autre), le fond (sombre, couleur de
+classe, thème ou libre), l'animation (PNJ qui parlent, immobiles en combat) et
+le comportement en combat se règlent dans les options. Un rechargement est
+proposé à l'activation.
 
-La croix de combat, l'acceptation auto du prompt de décor et le passage auto en
-forme de vol ne sont plus proposés sur Forever. Rien ne change sur le retail.
+## Micro-menu
+
+- Les icônes ne se transforment plus en planche d'icônes au survol ou au clic.
+- Les boutons ne tressaillent plus quand on clique dessus, et le clic garde la
+  bordure, la couleur et l'opacité du survol.
