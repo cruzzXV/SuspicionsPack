@@ -2,7 +2,7 @@
 ## Title: |cffe51039Suspicion|r|cffffffffPack|r — Options
 ## Notes: Options panel for the pack (SuspicionsPack plugin)
 ## Author: Cruzz
-## Version: 2.7.3
+## Version: 2.8.0
 ## Category: |cffe51039Cruzz|r |cffffffffAddons|r
 ## Dependencies: SuspicionsPack
 # A VALID but fully transparent texture, not an absent line: the client
@@ -63,6 +63,7 @@ Pages\CopyTooltip.lua
 Pages\EnhancedObjectiveText.lua
 Pages\MicroMenuSkin.lua
 Pages\AnimatedPortraits.lua
+Pages\PlayerDragon.lua
 Pages\DetailsSkin.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\Drawer.lua
 Pages\Performance.lua

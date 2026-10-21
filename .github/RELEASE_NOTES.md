@@ -1,17 +1,12 @@
-## Nouveau — Portraits animés
+## Nouveau — Dragon du joueur
 
-Des modèles 3D vivants à la place des portraits plats : tes cadres d'unité, ton
-groupe, les PNJ à qui tu parles et les fenêtres de personnage. L'image plate
-revient d'elle-même quand un modèle ne peut pas s'afficher.
+Le dragon des monstres rares, élites ou boss autour de ton propre portrait, sur
+le cadre joueur de Blizzard comme sur ceux d'EllesmereUI. Coupé par défaut, dans
+Interface.
 
-Coupé par défaut, dans Interface. Un interrupteur par cadre, le cadrage (taille,
-zoom, rotation, visages tournés l'un vers l'autre), le fond (sombre, couleur de
-classe, thème ou libre), l'animation (PNJ qui parlent, immobiles en combat) et
-le comportement en combat se règlent dans les options. Un rechargement est
-proposé à l'activation.
+## Corrections et retouches
 
-## Micro-menu
-
-- Les icônes ne se transforment plus en planche d'icônes au survol ou au clic.
-- Les boutons ne tressaillent plus quand on clique dessus, et le clic garde la
-  bordure, la couleur et l'opacité du survol.
+- Portraits animés : dégainer ou rengainer ne fait plus sauter le portrait, et
+  un changement de stuff s'y voit.
+- Clean objective header masque aussi le bouton « tout replier ».
+- Skin Details sur WoW: Forever : le skin The War Within passe en Expressway.

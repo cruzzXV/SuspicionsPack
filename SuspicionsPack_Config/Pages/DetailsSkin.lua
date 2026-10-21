@@ -28,7 +28,8 @@ GUI.RegisterPage{
         local row
         row = card:ButtonRow{
             text  = "Apply to all Details windows",
-            desc  = "Installs the skin if needed, then puts it on every open window.",
+            desc  = "Installs the skin if needed, then puts it on every open window. " ..
+                    "Windows already using it get the skin's settings back.",
             width = 240,
             onClick = function()
                 local ok = SP.DetailsSkin and SP.DetailsSkin:ApplyToAll()

@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.7.3"
+SP.VERSION = "2.8.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -552,7 +552,8 @@ local DEFAULTS = {
             y        = 0,
         },
         cleanObjectiveTrackerHeader = {
-            enabled = false,
+            enabled            = false,
+            hideMinimizeButton = true,
         },
         -- Forever only (see the .toc gate). On by default: installing a skin only
         -- adds an entry to Details' skin list, nothing changes until it is picked.
@@ -599,6 +600,11 @@ local DEFAULTS = {
             pauseInCombat      = false,
             flatInCombat       = false,
             minSize            = 30,     -- smaller portraits stay flat
+        },
+        -- The target frame's elite/rare dragon, mirrored around the player portrait.
+        playerDragon = {
+            enabled = false,
+            style   = "silver",  -- "silver" (rare) | "gold" (elite) | "boss" (gold, winged)
         },
         microMenuSkin = {
             enabled        = false,
@@ -1336,6 +1342,12 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.8.0"] = {
+        { type = "new", text = "Player dragon: the rare, elite or boss dragon around your own portrait, on Blizzard's and EllesmereUI's player frames. Off by default, in Interface." },
+        { type = "fix", text = "Animated portraits: drawing or sheathing your weapon no longer jolts your portrait, and new gear now shows on it." },
+        { type = "new", text = "Clean objective header: also hides the collapse-all button." },
+        { type = "change", text = "Details skin on WoW: Forever: the War Within skin uses Expressway." },
+    },
     ["2.7.3"] = {
         { type = "new", text = "Animated portraits: living 3D models instead of the flat portraits on your unit frames, your party, the NPCs you talk to and the character windows. Off by default, in Interface, with options for each frame, framing, background, animation and combat." },
         { type = "fix", text = "Micro menu skin: icons no longer turn into the whole icon sheet on hover or click." },
@@ -1636,8 +1648,23 @@ function SP.ShowChangelogPopup()
     -- Skin.lua that fails to parse would break the client's UI rather than
     -- merely skipping a popup nobody asked for.
     if not (Skin and Skin.Round) then return end
+    -- Forever: Plumber's panel, as the options window there (Core\Skin.lua):
+    -- its frame and leather, the demon eye, the game's font and gold, Plumber's
+    -- text colours, a section header per release, the game's scroll bar and
+    -- button. 20 in, clear of the frame's inward shadow.
+    local FOREVER = Skin.FOREVER
     local W, H = 520, 470
-    local PAD  = 16
+    local PAD  = FOREVER and 20 or 16
+
+    -- The popup's colours: Plumber's on Forever, the theme's on retail.
+    local FT = Skin.FOREVER_TEXT
+    local C
+    if FOREVER then
+        C = { title = FT.gold, newest = FT.gold, older = FT.heading, text = FT.readable, muted = FT.readable }
+    else
+        C = { title = T.textPrimary, newest = T.accent, older = T.textSecondary,
+              text = T.textSecondary, muted = T.textMuted }
+    end
 
     -- Every version, newest first. The old popup looked up SP.Changelog[VERSION]
     -- and showed nothing at all when the running version had no entry -- which is
@@ -1657,11 +1684,13 @@ function SP.ShowChangelogPopup()
         return x3 > y3
     end)
 
+    local face = FOREVER and STANDARD_TEXT_FONT or SP.ResolveFont("Expressway")
     local function Font(fs, size)
-        SP.SetFontSafe(fs, SP.ResolveFont("Expressway"), size, "")
+        SP.SetFontSafe(fs, face, size, "")
         fs:SetShadowColor(0, 0, 0, 0.9)
         fs:SetShadowOffset(1, -1)
     end
+    local function Tint(fs, c) fs:SetTextColor(c[1], c[2], c[3], 1) end
 
     -- ---- frame ----
     local f = CreateFrame("Frame", "SP_ChangelogPopup", UIParent)
@@ -1674,17 +1703,48 @@ function SP.ShowChangelogPopup()
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", function(s) s:StartMoving() end)
     f:SetScript("OnDragStop",  function(s) s:StopMovingOrSizing() end)
-    local bg, br = Skin.Round(f, "rr10")
-    bg:SetVertexColor(T.bgDark[1], T.bgDark[2], T.bgDark[3], 1)
-    br:SetVertexColor(T.border[1], T.border[2], T.border[3], 1)
+    if FOREVER then
+        Skin.PlumberFrame(f, 0, function() f:Hide() end)
+    else
+        local bg, br = Skin.Round(f, "rr10")
+        bg:SetVertexColor(T.bgDark[1], T.bgDark[2], T.bgDark[3], 1)
+        br:SetVertexColor(T.border[1], T.border[2], T.border[3], 1)
+    end
+
+    -- A rule across the popup under its header (from the top) or over its
+    -- footer (from the bottom). Forever: Plumber's divider, its line (rows
+    -- 12-16 of its 24) on that spot, faded at both ends.
+    local function Rule(point, y)
+        if FOREVER then
+            local d = Skin.PlumberDivider(f)
+            d:SetHeight(24)
+            d:SetPoint(point .. "LEFT",  f, point .. "LEFT",  PAD - 8, point == "TOP" and -(y - 14) or (y - 10))
+            d:SetPoint(point .. "RIGHT", f, point .. "RIGHT", -(PAD - 8), point == "TOP" and -(y - 14) or (y - 10))
+            return
+        end
+        local rule = f:CreateTexture(nil, "ARTWORK")
+        rule:SetHeight(1)
+        rule:SetPoint(point .. "LEFT",  f, point .. "LEFT",  0, point == "TOP" and -y or y)
+        rule:SetPoint(point .. "RIGHT", f, point .. "RIGHT", 0, point == "TOP" and -y or y)
+        rule:SetColorTexture(T.border[1], T.border[2], T.border[3], 1)
+    end
 
     -- ---- header ----
-    local HEAD = 44
+    local HEAD = FOREVER and 52 or 44
     local logo = f:CreateTexture(nil, "ARTWORK")
-    logo:SetSize(26, 26)
-    logo:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -9)
-    logo:SetTexture("Interface\\AddOns\\SuspicionsPack\\Media\\Icons\\icon128x128.png")
-    logo:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1)
+    if FOREVER then
+        local eye = Skin.DEMON_EYE
+        logo:SetSize(eye.w, eye.h)
+        logo:SetPoint("LEFT", f, "TOPLEFT", PAD, -HEAD / 2)
+        logo:SetTexture(eye.file)
+        logo:SetTexCoord(unpack(eye.uv))
+        logo:SetVertexColor(eye.shade, eye.shade, eye.shade, 1)
+    else
+        logo:SetSize(26, 26)
+        logo:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -9)
+        logo:SetTexture("Interface\\AddOns\\SuspicionsPack\\Media\\Icons\\icon128x128.png")
+        logo:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1)
+    end
     logo:SetTexelSnappingBias(0)
     logo:SetSnapToPixelGrid(false)
 
@@ -1692,76 +1752,101 @@ function SP.ShowChangelogPopup()
     Font(title, 14)
     title:SetPoint("LEFT", logo, "RIGHT", 10, 0)
     title:SetText("What's new")
-    title:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-
-    local close = CreateFrame("Button", nil, f)
-    close:SetSize(24, 24)
-    close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -10)
-    local xTex = close:CreateTexture(nil, "ARTWORK")
-    xTex:SetSize(13, 13)
-    xTex:SetPoint("CENTER")
-    xTex:SetTexture("Interface\\AddOns\\SuspicionsPack\\Media\\GUITextures\\close.png")
-    xTex:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
-    close:SetScript("OnEnter", function() xTex:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1) end)
-    close:SetScript("OnLeave", function() xTex:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1) end)
-    close:SetScript("OnClick", function() f:Hide() end)
+    Tint(title, C.title)
 
     local ver = f:CreateFontString(nil, "OVERLAY")
     Font(ver, 11)
-    ver:SetPoint("RIGHT", close, "LEFT", -6, 0)
     ver:SetText("v" .. (SP.VERSION or "?"))
-    ver:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
+    Tint(ver, C.muted)
 
-    local headRule = f:CreateTexture(nil, "ARTWORK")
-    headRule:SetHeight(1)
-    headRule:SetPoint("TOPLEFT",  f, "TOPLEFT",  0, -HEAD)
-    headRule:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -HEAD)
-    headRule:SetColorTexture(T.border[1], T.border[2], T.border[3], 1)
+    if FOREVER then
+        -- The frame brings the close button; the version stops clear of it.
+        ver:SetPoint("RIGHT", f, "TOPRIGHT", -44, -HEAD / 2)
+    else
+        local close = CreateFrame("Button", nil, f)
+        close:SetSize(24, 24)
+        close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -10)
+        local xTex = close:CreateTexture(nil, "ARTWORK")
+        xTex:SetSize(13, 13)
+        xTex:SetPoint("CENTER")
+        xTex:SetTexture("Interface\\AddOns\\SuspicionsPack\\Media\\GUITextures\\close.png")
+        xTex:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
+        close:SetScript("OnEnter", function() xTex:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1) end)
+        close:SetScript("OnLeave", function() xTex:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1) end)
+        close:SetScript("OnClick", function() f:Hide() end)
+        ver:SetPoint("RIGHT", close, "LEFT", -6, 0)
+    end
+
+    Rule("TOP", HEAD)
 
     -- ---- footer ----
     local FOOT = 46
-    local footRule = f:CreateTexture(nil, "ARTWORK")
-    footRule:SetHeight(1)
-    footRule:SetPoint("BOTTOMLEFT",  f, "BOTTOMLEFT",  0, FOOT)
-    footRule:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOT)
-    footRule:SetColorTexture(T.border[1], T.border[2], T.border[3], 1)
+    Rule("BOTTOM", FOOT)
 
     local count = f:CreateFontString(nil, "OVERLAY")
     Font(count, 11)
     count:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, 18)
     count:SetText(#versions .. (#versions == 1 and " release" or " releases"))
-    count:SetTextColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
+    Tint(count, C.muted)
 
-    local okBtn = CreateFrame("Button", nil, f)
-    okBtn:SetSize(96, 24)
-    okBtn:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 12)
-    local obg, obr = Skin.Round(okBtn, "rr4")
-    obg:SetVertexColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
-    obr:SetVertexColor(T.border[1], T.border[2], T.border[3], 1)
-    local okLbl = okBtn:CreateFontString(nil, "OVERLAY")
-    Font(okLbl, 12)
-    okLbl:SetAllPoints()
-    okLbl:SetText("Got it")
-    okLbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-    okBtn:SetScript("OnEnter", function() obr:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1) end)
-    okBtn:SetScript("OnLeave", function() obr:SetVertexColor(T.border[1], T.border[2], T.border[3], 1) end)
-    okBtn:SetScript("OnClick", function() f:Hide() end)
+    local okBtn
+    if FOREVER then
+        -- The game's button, as the options window's on Forever, with the click
+        -- its menus make.
+        okBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        okBtn:SetSize(96, 22)
+        okBtn:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 14)
+        okBtn:SetText("Got it")
+        okBtn:SetScript("OnClick", function()
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+            f:Hide()
+        end)
+    else
+        okBtn = CreateFrame("Button", nil, f)
+        okBtn:SetSize(96, 24)
+        okBtn:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 12)
+        local obg, obr = Skin.Round(okBtn, "rr4")
+        obg:SetVertexColor(T.bgMedium[1], T.bgMedium[2], T.bgMedium[3], 1)
+        obr:SetVertexColor(T.border[1], T.border[2], T.border[3], 1)
+        local okLbl = okBtn:CreateFontString(nil, "OVERLAY")
+        Font(okLbl, 12)
+        okLbl:SetAllPoints()
+        okLbl:SetText("Got it")
+        okLbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+        okBtn:SetScript("OnEnter", function() obr:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1) end)
+        okBtn:SetScript("OnLeave", function() obr:SetVertexColor(T.border[1], T.border[2], T.border[3], 1) end)
+        okBtn:SetScript("OnClick", function() f:Hide() end)
+    end
 
     -- ---- scrolling body ----
+    -- Forever: room on the right for the game's scroll bar (8, 6 each side).
+    local barRoom = FOREVER and (6 + 8 + 6) or 6
     local scroll = CreateFrame("ScrollFrame", nil, f)
     scroll:SetPoint("TOPLEFT",     f, "TOPLEFT",      PAD, -(HEAD + 4))
-    scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(PAD + 6), FOOT + 6)
+    scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(PAD + barRoom), FOOT + 6)
     local body = CreateFrame("Frame", nil, scroll)
-    body:SetWidth(W - PAD * 2 - 6)
+    body:SetWidth(W - PAD * 2 - barRoom)
     body:SetHeight(1)
     scroll:SetScrollChild(body)
     scroll:EnableMouseWheel(true)
-    scroll:SetScript("OnMouseWheel", function(s, d)
-        local range = s:GetVerticalScrollRange() or 0
-        local v = s:GetVerticalScroll() - d * 40
-        if v < 0 then v = 0 elseif v > range then v = range end
-        s:SetVerticalScroll(v)
-    end)
+    if FOREVER then
+        -- The options page's scroll bar, wired the same way; hidden while the
+        -- releases fit.
+        local bar = CreateFrame("EventFrame", nil, f, "MinimalScrollBar")
+        bar:SetPoint("TOPRIGHT",    f, "TOPRIGHT",    -PAD, -(HEAD + 4))
+        bar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, FOOT + 6)
+        ScrollUtil.InitScrollFrameWithScrollBar(scroll, bar)
+        scroll:SetPanExtent(40)
+        bar:Hide()
+        scroll:HookScript("OnScrollRangeChanged", function(_, _, range) bar:SetShown((range or 0) > 0) end)
+    else
+        scroll:SetScript("OnMouseWheel", function(s, d)
+            local range = s:GetVerticalScrollRange() or 0
+            local v = s:GetVerticalScroll() - d * 40
+            if v < 0 then v = 0 elseif v > range then v = range end
+            s:SetVerticalScroll(v)
+        end)
+    end
 
     -- Newest version in accent, the rest muted: the eye needs to land on what
     -- changed just now, not on the whole history at equal weight.
@@ -1770,17 +1855,22 @@ function SP.ShowChangelogPopup()
     for i, v in ipairs(versions) do
         local head = body:CreateFontString(nil, "OVERLAY")
         Font(head, 13)
-        head:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
         head:SetText(v)
-        if i == 1 then head:SetTextColor(T.accent[1], T.accent[2], T.accent[3], 1)
-        else head:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1) end
+        Tint(head, i == 1 and C.newest or C.older)
 
-        local rule = body:CreateTexture(nil, "ARTWORK")
-        rule:SetHeight(1)
-        rule:SetPoint("LEFT",  head, "RIGHT", 10, 0)
-        rule:SetPoint("RIGHT", body, "RIGHT", 0, 0)
-        rule:SetColorTexture(T.border[1], T.border[2], T.border[3], 1)
-        y = y + 22
+        if FOREVER then
+            -- Plumber's section header: the number over its diamond and line.
+            Skin.PlumberHeader(body, head, 0, -(y + 20), body, 0)
+            y = y + 30
+        else
+            head:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
+            local rule = body:CreateTexture(nil, "ARTWORK")
+            rule:SetHeight(1)
+            rule:SetPoint("LEFT",  head, "RIGHT", 10, 0)
+            rule:SetPoint("RIGHT", body, "RIGHT", 0, 0)
+            rule:SetColorTexture(T.border[1], T.border[2], T.border[3], 1)
+            y = y + 22
+        end
 
         for _, e in ipairs(SP.Changelog[v]) do
             -- Four entry types ship in SP.Changelog, not two. Collapsing them to
@@ -1805,7 +1895,7 @@ function SP.ShowChangelogPopup()
             txt:SetJustifyH("LEFT")
             txt:SetWordWrap(true)
             txt:SetText(e.text)
-            txt:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
+            Tint(txt, C.text)
 
             -- Wrapped text only reports its height once it has a width, which it
             -- has here because the body's width is explicit.

@@ -57,26 +57,41 @@ local function NewCard(page, title, desc)
     local f = CreateFrame("Frame", nil, page.parent, "BackdropTemplate")
     f:SetPoint("LEFT",  page.parent, "LEFT",  0, 0)
     f:SetPoint("RIGHT", page.parent, "RIGHT", 0, 0)
-    GUI.Backdrop(f, "bgLight", 1, "border", 1, "rr6")
+    -- Forever: no box. Plumber's settings sit straight on its background,
+    -- grouped by their section headers.
+    if not GUI.FOREVER then
+        GUI.Backdrop(f, "bgLight", 1, "border", 1, "rr6")
+    end
     card.frame = f
 
     local top = 0
     if title and title ~= "" then
-        -- A quiet uppercase group label, not a large accent heading with a
-        -- stripe. The card title names a GROUP of settings; the page's own name
-        -- lives in the page header above. Shouting both competed for attention
-        -- and made every card look like the start of a new page.
-        local ts = Text(f, 10, "textMuted")
-        ts:SetPoint("TOPLEFT", f, "TOPLEFT", SIDE, -11)
-        ts:SetText(string.upper(title))
-        card.title = ts
+        local ts
+        if GUI.FOREVER then
+            -- Plumber's section header: the name over a bronze line that starts
+            -- at a small diamond and fades out before the card's right edge.
+            -- The diamond's centre 24 down, so the name sits in the header band
+            -- (Plumber's own offsets about its header's middle).
+            ts = Text(f, 12, "heading")
+            ts:SetText(title)
+            SP.Skin.PlumberHeader(f, ts, SIDE - 8, -24, f, -SIDE)
+        else
+            -- A quiet uppercase group label, not a large accent heading with a
+            -- stripe. The card title names a GROUP of settings; the page's own
+            -- name lives in the page header above. Shouting both competed for
+            -- attention and made every card look like the start of a new page.
+            ts = Text(f, 10, "textMuted")
+            ts:SetPoint("TOPLEFT", f, "TOPLEFT", SIDE, -11)
+            ts:SetText(string.upper(title))
 
-        -- A hairline under the header, or the label and the first setting read
-        -- as one undifferentiated block.
-        local rule = Tex(f, "ARTWORK", "border", 1)
-        rule:SetHeight(1)
-        rule:SetPoint("TOPLEFT",  f, "TOPLEFT",  0, -HEADER_H)
-        rule:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -HEADER_H)
+            -- A hairline under the header, or the label and the first setting
+            -- read as one undifferentiated block. Forever's header line is that.
+            local rule = Tex(f, "ARTWORK", "border", 1)
+            rule:SetHeight(1)
+            rule:SetPoint("TOPLEFT",  f, "TOPLEFT",  0, -HEADER_H)
+            rule:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -HEADER_H)
+        end
+        card.title = ts
 
         top = HEADER_H
     end
@@ -154,11 +169,12 @@ function Card:Layout()
         end
     end
 
-    local sepN = 0
+    local sepN, shown = 0, 0
     for i, row in ipairs(self.rows) do
         if row._hidden then
             row:Hide()
         else
+            shown = shown + 1
             row:Show()
             if i > 1 and not self._noSeps then
                 sepN = sepN + 1
@@ -190,7 +206,14 @@ function Card:Layout()
     end
     for i = sepN + 1, #self.seps do self.seps[i]:Hide() end
 
-    y = y + CARD_PAD
+    -- The padding frames the rows. A card that is only its description (Home's
+    -- Support and Notice) has none to frame, and the two pads left a blank line
+    -- under the text; DESC_BOT alone closes it.
+    if shown > 0 then
+        y = y + CARD_PAD
+    else
+        y = 0
+    end
     self.content:SetHeight(math.max(1, y))
 
     -- Must mirror the content offset computed above, or the card's box stops
@@ -391,7 +414,8 @@ function Page:Header(title, desc, toggleSpec)
     f:SetPoint("LEFT",  self.parent, "LEFT",  0, 0)
     f:SetPoint("RIGHT", self.parent, "RIGHT", 0, 0)
 
-    local ts = Text(f, 15, "textPrimary")
+    -- Forever: a gold heading, NeedRoll's pane titles.
+    local ts = Text(f, GUI.FOREVER and 16 or 15, GUI.FOREVER and "accent" or "textPrimary")
     ts:SetPoint("TOPLEFT", f, "TOPLEFT", 2, -2)
     ts:SetText(title or "")
     -- A FontString anchored on both sides centres by default, which is why the

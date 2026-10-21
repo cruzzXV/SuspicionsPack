@@ -397,12 +397,6 @@ GUI.RegisterPage{
             return GUI.AccentHex() .. "\226\128\186|r  " ..
                    "Navigate the sidebar on the left to find each module's settings."
         end)
-        AccentNote(c1, function()
-            local a = GUI.AccentHex()
-            return a .. "\226\128\186|r  Search the box at the top of the sidebar to " ..
-                   "jump straight to a setting, and use " .. a .. "Reset page|r " ..
-                   "in the footer to put one back the way it shipped."
-        end)
 
         page:Card("Support",
             "If any issue, or LUA error please dm me with the error and a good explanation.")

@@ -4,6 +4,443 @@
 
 ---
 
+## 2026-10-21 — v2.8.0 : la fenêtre d'options au style Forever
+
+Demande de Cruzz : la fenêtre d'options doit avoir le style Forever, comme
+NeedRoll et Keep or Toss. Lu avant : le skin « native » de NeedRoll v0.15.2,
+Keep or Toss: Forever 1.3.0, et le FrameXML de la branche `forever`
+(`Camelot`) de Gethe/wow-ui-source. Les deux addons bâtissent leur fenêtre avec
+les modèles du jeu, que le client Forever dessine avec son propre art.
+
+Retail ne change pas : tout est derrière `GUI.FOREVER` (même test que les
+`IS_FOREVER` des modules). Aucune page touchée.
+
+**`Core/Theme.lua`** :
+- Palette propre à la fenêtre sur Forever, celle de NeedRoll : or `FFD100`,
+  blanc, gris `A0A0A0`, fonds noirs. Une copie de `SP.Theme`, pas une
+  réécriture : la couleur « thème » des modules reste rouge. Bordures opaques
+  (or assombri), parce que plusieurs survols et remises à zéro écrivent la
+  bordure à alpha 1.
+- Police du jeu (`STANDARD_TEXT_FONT`) au lieu d'Expressway.
+- `Backdrop` et `Tex` multiplient l'alpha de la palette (cartes translucides
+  sur le marbre). Sans effet sur retail : ses couleurs sont toutes opaques.
+- `GUI.POPUP_LEVEL` : 700 sur Forever, 220 ailleurs. Le portrait (400), le
+  titre et la croix (510) du modèle passeraient sinon au-dessus des listes.
+
+**`Core/Shell.lua`** :
+- Fenêtre `ButtonFrameTemplate` : cadre métal, titre « Suspicion's Pack », croix
+  du jeu. Le logo, en rouge, dans l'anneau du portrait sur un disque noir ; un
+  clic ramène à Home comme avant.
+- Catégorie › page et version dans la bande sous le titre.
+- Liste et page dans deux `InsetFrameTemplate`, liste élargie à 200 (la police
+  du jeu est plus large).
+- Recherche en `SearchBoxTemplate`, nos scripts accrochés après les siens.
+  L'ancienne recherche passe telle quelle dans `BuildFlatSearch`.
+- Catégories : bouton +/− et nom en or. Pages : survol
+  `UI-QuestTitleHighlight`, sélection `UI-QuestLogTitleHighlight` teintée bleu
+  (NeedRoll). Barre de défilement fine, piste blanche pâle, curseur gris.
+- En bas : profil, Changelog et Reset page en boutons du jeu, poignée
+  `UI-ChatIM-SizeGrabber`.
+
+**`Core/Layout.lua`** : titre de carte en or sur un bandeau or en dégradé avec
+un trait à gauche (Keep or Toss) ; titre de page en or 16.
+
+**`Core/Widgets.lua`** :
+- Interrupteur → case `UICheckButtonTemplate` 24. La ligne entière reste
+  cliquable ; le survol allume la case.
+- Slider → `MinimalSliderTemplate`, sans remplissage, grisé à la main quand il
+  est désactivé.
+- Valeur du slider et champs texte → `InputBoxTemplate` (`NewInputBox`).
+- Boutons → `UIPanelButtonTemplate`, élargis au texte à chaque `SetText` ;
+  « actif » = `LockHighlight`.
+- Les deux dessins de l'interrupteur sont sortis de `W.Toggle`
+  (`BuildSwitch`, `BuildCheck`) ; clic, état et binding restent partagés.
+
+Vérifié : les quatre fichiers se lisent en Lua 5.1 (luaparse) et ne lisent
+aucune globale inattendue. Les modèles et atlas utilisés existent dans le
+FrameXML `forever`. Pas relu en jeu ; suite hors ligne impossible ici (ni
+Python ni Lua). Hors champ : le popup du changelog (addon parent).
+
+**Suite, même jour, après le premier essai de Cruzz :**
+- **`Pages/Home.lua`** : la ligne d'aide « Search the box at the top of the
+  sidebar… Reset page… » est retirée, sur tous les clients.
+- **`Core/Shell.lua`** : sur Forever, le logo de la fenêtre devient l'œil de
+  démon de la guilde, l'emblème de tabard du jeu
+  (`Interface\GuildFrame\GuildEmblemsLG_01`, 16 × 16 cases de 64, colonne 7,
+  ligne 6), en gris clair comme sur le tabard. Repéré en aplatissant la
+  planche de Gethe/wow-ui-textures sur fond noir ; la même planche existe dans
+  les textures Classic et retail. Retail garde le logo rouge.
+
+**Suite, deuxième essai :** l'œil était petit et décentré (42 de côté, centré
+sur le masque, 2 plus haut que le portrait).
+- L'œil couvre maintenant tout le rectangle du portrait, là où Blizzard pose
+  ses propres icônes de portrait, et sa case est rognée de 4 de chaque côté.
+- Sons de NeedRoll sur Forever : `IG_SPELLBOOK_OPEN` à l'ouverture,
+  `UI_PROFESSIONS_WINDOW_CLOSE` à la fermeture. Alt+Z ne joue rien (même garde
+  que NeedRoll : `IsShown` reste vrai, et un drapeau pour le retour).
+- Barre de défilement de la page sur Forever : le `MinimalScrollBar` du jeu
+  (celui du volet de statistiques), branché par
+  `ScrollUtil.InitScrollFrameWithScrollBar` ; 80 par cran de molette au lieu
+  des 30 de Blizzard, cachée quand la page tient. Retail garde sa barre fine,
+  même largeur de page qu'avant. La barre des listes déroulantes reste fine.
+
+**Suite, troisième essai :**
+- **Sons dans la fenêtre (Forever)**, `GUI.Sound` dans `Core/Theme.lua` : ceux
+  des menus du jeu sur la branche `forever` (`MenuVariants`) — option « on »
+  pour un bouton, l'ouverture d'une liste et un choix dedans, « off » pour une
+  liste refermée sans choix (re-clic ou clic à côté) ; onglet de personnage
+  (comme les onglets de NeedRoll) pour changer de page depuis la liste, le
+  logo ou Entrée dans la recherche ; on/off pour déplier/replier une
+  catégorie. Les cases jouaient déjà leur son. Retail reste muet comme avant.
+- **Marqueur on/off de la liste (Forever)** : le losange de WaypointUI (sa
+  punaise de minicarte, cellule 1,1 de `Art/MapPinFrame/MapPinFrame.blp`,
+  BLP non compressé décodé et recoupé en PNG 64) au lieu du point, teinté
+  vert (activé) ou gris (coupé), sans la flèche. Nouveau fichier
+  `SuspicionsPack/Media/GUITextures/diamond.png`. WaypointUI n'a pas de
+  licence dans son dossier : l'art reste à son auteur, à revoir si le pack
+  devient public.
+
+**Suite, quatrième essai :** Cruzz veut le cadre du losange couleur Forever et
+le vert à l'intérieur.
+- Cadre teinté or cuivré (0.90, 0.72, 0.36), plus chaud que le `FFD100` du
+  texte ; à 60 % quand le module est coupé.
+- Nouveau `SuspicionsPack/Media/GUITextures/diamond-fill.png` : un losange
+  plein à nous (rayon 14 autour du centre 31.5 de l'art, le centre noir en
+  fait 18), ombré du haut-gauche au bas-droit, lissé 4 × 4. Teinté vert et
+  affiché seulement quand le module est activé.
+- `it:SetState(on)` remplace les deux copies du coloriage du point
+  (`RefreshSidebar` et `UpdateDots`) ; retail garde son point, mêmes
+  couleurs.
+
+**Suite, cinquième essai : l'habillage de Plumber sur Forever.** Cruzz préfère
+le cadre et le fond du panneau de réglages de Plumber, ses séparateurs, son
+bouton de fermeture et ses couleurs de texte ; notre barre de défilement
+reste. Relevé dans `Modules/ControlCenter/SettingsPanelNew.lua` de Plumber
+(Raenore, Peterodox), copié dans `SuspicionsPack/Media/Plumber/` :
+`SettingsPanel.png`, `SettingsPanelBackground.jpg`, `ExpansionBorder_TWW.tga`.
+Pas de licence dans le dossier de Plumber : l'art reste à ses auteurs, à
+revoir si le pack devient public.
+- **`Core/Theme.lua`** : `GUI.PLUMBER` (les trois fichiers) et
+  `GUI.PlumberRect` (un rectangle en pixels de ces fichiers 1024). Palette :
+  texte crème 215,192,163, blanc au survol (`textHover`), notes 163,157,147,
+  titres de section 148,124,102 (`heading`). Bande du haut 52, du bas 30,
+  panneau latéral 230. `GUI.POPUP_LEVEL` retiré : sans le modèle de Blizzard,
+  rien ne monte plus à 400-510, les listes reviennent à 220.
+- **`Core/Shell.lua`** : fenêtre nue au lieu de `ButtonFrameTemplate`.
+  `BuildPlumberChrome` : fond en cuir étiré à droite du panneau, les six
+  pièces du panneau latéral (bord bronze de 40 centré sur sa limite), le cadre
+  en huit pièces autour d'une boîte 24 à l'intérieur (coins 64), le coin
+  haut-droit à logement et son bouton de fermeture cuivre (24, éclairé en ADD
+  à 50 %). L'œil (recoupé à 48 × 22, sa vraie forme) et « Suspicion's Pack »
+  ouvrent la bande du haut ; fil d'Ariane et version au-dessus de la page.
+  Liste sous la recherche et le séparateur de Plumber. Changelog et Reset page
+  deviennent ses onglets en cuir sous la fenêtre (`BuildPlumberTab`, 40 de
+  haut, 7 d'écart, texte crème puis blanc). Profil et modifications restent
+  dans la bande du bas. Liste : blanc au survol et sur la page ouverte.
+- **`Core/Layout.lua`** : sur Forever les cartes n'ont plus de boîte ; leur
+  titre devient l'en-tête de section de Plumber (losange 20, ligne bronze
+  étirée jusqu'au bord droit, nom en `heading` au-dessus).
+
+**Même jour, page Home (tous clients)** : Support et Notice avaient une ligne
+vide sous leur texte, la dernière note de Profiles débordait du bas de sa
+carte.
+- `Card:Layout` : une carte sans ligne visible (seulement sa description)
+  n'ajoute plus les deux marges qui encadrent les lignes ; `DESC_BOT` suffit.
+- `W.Label` se remesure une image plus tard : au changement de largeur, le
+  retour à la ligne n'était pas encore compté (une ligne au lieu de deux).
+
+**Retouche :** la poignée de redimensionnement flottait à 14 du coin. Mesuré
+dans le coin bas-droit du cadre (pixels 384-512 du TGA) : le bronze commence à
+1 du bord de la fenêtre, son ombre à 4. Poignée à 2 du bord, contre le métal.
+
+**Retouche (tous clients) :** « Search settings » restait affiché tant que la
+recherche était vide, curseur dedans ou pas. Il disparaît dès que la case a le
+focus et revient si on la quitte vide. Forever : accroché après les scripts de
+`SearchBoxTemplate`, qui le réaffichent à chaque texte vide.
+
+**Retouche (Forever) :** les cases de valeur des sliders, le champ du jeu à sa
+taille d'origine (44 × 20, bouts de 8), paraissaient trop grosses. 38 × 16,
+bouts ramenés à 6 et hauteur de l'art à 16, police 10 ; « -2000 » y tient
+encore. Les champs texte (`W.EditBox`) gardent leur taille.
+
+**Retouche (Forever) : les menus déroulants à la Plumber.** Ils gardaient la
+boîte arrondie noire à bord or, la barre or et le texte or du premier essai.
+Relevé dans `Modules/ExpansionLandingPage/Basic.lua` de Plumber (son
+`CreateDropdownButton` et son menu) ; nouveau fichier
+`SuspicionsPack/Media/Plumber/DropdownMenu.tga` (512).
+- Bouton : trois tranches de `ExpansionBorder_TWW` (518-754 × 256-320, bouts
+  20 et 32, 32 de haut, 2,5 au-delà des bords), les mêmes en ADD à 25 % au
+  survol, carré-flèche cuivre 32 à 13,5 du bord droit (764-828), enfoncé
+  (828-892) tant que la liste est ouverte, sa lueur au survol. Texte crème
+  12, blanc au survol, de 8 à 32 du bord droit. Grisé : désaturé à 50 %.
+- Liste : boîte noire à liseré bronze en neuf pièces (512-768 × 320-576,
+  coins 16 centrés sur ses coins), lignes de 24 à 6 du haut et du bas,
+  pastille radio 16 à 8 (`DropdownMenu.tga` 0-64 × 0-32) devant chaque ligne,
+  texte crème puis blanc sur la barre brune en ADD (368-512 × 0-48, teinte
+  119,96,74). 6 entre le bouton et la liste. Barre de défilement fine en blanc
+  pâle et gris.
+- `GUI.PlumberRect` prend une taille de fichier (512 pour ce dernier).
+
+**Retouche des menus déroulants (Forever) :** trop hauts, et la barre de la
+liste détonnait.
+- L'art du bouton est dessiné aux trois quarts de Plumber (`DD_ART`) : 24 de
+  haut autour de nos 22 au lieu de 32, carré-flèche 24. Lignes de la liste à
+  20 au lieu de 24.
+- La liste défile avec le `MinimalScrollBar` du jeu, branché comme celui de la
+  page (`ScrollUtil.InitScrollFrameWithScrollBar`, 2 lignes par cran), caché
+  quand tout tient.
+- Tous clients : une entrée de liste reste sur une ligne
+  (`SetWordWrap(false)`) ; un long nom de police dans sa propre fonte passait
+  à la ligne et débordait sur la suivante.
+
+**Retouches (Forever) :**
+- La valeur d'un slider n'était pas centrée : `InputBoxTemplate` accroche son
+  bout gauche 5 en dehors de la case, l'art était donc décalé à gauche du
+  texte. Le bout gauche est ramené au bord de la case ; le slider s'arrête de
+  nouveau à 10 de la case (`INPUT_ART_LEFT` retiré).
+- Panneau latéral de 230 à 210 : la liste était à moitié vide. Le plus long
+  nom de page tient encore (« Enhanced objective text », environ 135 sur 138).
+- Poignée de redimensionnement : à 2 du bord, la pointe de ses hachures
+  restait à distance du bronze (l'art garde une marge dans sa texture). Le
+  coin de la texture passe à 1 au-delà du coin de la fenêtre. Teintée de l'or
+  cuivré des losanges (`MARKER_GOLD`) au lieu du gris de la fenêtre de chat.
+
+**Correctif (tous clients) :** la barre de défilement d'une liste déroulante
+apparaissait pendant l'ouverture, même pour quatre entrées. Sa visibilité
+suivait la plage de défilement réelle, et pendant le glissement la boîte est
+plus courte que ses lignes. Elle suit maintenant `pop:Overflows()` : plus de
+lignes que la boîte n'en montre à pleine hauteur (10).
+
+**Le popup « What's new » à la Plumber (Forever).** Il restait au style plat.
+Il vit dans l'addon parent (affiché à la connexion, avant l'addon d'options),
+donc les pièces de Plumber y descendent :
+- **`Core/Skin.lua`** : `Skin.FOREVER`, `Skin.PLUMBER` (les fichiers),
+  `Skin.FOREVER_TEXT` (or, crème, lisible, titres), `Skin.DEMON_EYE`,
+  `Skin.PlumberRect`, `Skin.PlumberFrame` (fond, cadre, bouton de fermeture),
+  `Skin.PlumberHeader` (losange et ligne sous un libellé),
+  `Skin.PlumberDivider`. Les options s'en servent au lieu de leurs copies
+  (`Theme.lua`, `Shell.lua`, `Layout.lua`).
+- **`Core.lua`, `SP.ShowChangelogPopup`** : sur Forever, cadre et cuir de
+  Plumber, œil et « What's new » en or, police du jeu, séparateurs de Plumber
+  sous l'en-tête et au-dessus du pied, un en-tête de section par version (la
+  dernière en or, les autres en brun), texte en couleur lisible (badges
+  inchangés), `MinimalScrollBar` et bouton « Got it » du jeu. Retail
+  identique ; la tranche lue par `tests/test_gui.lua` ne touche aux noms
+  propres à Forever que derrière `Skin.FOREVER`.
+
+---
+
+## 2026-10-21 — v2.8.0 : skin Details TWW en Expressway
+
+Demande de Cruzz : la police du skin TWW passe en Expressway.
+
+**`DetailsSkin.lua`** :
+- Les trois polices du skin (texte des barres, titre de la fenêtre, micro
+  frames) passent de Friz Quadrata / Accidental Presidency à Expressway.
+  Details les résout par nom LibSharedMedia ; « Expressway » est enregistré
+  par DeathAlert, chargé avant. Tailles inchangées.
+- `ApplyToAll` force l'application complète. `ChangeSkin` ne recopie les
+  réglages du skin (polices comprises) que quand la fenêtre change de skin :
+  sur une fenêtre déjà en TWW, le bouton ne faisait rien et l'ancienne police
+  restait. Le nom du skin est vidé avant, comme un choix depuis la liste de
+  Details ; position, échelle et strata sont gardées, les autres retouches de
+  la fenêtre repartent aux valeurs du skin.
+
+**`Pages/DetailsSkin.lua`** : la description du bouton le dit.
+
+Pas relu en jeu. Copié dans l'install Forever beta. À vérifier : « Apply to
+all Details windows » met Expressway sur une fenêtre déjà en TWW.
+
+---
+
+## 2026-10-21 — v2.8.0 : le portrait ne bouge plus quand on dégaine
+
+Retour de Cruzz : le portrait animé bouge un peu quand il dégaine ou rengaine.
+Cause : `ToggleSheath` déclenche `UNIT_MODEL_CHANGED` (warcraft.wiki.gg,
+« Triggers events »), et le module recharge le modèle sur cet événement
+(`SetUnit` à nouveau) : l'animation d'attente repart de sa première image et
+la caméra est reposée avant puis après le chargement.
+
+**`AnimatedPortraits.lua`** :
+- `UNIT_MODEL_CHANGED` sur le joueur compare `GetSheathState()`,
+  `GetShapeshiftFormID()` et `IsMounted()` à leur valeur au changement
+  précédent. Seul le fourreau a changé : pas de rechargement. Sinon (stuff,
+  forme, monture, transmo) : rechargement comme avant.
+- Une seule décision par image : l'événement arrive une fois par jeton qui
+  vous désigne (`player`, `target` si on se cible…), le premier décide pour
+  les suivants.
+- Valeur secrète : pas de comparaison, rechargement.
+- Les autres unités (groupe, cible) se rechargent toujours : leur fourreau
+  ne se lit pas.
+- Limite : le modèle garde les armes d'avant jusqu'au prochain rechargement
+  (invisible au zoom visage, visible en plan large).
+- Trace sous `SuspicionsPack.DEBUG` : ancien → nouvel état, « kept » ou
+  « reloaded ».
+
+Pas relu en jeu. À vérifier : un seul « kept » par dégainage, et « reloaded »
+pour une forme, une monture et un changement de stuff.
+
+**Suite, même jour : le stuff ne se mettait pas à jour.** Trace de Cruzz en
+changeant d'épaulières : « sheath 1 -> 1 … reloaded » à l'équipement et au
+retrait, un seul événement par changement, mais le portrait gardait les
+anciennes. Le rechargement avait bien lieu : `SetUnit` sur l'unité que le
+modèle a déjà ne reprend pas son apparence. Bug antérieur à l'entrée
+ci-dessus. L'inspection de Blizzard répond à `UNIT_MODEL_CHANGED` par
+`InspectModelFrame:RefreshUnit()` (`InspectPaperDollFrame.lua`, branche
+`live` de Gethe/wow-ui-source ; `RefreshUnit` existe aussi sur `forever`).
+- Même unité déjà à l'écran (stuff, forme, cadre réaffiché) : `RefreshUnit`.
+  Nouvelle unité : `ClearModel` + `SetUnit` comme avant.
+- Pas de test `IsUnitModelReadyForUI` (la garde-robe et la transmo de
+  Blizzard l'utilisent avant `RefreshUnit`) : la trace ne montre qu'un
+  événement par changement, il n'y aurait pas de second essai. À ajouter si
+  le portrait reste en retard d'un changement.
+
+Pas relu en jeu.
+
+---
+
+## 2026-10-21 — v2.8.0 : PlayerDragon sur les cadres EllesmereUI
+
+Retour de Cruzz après le premier essai sur Forever : « doesn't work ». Le module
+tournait (`playerDragon.enabled = true` dans les SavedVariables, aucune erreur
+dans BugGrabber), mais dessinait sur le `PlayerFrame` de Blizzard, caché :
+le cadre à l'écran est celui d'EllesmereUIUnitFrames (9.6.1), style « WoW
+Forever ». Son propre « Player Frame Dragon » ne s'affiche pas sous un style
+stock (`ns.UF_ApplyPortraitDragon` exige `not ns.UF_Blizz()`), il n'y avait
+donc rien à activer de leur côté.
+
+**Lu dans EllesmereUI, sans le modifier** (`EUI_UnitFrames_StockStyles.lua`,
+`EUI_UnitFrames_Portrait.lua`, `EllesmereUI_RetailAtlas.lua`) :
+- Cadre `EllesmereUIUnitFrames_Player`, portrait `frame.Portrait.backdrop`.
+  Kit Forever : portrait joueur `TOPLEFT 24,-19`, 60 px, comme Blizzard. Leur
+  dragon de cible reprend exactement nos décalages Forever.
+- Niveaux : portrait à `_barClip − 2`, cadre d'art (`_blizzArtFrame`) à
+  `_barClip − 1`, barres à `_barClip`, badge de niveau à `_barClip + 12`. Leur
+  dragon de cible est une texture du cadre d'art, `BACKGROUND` 2, au-dessus
+  de l'art (`BACKGROUND` 0) et sous les barres.
+- Un cadre complet n'est jamais retourné : portrait à droite = la géométrie de
+  la cible (`_blizzGeom.portrait.point == "TOPRIGHT"`).
+- `SetAtlas` puis `SetTexCoord` lit les coordonnées DANS la boîte de l'atlas :
+  un dessin retourné passe par le fichier de l'atlas et ses coordonnées
+  inversées (`C_Texture.GetAtlasInfo`).
+
+**`PlayerDragon.lua`** :
+- Un dragon par cadre joueur : celui de Blizzard (inchangé) et celui
+  d'EllesmereUI sous un kit stock (art en chaîne, donc pas le kit Classic).
+  Chacun disparaît avec son cadre.
+- Côté EllesmereUI, la texture va sur leur cadre d'art, `BACKGROUND` 2, comme
+  leur dragon de cible : au-dessus de l'anneau, sous les barres et le badge de
+  niveau. Un cadre à nous ne trouve pas cette place : au niveau du cadre d'art
+  il est à égalité (ordre non garanti, leur propre commentaire le dit), au
+  niveau des barres ou au-dessus il couvre leurs extrémités, ce que le dragon
+  de la cible ne fait pas.
+- Posé à chaque `SetPoint` du portrait (`hooksecurefunc`, un hook par
+  portrait) : leur passe de mise en page se termine par là, après la création
+  du cadre d'art, à la connexion, à chaque réglage et au changement de côté.
+  `PLAYER_ENTERING_WORLD` couvre le cas où leurs cadres naissent après notre
+  `Activate`.
+- Kit Forever (seul à avoir `badge`) : art Forever. Sinon art retail, lu par
+  `EllesmereUI.StockAtlasInfo`, qui rend les planches retail du style
+  « Blizzard Style » sur le client Forever.
+- Le miroir passe partout par fichier + coordonnées inversées (au lieu de
+  `SetAtlas` + `GetTexCoord`, de l'entrée précédente).
+- Style EllesmereUI sans kit stock (« eui ») et kit « Classic WoW UI » : rien
+  n'est dessiné. Le premier a son propre Player Frame Dragon ; le second
+  dessine les cadres vanilla, sans l'anneau moderne.
+
+**Page** : la description dit sur quels cadres le dragon s'affiche ; mot-clé
+« ellesmereui ». Pas de changement de `.toc`.
+
+Pas relu en jeu ; suite hors ligne toujours impossible (ni Python ni Lua).
+
+---
+
+## 2026-10-21 — v2.8.0 : nouveau module, le dragon autour du portrait joueur
+
+Demande de Cruzz, capture à l'appui (Forever, cadres Blizzard par défaut) : le
+dragon doré d'un élite (Overlord Runthak) autour du portrait de la cible, voulu
+autour du portrait du joueur, en argent comme pour un monstre rare.
+
+**L'art, relevé dans le code Blizzard** (Gethe/wow-ui-source, `live` 12.1.5
+70448 et `forever` 1.60.1 70450) et dans `UiTextureAtlasMember` (wago.tools,
+builds 12.1.5.70448 et 1.60.1.70245) :
+- Retail : en dur dans `TargetFrame.lua`, `CheckClassification`. Argent
+  `ui-hud-unitframe-target-portraiton-boss-rare-silver` (80×79, rare élite
+  seulement), or `UI-HUD-UnitFrame-Target-PortraitOn-Boss-Gold` (80×79), boss
+  `…-Boss-Gold-Winged` (99×81). `TOPRIGHT` à −11,−8 (boss 8,−8).
+- Forever : `Camelot/TargetFrameUtils.lua`, `GetBossPortraitFrameData`, chargé à
+  la place de celui de Mainline. Mêmes noms, mais un art propre (membres
+  `-c60`), et un dragon argent ailé que retail n'a pas :
+  `UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Silver-Winged` (110×89), montré
+  pour rare ET rare élite, à 8,−7. Or 100×100 à 0,1, boss 110×90 à 11,−4.
+
+**Le module.** `Modules/PlayerDragon/PlayerDragon.lua` (`SP:NewSPModule`,
+`Activate`/`Deactivate`).
+- Une texture sur `PlayerFrame.PlayerFrameContainer`, là où la cible porte son
+  `BossPortraitFrameTexture`. Badge de niveau, icônes repos et combat, coin
+  décoratif et badge de prestige sont sur `PlayerFrameContent`, un niveau
+  au-dessus : ils restent dessinés par-dessus le dragon, comme sur la cible.
+  Couche OVERLAY 1, au-dessus du flash de combat (OVERLAY 0), comme le dragon de
+  la cible au-dessus de son flash.
+- Une table par client (`IS_FOREVER`), recopiée des sources ci-dessus. Le
+  décalage de la cible est pris depuis le centre de son portrait (58 px à
+  −26,−19), puis reporté en miroir à gauche du centre du portrait joueur.
+- Miroir horizontal : `GetTexCoord` relu après `SetAtlas`, gauche et droite
+  échangées dans ce rectangle (jamais 0..1, cf. leçon du 2026-10-20), et
+  seulement s'il se lit encore de gauche à droite : remettre le même atlas
+  peut garder notre rectangle retourné.
+- Atlas inconnu du client (`C_Texture.GetAtlasInfo` nil) : rien ne s'affiche.
+- Caché tant que le cadre véhicule est affiché : `hooksecurefunc` sur
+  `PlayerFrame_ToVehicleArt` et `PlayerFrame_ToPlayerArt` (présentes sur les
+  deux clients), qui relisent `VehicleFrameTexture:IsShown()`.
+- `AnimatedPortraits` glisse ses modèles une strate sous le cadre
+  (`STRATA_BELOW`) : le dragon passe au-dessus sans rien régler.
+- Le dragon se pose sur l'anneau, il ne le remplace pas : l'anneau fait partie
+  de `FrameTexture`, qui porte aussi le cadre des barres. La cible fait pareil.
+
+**Réglages.** `Core.lua` : `playerDragon = { enabled = false, style = "silver" }`.
+Page `Pages/PlayerDragon.lua` (« Player dragon », catégorie Interface) :
+l'interrupteur et une liste « Dragon » : Silver (rare), Gold (elite), Gold
+winged (boss). Les deux `.toc` listent les fichiers sans condition.
+
+Pas relu en jeu. `python3 tests/run.py --syntax` n'a pas pu tourner (ni Python
+ni Lua sur cette machine) ; seul un comptage grossier des blocs et des
+parenthèses (Node) est passé sur les deux nouveaux fichiers.
+
+---
+
+## 2026-10-21 — v2.8.0 : CleanObjectiveTrackerHeader, le bouton de repli
+
+Demande de Cruzz, capture à l'appui (Forever) : le module masquait le titre
+« Objectives » et son fond, mais laissait le bouton rouge « tout replier » seul
+à droite, au-dessus de « Quests ».
+
+**Le bouton.** `ObjectiveTrackerFrame.Header.MinimizeButton`, atlas
+`ui-questtrackerbutton-collapse-all`. Vérifié dans le code Blizzard des branches
+`forever` et `live` de Gethe/wow-ui-source : même cadre, même nom, même
+`IsCollapsed()` sur les deux clients.
+
+**L'option.** Nouvelle clé `hideMinimizeButton` (« Hide collapse button »),
+activée par défaut, dans la carte General de la page.
+- `CleanObjectiveTrackerHeader.lua` : `UpdateMinimizeButton` masque le bouton
+  quand le module et l'option sont actifs, et ne le réaffiche que s'il l'a
+  lui-même masqué (`buttonHidden`). Appelé à l'activation, dans le hook
+  existant sur `Header:Show` (le traqueur le rappelle à chaque mise à jour,
+  repli et dépli compris) et sur `OnShow` du bouton, car Forever le réaffiche
+  en quittant le mode manette (`UninitializeGamepad`).
+- Le bouton reste visible tant que le traqueur est replié : sans le titre,
+  c'est le seul moyen de le rouvrir. L'état replié n'est pas sauvegardé
+  (`OnLoad` repart déplié), mais activer l'option traqueur replié l'aurait
+  laissé fermé jusqu'au prochain `/reload`.
+- `Core.lua` : défaut `hideMinimizeButton = true`. Ceux qui ont déjà le
+  module actif perdent le bouton à la mise à jour, c'est le but du module.
+- `Pages/CleanObjectiveHeader.lua` : le toggle et les mots-clés de recherche.
+
+Pas relu en jeu ; la suite hors ligne n'a pas tourné (ni Python ni Lua sur
+cette machine).
+
+---
+
 ## 2026-10-20 — v2.7.3 : nouveau module, portraits animés
 
 Des modèles 3D vivants à la place des portraits plats : cadres d'unité,

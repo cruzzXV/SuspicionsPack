@@ -40,10 +40,77 @@ local GUI = SP.GUI or {}
 SP.GUI = GUI
 ns.GUI  = GUI
 
--- T is a reference to the live table. SP.RefreshTheme mutates T[key][1..4] in
--- place, so the identity never changes and this stays valid for the session.
-local T = SP.Theme
+-- WoW: Forever. There the window wears Plumber's settings panel (frame,
+-- leather, section headers, tabs) and the game's own controls, as NeedRoll and
+-- Keep or Toss use them: Blizzard check boxes, sliders, fields and buttons.
+-- Retail keeps the flat Suspicion look. Same test as the modules' IS_FOREVER;
+-- the Plumber pieces and colours live in the parent's Core\Skin.lua, which the
+-- changelog popup needs at login.
+GUI.FOREVER = SP.Skin.FOREVER
+
+-- The Forever palette: gold FFD100 for the accent and headings, as the game
+-- writes them, and Plumber's settings panel for the rest of the text -- cream
+-- 215,192,163 at rest turning white under the mouse, 163,157,147 for notes,
+-- 148,124,102 for section headers. Black fills.
+--
+-- A COPY, not a rewrite of SP.Theme. SP.Theme.accent is also the "theme" colour
+-- the modules draw with, and that stays Suspicion red on every client.
+--
+-- Fills keep an alpha. Borders do not: several hover and reset paths write a
+-- border at alpha 1, so the border is gold already darkened to how FFD100
+-- reads at about 35% over black.
+--
+-- textHover and heading exist only here; code reading them on both clients
+-- falls back (`T.textHover or T.textPrimary`).
+local FT = SP.Skin.FOREVER_TEXT
+local function Copy(c) return { c[1], c[2], c[3], c[4] } end
+local FOREVER_COLORS = {
+    bgDark        = { 0.02, 0.02, 0.02, 1    },  -- popups, dialogs
+    bgMedium      = { 0.06, 0.06, 0.06, 1    },  -- control fills
+    bgLight       = { 0,    0,    0,    0.35 },  -- cards
+    bgHover       = { 1,    1,    1,    0.10 },
+    border        = { 0.36, 0.30, 0.03, 1    },
+    accent        = Copy(FT.gold),
+    accentHover   = { 1,    0.82, 0,    0.25 },
+    accentDim     = Copy(FT.gold),
+    textPrimary   = Copy(FT.cream),
+    textSecondary = Copy(FT.cream),
+    textMuted     = Copy(FT.readable),
+    textHover     = { 1,    1,    1,    1    },
+    heading       = Copy(FT.heading),
+    selectedBg    = { 1,    0.82, 0,    0.25 },
+    selectedText  = Copy(FT.gold),
+}
+
+local function ForeverTheme(base)
+    local t = {}
+    for k, v in pairs(base) do
+        t[k] = type(v) == "table" and { v[1], v[2], v[3], v[4] } or v
+    end
+    for k, c in pairs(FOREVER_COLORS) do t[k] = c end
+    -- The side panel, to the middle of its bronze edge. The list inside it
+    -- keeps clear of the frame's shadow on the left and of the edge on the
+    -- right; 210 still fits the longest page name ("Enhanced objective text",
+    -- about 135 in the game's font, of 138) and the title by the eye. 230
+    -- left the list half empty.
+    t.sidebarWidth = 210
+    -- The band across the top (logo, title, breadcrumb) and the one along the
+    -- bottom (profile, changes), both clear of the frame's inward shadow.
+    t.headerHeight = 52
+    t.footerHeight = 30
+    return t
+end
+
+-- Retail: T is a reference to the live table. SP.RefreshTheme mutates
+-- T[key][1..4] in place, so the identity never changes and this stays valid
+-- for the session. Forever: a fixed table of its own (see above).
+local T = GUI.FOREVER and ForeverTheme(SP.Theme) or SP.Theme
 GUI.T = T
+
+-- Forever's window chrome is Plumber's settings panel: its files and the rect
+-- helper are the parent's (Core\Skin.lua).
+GUI.PLUMBER     = SP.Skin.PLUMBER
+GUI.PlumberRect = SP.Skin.PlumberRect
 
 -- Widget factories live under GUI.W, not on GUI itself.
 -- GUI carries the window API (Show/Hide/Toggle) and the shell's methods;
@@ -151,7 +218,10 @@ end
 -- Fonts
 -- ============================================================
 
-local UI_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
+-- Forever: the game's own font, the one every Blizzard frame around the window
+-- uses.
+local UI_FONT = GUI.FOREVER and STANDARD_TEXT_FONT
+    or "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 
 -- The WoW default face. Expressway has no arrows or block glyphs, so anything
 -- drawing a symbol has to fall back to this.
@@ -221,14 +291,17 @@ GUI.AuditSlices = Skin.AuditSlices
 -- Gives `frame` a rounded fill and outline, and registers a painter for both.
 -- bgKey / borderKey are THEME KEY NAMES, not colour values, so the frame follows
 -- the preset without a rebuild.
+--
+-- The palette's own alpha multiplies in: Forever's card fill is see-through.
+-- Every retail colour used here is opaque, so nothing changes there.
 function GUI.Backdrop(frame, bgKey, bgAlpha, borderKey, borderAlpha, style)
     Skin.Round(frame, style or "rr4")
     GUI.Paint(frame, function(f, t)
         local bg = t[bgKey or "bgMedium"]
-        f._spBG:SetVertexColor(bg[1], bg[2], bg[3], bgAlpha or 1)
+        f._spBG:SetVertexColor(bg[1], bg[2], bg[3], (bgAlpha or 1) * (bg[4] or 1))
         if f._spBorder then
             local br = t[borderKey or "border"]
-            f._spBorder:SetVertexColor(br[1], br[2], br[3], borderAlpha or 1)
+            f._spBorder:SetVertexColor(br[1], br[2], br[3], (borderAlpha or 1) * (br[4] or 1))
         end
     end)
     return frame
@@ -273,12 +346,13 @@ function GUI.TintGradientH(tex, r, g, b, a, factor)
     end
 end
 
--- A flat colour texture that follows a theme key.
+-- A flat colour texture that follows a theme key. `alpha` multiplies the
+-- key's own, as in GUI.Backdrop.
 function GUI.Tex(parent, layer, colorKey, alpha)
     local tex = parent:CreateTexture(nil, layer or "ARTWORK")
     GUI.Paint(tex, function(tx, t)
         local c = t[colorKey]
-        tx:SetColorTexture(c[1], c[2], c[3], alpha or c[4] or 1)
+        tx:SetColorTexture(c[1], c[2], c[3], (alpha or 1) * (c[4] or 1))
     end)
     return tex
 end
@@ -389,6 +463,24 @@ function GUI.Tooltip(frame, title, body)
 end
 
 -- ============================================================
+-- Sounds
+--
+-- Forever: the clicks the game's own interface makes there. Its menus play the
+-- option click on for a button, for opening a dropdown and for picking from
+-- one, and off for closing one unpicked (MenuVariants on the forever branch);
+-- NeedRoll's tabs play the character tab. Retail stays as it was, silent but
+-- for the check boxes.
+-- ============================================================
+
+GUI.SOUND_ON   = SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON
+GUI.SOUND_OFF  = SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF
+GUI.SOUND_PAGE = SOUNDKIT.IG_CHARACTER_INFO_TAB
+
+function GUI.Sound(kit)
+    if GUI.FOREVER and kit then PlaySound(kit) end
+end
+
+-- ============================================================
 -- Small shared helpers
 -- ============================================================
 
@@ -476,7 +568,11 @@ function GUI.GetCloser()
         closer:SetFrameStrata("FULLSCREEN_DIALOG")
         closer:RegisterForClicks("AnyUp")
         closer:Hide()
-        closer:SetScript("OnClick", function() GUI.CloseActivePopup() end)
+        -- A click outside an open list closes it unpicked.
+        closer:SetScript("OnClick", function()
+            GUI.Sound(GUI.SOUND_OFF)
+            GUI.CloseActivePopup()
+        end)
     end
     return closer
 end

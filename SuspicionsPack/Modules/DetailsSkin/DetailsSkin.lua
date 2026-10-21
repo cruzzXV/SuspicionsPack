@@ -13,6 +13,9 @@
 --   * spec icons are off (Forever has no specialisations) and the spec atlas is
 --     not shipped;
 --   * the Augmentation Evoker bar recolour is dropped (no Evokers on Forever);
+--   * every text uses Expressway, the pack's font, instead of Friz Quadrata and
+--     Accidental Presidency. Details resolves it by LibSharedMedia name, which
+--     DeathAlert registers at file scope (it loads before this file);
 --   * no Ace3 of its own, no slash command, no bundled profile: the profile export
 --     string hard-codes the original addon's texture paths and cannot be re-pathed
 --     without decoding it, so it is left out rather than shipped broken.
@@ -64,7 +67,7 @@ local skinTable = {
     no_cache = true,
 
     -- micro frames
-    micro_frames = { color = { 1, 1, 1, 1 }, font = "Accidental Presidency", size = 10, textymod = 1 },
+    micro_frames = { color = { 1, 1, 1, 1 }, font = "Expressway", size = 10, textymod = 1 },
 
     can_change_alpha_head = true,
     icon_anchor_main      = { -1, -5 },
@@ -101,7 +104,7 @@ local skinTable = {
             side               = 1,
             text_size          = 13,
             custom_text        = "{name}",
-            text_face          = "Friz Quadrata TT",
+            text_face          = "Expressway",
             anchor             = { -4, 10 },
             text_color         = { NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, NORMAL_FONT_COLOR.a },
             enable_custom_text = false,
@@ -115,7 +118,7 @@ local skinTable = {
             space             = { right = 0, left = 0, between = 4 },
             row_offsets       = { left = 29, right = -29 - 8, top = 0, bottom = 0 },
             texture_background_class_color = false,
-            font_face_file    = "Interface\\Addons\\Details\\fonts\\Accidental Presidency.ttf",
+            font_face_file    = SP.DEFAULT_FONT,
             backdrop = {
                 enabled = false,
                 size    = 12,
@@ -158,7 +161,7 @@ local skinTable = {
             texture_background_file = MEDIA .. "background",
 
             fixed_texture_background_color = { 1, 1, 1, 1 },
-            font_face        = "Friz Quadrata TT",
+            font_face        = "Expressway",
             font_size        = 11,
             textL_offset     = 0,
             text_yoffset     = 7,
@@ -268,12 +271,18 @@ local function InstallSkin()
 end
 
 -- Called by the options page. Puts the skin on every open Details window.
+-- ChangeSkin copies the skin's settings (fonts, bar sizes...) only when the
+-- window changes skin: on a window already using this one it just re-reads the
+-- textures, so a window skinned before an update kept the old fonts. Clearing
+-- the name forces the full apply, the same as picking the skin in Details' own
+-- list; Details keeps position, scale and strata through it.
 function DS:ApplyToAll()
     if not InstallSkin() then return false end
     local Details = _G.Details
     for i = 1, Details:GetNumInstances() do
         local inst = Details:GetInstance(i)
         if inst and inst.baseframe and inst.ativa then
+            inst.skin = nil
             inst:ChangeSkin(SKIN_NAME)
         end
     end

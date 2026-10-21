@@ -253,13 +253,26 @@ function W.Label(parent, spec)
     row.h = h
     row.searchText = string.lower(spec.text or "")
 
-    row:SetScript("OnSizeChanged", function(self, w)
-        if not w or w <= 0 then return end
+    local function Measure(self)
         local want = math.max(14, math.ceil(fs:GetStringHeight()))
         if math.abs(want - self.h) > 1 then
             self.h = want
             self:SetHeight(want)
             if self._card then self._card:Restack() end
+        end
+    end
+    -- Measured again a frame later. The wrap a new width brings is not always
+    -- counted yet when the size changes: on Forever, Home's last Profiles note
+    -- wrapped to two lines, measured one, and ran into the card's bottom edge.
+    row:SetScript("OnSizeChanged", function(self, w)
+        if not w or w <= 0 then return end
+        Measure(self)
+        if not self._remeasure then
+            self._remeasure = true
+            C_Timer.After(0, function()
+                self._remeasure = nil
+                Measure(self)
+            end)
         end
     end)
 
@@ -285,39 +298,20 @@ end
 -- switch looks like a switch, where 75% of a shorter track reads flat and thin.
 local TR_W, TR_H, KNOB = 36, 18, 14
 
--- Gap between the switch and the text it belongs to.
-local TOGGLE_LABEL_GAP = 6
+-- Forever: the game's check box (UICheckButtonTemplate), the control NeedRoll
+-- and Keep or Toss use for every on/off. 24 square, between their 22 and 26.
+local CHECK = 24
 
-function W.Toggle(parent, spec)
-    local row = NewRow(parent, spec, TR_W, TR_H)
+-- Gap between the switch and the text it belongs to. The check box art has
+-- its own transparent margin, so it needs less.
+local TOGGLE_LABEL_GAP = GUI.FOREVER and 2 or 6
 
-    -- THE SWITCH COMES FIRST, then its label.
-    --
-    -- Every other row in this file is label-left / control-after, and NewRow
-    -- builds that. A switch is the one control that reads better inverted: it is
-    -- small, its state IS the information, and putting it first means the eye
-    -- scans a column of on/off states instead of hunting for them at the end of
-    -- labels of differing length.
-    --
-    -- Re-anchored here rather than parameterised in NewRow, because NewRow
-    -- measures the label to place the control and that whole calculation is
-    -- meaningless once the order flips. Only the two points move; the shared
-    -- centre line (midY) and the description's own anchor are untouched.
-    -- TOPLEFT, like NewRow's own anchor. Anchoring by LEFT instead puts the
-    -- control's vertical MIDDLE on the centre line, which drops its bottom edge
-    -- half a control lower and straight through the description underneath.
-    -- Caught by the "no control overlaps its own description" assertion.
-    -- midY == -(ctrlTop + TR_H/2), so this recovers ctrlTop exactly.
-    row.ctrl:ClearAllPoints()
-    row.ctrl:SetPoint("TOPLEFT", row, "TOPLEFT", PAD, row.midY + TR_H / 2)
+-- The two looks of an on/off. Each draws into row.ctrl at state `on` and
+-- returns Show(on, instant), which moves it to a state, and Repaint(), which
+-- redraws it for row._hover and row._disabled. W.Toggle owns the state, the
+-- clicks and the binding; these only draw.
 
-    row.label:ClearAllPoints()
-    row.label:SetPoint("LEFT", row.ctrl, "RIGHT", TOGGLE_LABEL_GAP, 0)
-    -- The label no longer has a column to be clamped into, so it may run to the
-    -- card's edge instead of being truncated at COL_MAX.
-    row.label:SetPoint("RIGHT", row, "RIGHT", -PAD_R, 0)
-    row.labelCol = PAD
-
+local function BuildSwitch(row, on)
     local track = CreateFrame("Frame", nil, row.ctrl)
     track:SetAllPoints(row.ctrl)
 
@@ -346,8 +340,7 @@ function W.Toggle(parent, spec)
     knob:SetSize(KNOB, KNOB)
 
     local OFF_X, ON_X = 2, TR_W - KNOB - 2
-    local state = row.binding:Get() and true or false
-    local pos   = state and ON_X or OFF_X
+    local pos = on and ON_X or OFF_X
 
     local function Place()
         knob:ClearAllPoints()
@@ -376,7 +369,8 @@ function W.Toggle(parent, spec)
     GUI.PaintLater(track, PaintTrack)
     Place(); PaintTrack()
 
-    local function Slide(target, instant)
+    local function Show(state, instant)
+        local target = state and ON_X or OFF_X
         if instant or not SP.Tick then
             pos = target; Place(); PaintTrack(); return
         end
@@ -384,15 +378,79 @@ function W.Toggle(parent, spec)
             pos = v; Place(); PaintTrack()
         end)
     end
+    return Show, PaintTrack
+end
+
+local function BuildCheck(row, on)
+    local box = CreateFrame("CheckButton", nil, row.ctrl, "UICheckButtonTemplate")
+    box:SetAllPoints(row.ctrl)
+    -- The row's hit button takes every click, label and gap included, as it
+    -- does for the switch. The box only shows the state, so its hover light is
+    -- driven by hand.
+    box:EnableMouse(false)
+
+    local state = on
+    local function Repaint()
+        box:SetChecked(state)
+        box:SetEnabled(not row._disabled)
+        -- The template greys a disabled tick but has no art for a disabled
+        -- empty box.
+        local v = row._disabled and 0.5 or 1
+        box:GetNormalTexture():SetVertexColor(v, v, v)
+        if row._hover and not row._disabled then box:LockHighlight() else box:UnlockHighlight() end
+    end
+    Repaint()
+
+    local function Show(newState)
+        state = newState
+        Repaint()
+    end
+    return Show, Repaint
+end
+
+function W.Toggle(parent, spec)
+    local ctrlW, ctrlH = TR_W, TR_H
+    if GUI.FOREVER then ctrlW, ctrlH = CHECK, CHECK end
+    local row = NewRow(parent, spec, ctrlW, ctrlH)
+
+    -- THE SWITCH COMES FIRST, then its label.
+    --
+    -- Every other row in this file is label-left / control-after, and NewRow
+    -- builds that. A switch is the one control that reads better inverted: it is
+    -- small, its state IS the information, and putting it first means the eye
+    -- scans a column of on/off states instead of hunting for them at the end of
+    -- labels of differing length.
+    --
+    -- Re-anchored here rather than parameterised in NewRow, because NewRow
+    -- measures the label to place the control and that whole calculation is
+    -- meaningless once the order flips. Only the two points move; the shared
+    -- centre line (midY) and the description's own anchor are untouched.
+    -- TOPLEFT, like NewRow's own anchor. Anchoring by LEFT instead puts the
+    -- control's vertical MIDDLE on the centre line, which drops its bottom edge
+    -- half a control lower and straight through the description underneath.
+    -- Caught by the "no control overlaps its own description" assertion.
+    -- midY == -(ctrlTop + ctrlH/2), so this recovers ctrlTop exactly.
+    row.ctrl:ClearAllPoints()
+    row.ctrl:SetPoint("TOPLEFT", row, "TOPLEFT", PAD, row.midY + ctrlH / 2)
+
+    row.label:ClearAllPoints()
+    row.label:SetPoint("LEFT", row.ctrl, "RIGHT", TOGGLE_LABEL_GAP, 0)
+    -- The label no longer has a column to be clamped into, so it may run to the
+    -- card's edge instead of being truncated at COL_MAX.
+    row.label:SetPoint("RIGHT", row, "RIGHT", -PAD_R, 0)
+    row.labelCol = PAD
+
+    local state = row.binding:Get() and true or false
+    local Show, Repaint = (GUI.FOREVER and BuildCheck or BuildSwitch)(row, state)
 
     local hit = CreateFrame("Button", nil, row)
     hit:SetAllPoints(row)
     hit:SetScript("OnEnter", function()
         if row._disabled then return end
-        row._hover = true; PaintTrack()
+        row._hover = true; Repaint()
     end)
     hit:SetScript("OnLeave", function()
-        row._hover = false; PaintTrack()
+        row._hover = false; Repaint()
     end)
     hit:SetScript("OnClick", function()
         if row._disabled then return end
@@ -408,7 +466,7 @@ function W.Toggle(parent, spec)
 
         -- Written before the slide, not after. The old toggle deferred the DB
         -- write by the 0.18s animation, so a fast click-and-close lost it.
-        Slide(state and ON_X or OFF_X)
+        Show(state)
         UpdateModified(row)
         if PlaySound and SOUNDKIT then
             PlaySound(state and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON
@@ -422,7 +480,7 @@ function W.Toggle(parent, spec)
     function row:GetValue() return state end
     function row:SetValue(v, instant)
         state = v and true or false
-        Slide(state and ON_X or OFF_X, instant)
+        Show(state, instant)
     end
     function row:Refresh()
         self:SetValue(self.binding:Get(), true)
@@ -434,11 +492,36 @@ function W.Toggle(parent, spec)
         -- StdSetEnabled only greys the LABEL. Without this the track kept its
         -- full accent while switched off, so a locked-on switch looked exactly
         -- like a live one.
-        PaintTrack()
+        Repaint()
     end
 
     UpdateModified(row)
     return row
+end
+
+-- ============================================================
+-- Text field
+-- ============================================================
+
+-- The field the slider's value and W.EditBox type into.
+--
+-- Forever: the game's InputBoxTemplate (NeedRoll's native input). Its edge art
+-- sits 5 outside the box on the left, and it has no outline of ours, so
+-- FocusBorder passes over it. Its own Escape and focus scripts are replaced by
+-- the caller's.
+local function NewInputBox(parent)
+    local box
+    if GUI.FOREVER then
+        box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+    else
+        box = CreateFrame("EditBox", nil, parent)
+        Backdrop(box, "bgMedium", 1, "border", 1, "rr4")
+    end
+    box:SetAutoFocus(false)
+    box:EnableMouse(true)
+    ApplyFont(box, 11)
+    Paint(box, function(f, t) f:SetTextColor(t.textPrimary[1], t.textPrimary[2], t.textPrimary[3], 1) end)
+    return box
 end
 
 -- ============================================================
@@ -448,6 +531,13 @@ end
 -- Label left, rail and value on the right, all on one line.
 local SLIDER_W, VALUE_W = 210, 44
 
+-- Forever: the game's field at its own art's size (20 high, edge caps 8 wide)
+-- read too big round a value of two or three digits. 38 x 16 still holds
+-- "-2000" in the 10 point font; the caps shrink with the height, and the left
+-- one is pulled in level with the box (the template hangs it 5 outside), so
+-- the art is centred on the text it frames.
+local VALUE_W_SMALL, VALUE_H_SMALL, VALUE_CAP_SMALL = 38, 16, 6
+
 function W.Slider(parent, spec)
     spec.stretch = true
     local row = NewRow(parent, spec, SLIDER_W, CTRL_H)
@@ -456,21 +546,35 @@ function W.Slider(parent, spec)
     local step       = spec.step or 1
     local suffix     = spec.suffix or ""
 
-    local box = CreateFrame("EditBox", nil, row.ctrl)
-    box:SetSize(VALUE_W, 20)
+    local box = NewInputBox(row.ctrl)
+    if GUI.FOREVER then
+        box:SetSize(VALUE_W_SMALL, VALUE_H_SMALL)
+        for _, part in ipairs({ box.Left, box.Middle, box.Right }) do
+            part:SetHeight(VALUE_H_SMALL)
+        end
+        box.Left:SetWidth(VALUE_CAP_SMALL)
+        box.Right:SetWidth(VALUE_CAP_SMALL)
+        box.Left:ClearAllPoints()
+        box.Left:SetPoint("LEFT", box, "LEFT", 0, 0)
+        ApplyFont(box, 10)
+    else
+        box:SetSize(VALUE_W, 20)
+    end
     box:SetPoint("RIGHT", row.ctrl, "RIGHT", 0, 0)
-    box:SetAutoFocus(false)
-    box:EnableMouse(true)
     -- 6 letters, not SetNumeric: numeric mode strips the minus sign, which broke
     -- every negative-range slider (offsets go to -2000).
     box:SetMaxLetters(7)
     box:SetJustifyH("CENTER")
     box:SetTextInsets(3, 3, 0, 0)
-    ApplyFont(box, 11)
-    Backdrop(box, "bgMedium", 1, "border", 1, "rr4")
-    Paint(box, function(f, t) f:SetTextColor(t.textPrimary[1], t.textPrimary[2], t.textPrimary[3], 1) end)
 
-    local slider = CreateFrame("Slider", nil, row.ctrl)
+    -- Forever: the game's own slider, the one its options panel uses. Its rail
+    -- and thumb are Forever art, and it has no fill.
+    local slider
+    if GUI.FOREVER then
+        slider = CreateFrame("Slider", nil, row.ctrl, "MinimalSliderTemplate")
+    else
+        slider = CreateFrame("Slider", nil, row.ctrl)
+    end
     slider:SetHeight(20)
     slider:SetPoint("LEFT",  row.ctrl, "LEFT", 0, 0)
     slider:SetPoint("RIGHT", box, "LEFT", -10, 0)
@@ -479,26 +583,30 @@ function W.Slider(parent, spec)
     slider:SetValueStep(step)
     slider:SetObeyStepOnDrag(true)
 
-    local track = Tex(slider, "BACKGROUND", "bgDark")
-    track:SetHeight(5)
-    track:SetPoint("LEFT", slider, "LEFT", 0, 0)
-    track:SetPoint("RIGHT", slider, "RIGHT", 0, 0)
+    local track, fill, thumb
+    if not GUI.FOREVER then
+        track = Tex(slider, "BACKGROUND", "bgDark")
+        track:SetHeight(5)
+        track:SetPoint("LEFT", slider, "LEFT", 0, 0)
+        track:SetPoint("RIGHT", slider, "RIGHT", 0, 0)
 
-    local fill = Tex(slider, "ARTWORK", "accent", 0.85)
-    fill:SetHeight(5)
-    fill:SetPoint("LEFT", track, "LEFT", 0, 0)
+        fill = Tex(slider, "ARTWORK", "accent", 0.85)
+        fill:SetHeight(5)
+        fill:SetPoint("LEFT", track, "LEFT", 0, 0)
 
-    -- A round grab handle. The rail stays square: at 5px tall a radius is
-    -- imperceptible, and a nine-slice whose margins exceed the frame height
-    -- squashes its own corners.
-    -- White, matching the toggle knob. A red handle on a red rail disappeared
-    -- into it.
-    local thumb = GUI.CircleTex(slider, "OVERLAY")
-    Paint(thumb, function(f) f:SetVertexColor(1, 1, 1, 1) end)
-    thumb:SetSize(13, 13)
-    slider:SetThumbTexture(thumb)
+        -- A round grab handle. The rail stays square: at 5px tall a radius is
+        -- imperceptible, and a nine-slice whose margins exceed the frame height
+        -- squashes its own corners.
+        -- White, matching the toggle knob. A red handle on a red rail
+        -- disappeared into it.
+        thumb = GUI.CircleTex(slider, "OVERLAY")
+        Paint(thumb, function(f) f:SetVertexColor(1, 1, 1, 1) end)
+        thumb:SetSize(13, 13)
+        slider:SetThumbTexture(thumb)
+    end
 
     local function Fill(v)
+        if not fill then return end
         local span = maxV - minV
         local p = span > 0 and (v - minV) / span or 0
         if p < 0 then p = 0 elseif p > 1 then p = 1 end
@@ -585,10 +693,19 @@ function W.Slider(parent, spec)
         UpdateModified(self)
     end
     row._dim = function(en)
-        local f = en and T.accent or T.border
-        fill:SetVertexColor(f[1], f[2], f[3], en and 0.85 or 1)
-        local th = en and 1 or 0.55
-        thumb:SetVertexColor(th, th, th, 1)
+        if fill then
+            local f = en and T.accent or T.border
+            fill:SetVertexColor(f[1], f[2], f[3], en and 0.85 or 1)
+            local th = en and 1 or 0.55
+            thumb:SetVertexColor(th, th, th, 1)
+        else
+            -- The game's slider has no disabled art: grey its rail and thumb.
+            local v = en and 1 or 0.5
+            for _, part in ipairs({ slider.Left, slider.Middle, slider.Right, slider.Thumb }) do
+                part:SetDesaturated(not en)
+                part:SetVertexColor(v, v, v)
+            end
+        end
         local tc = en and T.textPrimary or T.textMuted
         box:SetTextColor(tc[1], tc[2], tc[3], 1)
     end
@@ -616,9 +733,95 @@ end
 -- private dropdown implementation.
 -- ============================================================
 
-local ITEM_H, MAX_VIS = 22, 10
+-- Forever: Plumber's dropdown (its landing page's, Basic.lua). The list is a
+-- black box with a thin bronze rim, rows 6 in from its top and bottom, a radio
+-- dot 8 in on each row and the text 4 after it. Plumber's rows are 24; 20
+-- here, with the button cut down to match (DD_ART): at its own sizes the
+-- dropdown stood half again as tall as everything round it.
+local ITEM_H, MAX_VIS = GUI.FOREVER and 20 or 22, 10
+local POP_PAD_V = GUI.FOREVER and 6 or 1
+local POP_PAD_H = GUI.FOREVER and 4 or 1
+local RADIO, RADIO_X = 16, 8
+
+-- Plumber's button art at three quarters: 24 high round our 22 high button
+-- instead of 32.
+local DD_ART = 0.75
 
 local BAR_W = 3
+
+-- Forever: the list scrolls with the game's MinimalScrollBar, as the page
+-- does: 8 wide, 6 in from the box's right, 6 clear of the rows.
+local POP_BAR_W   = 8
+local POP_BAR_ROOM = GUI.FOREVER and (POP_BAR_W + 6) or (BAR_W + 3)
+
+local PLUMBER = GUI.PLUMBER
+
+-- Plumber's list box: nine pieces of its frame sheet (x 512-768, y 320-576),
+-- the 32 px corners drawn 16 and centred on the box's corners, so the rim
+-- lands on its edge.
+local function PlumberListBox(f)
+    local xs, ys = { 512, 544, 736, 768 }, { 320, 352, 544, 576 }
+    local p = {}
+    for row = 1, 3 do
+        for col = 1, 3 do
+            p[#p + 1] = GUI.PlumberRect(f:CreateTexture(nil, "BACKGROUND"), PLUMBER.FRAME,
+                xs[col], xs[col + 1], ys[row], ys[row + 1])
+        end
+    end
+    local corners = { [1] = "TOPLEFT", [3] = "TOPRIGHT", [7] = "BOTTOMLEFT", [9] = "BOTTOMRIGHT" }
+    for i, point in pairs(corners) do
+        p[i]:SetSize(16, 16)
+        p[i]:SetPoint("CENTER", f, point)
+    end
+    local function Between(i, a, aPoint, b, bPoint)
+        p[i]:SetPoint("TOPLEFT", p[a], aPoint)
+        p[i]:SetPoint("BOTTOMRIGHT", p[b], bPoint)
+    end
+    Between(2, 1, "TOPRIGHT",    3, "BOTTOMLEFT")   -- top
+    Between(8, 7, "TOPRIGHT",    9, "BOTTOMLEFT")   -- bottom
+    Between(4, 1, "BOTTOMLEFT",  7, "TOPRIGHT")     -- left
+    Between(6, 3, "BOTTOMLEFT",  9, "TOPRIGHT")     -- right
+    Between(5, 1, "BOTTOMRIGHT", 9, "TOPLEFT")      -- centre
+end
+
+-- Plumber's dropdown button: a dark box with a bronze rim in three slices
+-- (ends 20 and 32 wide, 32 high, standing 2.5 out past the button's ends) and
+-- the same slices added over it at 25% under the mouse; its copper arrow
+-- square, 32, centred 13.5 in from the right, and the arrow's glow, 48. All
+-- drawn at DD_ART of those sizes. Returns the slices and the arrow, which the
+-- caller greys and presses.
+local function PlumberDropdownArt(btn)
+    local s = DD_ART
+    local slices = {}
+    for _, layer in ipairs({ "BACKGROUND", "HIGHLIGHT" }) do
+        local left = GUI.PlumberRect(btn:CreateTexture(nil, layer), PLUMBER.FRAME, 518, 558, 256, 320)
+        left:SetSize(20 * s, 32 * s)
+        left:SetPoint("LEFT", btn, "LEFT", -2.5 * s, 0)
+        local right = GUI.PlumberRect(btn:CreateTexture(nil, layer), PLUMBER.FRAME, 690, 754, 256, 320)
+        right:SetSize(32 * s, 32 * s)
+        right:SetPoint("RIGHT", btn, "RIGHT", 2.5 * s, 0)
+        local middle = GUI.PlumberRect(btn:CreateTexture(nil, layer), PLUMBER.FRAME, 558, 690, 256, 320)
+        middle:SetPoint("TOPLEFT", left, "TOPRIGHT")
+        middle:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT")
+        for _, tex in ipairs({ left, middle, right }) do
+            if layer == "HIGHLIGHT" then
+                tex:SetBlendMode("ADD")
+                tex:SetAlpha(0.25)
+            else
+                slices[#slices + 1] = tex
+            end
+        end
+    end
+
+    local arrow = GUI.PlumberRect(btn:CreateTexture(nil, "OVERLAY"), PLUMBER.FRAME, 764, 828, 256, 320)
+    arrow:SetSize(32 * s, 32 * s)
+    arrow:SetPoint("CENTER", btn, "RIGHT", -13.5 * s, 0)
+    local glow = GUI.PlumberRect(btn:CreateTexture(nil, "HIGHLIGHT"), PLUMBER.FRAME, 892, 956, 256, 320)
+    glow:SetSize(48 * s, 48 * s)
+    glow:SetPoint("CENTER", btn, "RIGHT", -13.5 * s, 0)
+    glow:SetBlendMode("ADD")
+    return slices, arrow
+end
 
 -- THE LIST MUST SCROLL, AND IT MUST LOOK LIKE IT SCROLLS.
 --
@@ -636,51 +839,91 @@ local function BuildPopup(dd)
     pop:SetFrameStrata("FULLSCREEN_DIALOG")
     pop:SetFrameLevel(220)
     pop:Hide()
-    Backdrop(pop, "bgDark", 1, "accent", 0.8)
+    if GUI.FOREVER then
+        PlumberListBox(pop)
+    else
+        Backdrop(pop, "bgDark", 1, "accent", 0.8)
+    end
 
     local sf = CreateFrame("ScrollFrame", nil, pop)
-    sf:SetPoint("TOPLEFT",     pop, "TOPLEFT",      1, -1)
-    sf:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", -1,  1)
+    sf:SetPoint("TOPLEFT",     pop, "TOPLEFT",      POP_PAD_H, -POP_PAD_V)
+    sf:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", -POP_PAD_H,  POP_PAD_V)
 
     local content = CreateFrame("Frame", nil, sf)
     content:SetSize(1, 1)
     sf:SetScrollChild(content)
-    GUI.SmoothScroll(sf, ITEM_H * 2)
 
-    -- Flat, not nine-sliced: 3px is far below any slice minimum, and WoW would
-    -- draw the rounded texture outside the frame.
-    local track = Tex(pop, "ARTWORK", "border", 0.55)
-    track:SetWidth(BAR_W)
-    track:SetPoint("TOPRIGHT",    pop, "TOPRIGHT",    -2, -3)
-    track:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", -2,  3)
-    local thumb = Tex(pop, "OVERLAY", "accent", 0.95)
-    thumb:SetWidth(BAR_W)
-
-    pop.sf, pop.content, pop.track, pop.thumb = sf, content, track, thumb
+    pop.sf, pop.content = sf, content
     pop.items = {}
 
-    function pop:UpdateBar()
-        local range = self.sf:GetVerticalScrollRange() or 0
-        if range <= 0 then
-            self.track:Hide(); self.thumb:Hide()
-            return
-        end
-        self.track:Show(); self.thumb:Show()
-        local visH = self.sf:GetHeight() or 1
-        local h    = visH * visH / (visH + range)
-        if h < 16 then h = 16 end
-        if h > visH then h = visH end
-        local cur = self.sf:GetVerticalScroll() or 0
-        self.thumb:SetHeight(h)
-        self.thumb:ClearAllPoints()
-        self.thumb:SetPoint("TOP", self.track, "TOP", 0, -((visH - h) * (cur / range)))
+    -- Whether the rows run past the box at its full height. Not the scroll
+    -- range: while the box slides open it is shorter than its rows, so a list
+    -- of four flashed a scroll bar for the length of the slide.
+    function pop:Overflows()
+        return (self._full or 0) > (self._visH or 0)
     end
 
-    sf:HookScript("OnVerticalScroll", function(s) pop:UpdateBar() end)
-    sf:HookScript("OnScrollRangeChanged", function(s) pop:UpdateBar() end)
+    if GUI.FOREVER then
+        -- The page's scroll bar, wired the same way (ScrollUtil drives the
+        -- frame, the wheel included), shown only when the list overflows.
+        local bar = CreateFrame("EventFrame", nil, pop, "MinimalScrollBar")
+        bar:SetPoint("TOPRIGHT",    pop, "TOPRIGHT",    -6, -POP_PAD_V)
+        bar:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", -6,  POP_PAD_V)
+        ScrollUtil.InitScrollFrameWithScrollBar(sf, bar)
+        sf:EnableMouseWheel(true)
+        sf:SetPanExtent(ITEM_H * 2)
+        bar:Hide()
+        pop.bar = bar
+
+        function pop:UpdateBar()
+            self.bar:SetShown(self:Overflows())
+        end
+        sf:HookScript("OnScrollRangeChanged", function() pop:UpdateBar() end)
+    else
+        GUI.SmoothScroll(sf, ITEM_H * 2)
+
+        -- Flat, not nine-sliced: 3px is far below any slice minimum, and WoW
+        -- would draw the rounded texture outside the frame.
+        local track = Tex(pop, "ARTWORK", "border", 0.55)
+        track:SetWidth(BAR_W)
+        track:SetPoint("TOPRIGHT",    pop, "TOPRIGHT",    -2, -3)
+        track:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", -2,  3)
+        local thumb = Tex(pop, "OVERLAY", "accent", 0.95)
+        thumb:SetWidth(BAR_W)
+        pop.track, pop.thumb = track, thumb
+
+        function pop:UpdateBar()
+            local range = self.sf:GetVerticalScrollRange() or 0
+            if range <= 0 or not self:Overflows() then
+                self.track:Hide(); self.thumb:Hide()
+                return
+            end
+            self.track:Show(); self.thumb:Show()
+            local visH = self.sf:GetHeight() or 1
+            local h    = visH * visH / (visH + range)
+            if h < 16 then h = 16 end
+            if h > visH then h = visH end
+            local cur = self.sf:GetVerticalScroll() or 0
+            self.thumb:SetHeight(h)
+            self.thumb:ClearAllPoints()
+            self.thumb:SetPoint("TOP", self.track, "TOP", 0, -((visH - h) * (cur / range)))
+        end
+
+        sf:HookScript("OnVerticalScroll", function(s) pop:UpdateBar() end)
+        sf:HookScript("OnScrollRangeChanged", function(s) pop:UpdateBar() end)
+    end
 
     dd.popup = pop
     return pop
+end
+
+-- Forever's row: the radio dot marks the current value, the text is cream and
+-- turns white over the brown bar under the mouse (Plumber's MenuButton).
+local function PaintPlumberItem(it, sel, hover)
+    local c = hover and T.textHover or T.textPrimary
+    it.lbl:SetTextColor(c[1], c[2], c[3], 1)
+    it.fill:SetShown(hover)
+    GUI.PlumberRect(it.radio, PLUMBER.MENU, sel and 32 or 0, sel and 64 or 32, 0, 32, 512)
 end
 
 local function LayoutPopup(dd)
@@ -698,31 +941,51 @@ local function LayoutPopup(dd)
                 it:SetHeight(ITEM_H)
                 it:SetPoint("TOPLEFT",  pop.content, "TOPLEFT",  0, -((i - 1) * ITEM_H))
                 it:SetPoint("RIGHT",    pop.content, "RIGHT",    0, 0)
-                it.fill = Tex(it, "BACKGROUND", "accent", 0.15)
-                it.fill:SetAllPoints()
-                it.fill:Hide()
-                it.bar = Tex(it, "ARTWORK", "accent")
-                it.bar:SetWidth(2)
-                it.bar:SetPoint("TOPLEFT", it, "TOPLEFT", 0, 0)
-                it.bar:SetPoint("BOTTOMLEFT", it, "BOTTOMLEFT", 0, 0)
-                it.bar:Hide()
                 it.lbl = it:CreateFontString(nil, "OVERLAY")
-                it.lbl:SetPoint("LEFT", it, "LEFT", 8, 0)
                 it.lbl:SetPoint("RIGHT", it, "RIGHT", -6, 0)
                 it.lbl:SetJustifyH("LEFT")
-                it:SetScript("OnEnter", function(s)
-                    s.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
-                    s.fill:Show()
-                end)
-                it:SetScript("OnLeave", function(s)
-                    local sel = s.key == dd.value
-                    s.lbl:SetTextColor(
-                        sel and T.accent[1] or T.textSecondary[1],
-                        sel and T.accent[2] or T.textSecondary[2],
-                        sel and T.accent[3] or T.textSecondary[3], 1)
-                    if not sel then s.fill:Hide() end
-                end)
+                -- One line, cut short if it must: a long font name drawn in its
+                -- own face wrapped to two and spilled over the next row.
+                it.lbl:SetWordWrap(false)
+                if GUI.FOREVER then
+                    -- Plumber's bar: a dark pill tinted brown and added over the
+                    -- row.
+                    it.fill = GUI.PlumberRect(it:CreateTexture(nil, "BACKGROUND"), PLUMBER.MENU, 368, 512, 0, 48, 512)
+                    it.fill:SetAllPoints()
+                    it.fill:SetVertexColor(119 / 255, 96 / 255, 74 / 255)
+                    it.fill:SetBlendMode("ADD")
+                    it.fill:Hide()
+                    it.radio = it:CreateTexture(nil, "ARTWORK")
+                    it.radio:SetSize(RADIO, RADIO)
+                    it.radio:SetPoint("LEFT", it, "LEFT", RADIO_X, 0)
+                    it.lbl:SetPoint("LEFT", it.radio, "RIGHT", 4, 0)
+                    it:SetScript("OnEnter", function(s) PaintPlumberItem(s, s.key == dd.value, true) end)
+                    it:SetScript("OnLeave", function(s) PaintPlumberItem(s, s.key == dd.value, false) end)
+                else
+                    it.fill = Tex(it, "BACKGROUND", "accent", 0.15)
+                    it.fill:SetAllPoints()
+                    it.fill:Hide()
+                    it.bar = Tex(it, "ARTWORK", "accent")
+                    it.bar:SetWidth(2)
+                    it.bar:SetPoint("TOPLEFT", it, "TOPLEFT", 0, 0)
+                    it.bar:SetPoint("BOTTOMLEFT", it, "BOTTOMLEFT", 0, 0)
+                    it.bar:Hide()
+                    it.lbl:SetPoint("LEFT", it, "LEFT", 8, 0)
+                    it:SetScript("OnEnter", function(s)
+                        s.lbl:SetTextColor(T.textPrimary[1], T.textPrimary[2], T.textPrimary[3], 1)
+                        s.fill:Show()
+                    end)
+                    it:SetScript("OnLeave", function(s)
+                        local sel = s.key == dd.value
+                        s.lbl:SetTextColor(
+                            sel and T.accent[1] or T.textSecondary[1],
+                            sel and T.accent[2] or T.textSecondary[2],
+                            sel and T.accent[3] or T.textSecondary[3], 1)
+                        if not sel then s.fill:Hide() end
+                    end)
+                end
                 it:SetScript("OnClick", function(s)
+                    GUI.Sound(GUI.SOUND_ON)
                     dd:Close()
                     dd:Select(s.key)
                 end)
@@ -733,12 +996,14 @@ local function LayoutPopup(dd)
             -- Placement is pop:Reposition's job, called from pop:Scroll below.
             -- The font dropdown renders each entry in its own typeface, which is
             -- the entire point of picking a font from a list.
+            -- Forever: 12, the game's normal font size, as Plumber's rows.
+            local size = GUI.FOREVER and 12 or 11
             local face = dd.fontResolver and dd.fontResolver(o.key)
             if face then
                 local ok = pcall(it.lbl.SetFont, it.lbl, face, 12, "")
-                if not ok then ApplyFont(it.lbl, 11) end
+                if not ok then ApplyFont(it.lbl, size) end
             else
-                ApplyFont(it.lbl, 11)
+                ApplyFont(it.lbl, size)
             end
             it.lbl:SetText(o.label or o.key)
             it:Show()
@@ -749,7 +1014,7 @@ local function LayoutPopup(dd)
     pop._full  = full
     pop._visH  = math.min(full, MAX_VIS * ITEM_H)
     pop.content:SetHeight(math.max(1, full))
-    pop:SetHeight(pop._visH + 2)
+    pop:SetHeight(pop._visH + 2 * POP_PAD_V)
     -- A shorter list can leave the previous offset past the new end.
     local range = pop.sf:GetVerticalScrollRange() or 0
     if (pop.sf:GetVerticalScroll() or 0) > range then pop.sf:SetVerticalScroll(range) end
@@ -761,7 +1026,9 @@ local function PaintPopup(dd)
     if not pop then return end
     for i = 1, #dd.options do
         local it = pop.items[i]
-        if it then
+        if it and GUI.FOREVER then
+            PaintPlumberItem(it, it.key == dd.value, false)
+        elseif it then
             local sel = it.key == dd.value
             it.lbl:SetTextColor(
                 sel and T.accent[1] or T.textSecondary[1],
@@ -802,26 +1069,42 @@ function W.Dropdown(parent, spec)
     else
         btn:SetAllPoints(row.ctrl)
     end
-    Backdrop(btn, "bgMedium", 1, "border", 1, "rr4")
+
+    -- Forever: Plumber's button; its text starts 8 in and stops clear of the
+    -- arrow square (32 short of the right end at Plumber's size).
+    local slices, arrow
+    if GUI.FOREVER then
+        slices, arrow = PlumberDropdownArt(btn)
+    else
+        Backdrop(btn, "bgMedium", 1, "border", 1, "rr4")
+    end
 
     local val = btn:CreateFontString(nil, "OVERLAY")
-    val:SetPoint("LEFT", btn, "LEFT", 7, 0)
-    val:SetPoint("RIGHT", btn, "RIGHT", -20, 0)
+    val:SetPoint("LEFT", btn, "LEFT", GUI.FOREVER and 8 or 7, 0)
+    val:SetPoint("RIGHT", btn, "RIGHT", GUI.FOREVER and -32 * DD_ART or -20, 0)
     val:SetJustifyH("LEFT")
-    ApplyFont(val, 11)
+    ApplyFont(val, GUI.FOREVER and 12 or 11)
     Paint(val, function(f, t) f:SetTextColor(t.textPrimary[1], t.textPrimary[2], t.textPrimary[3], 1) end)
 
-    -- A '<' chevron: pointing left when closed, rotated down when open.
-    local arrow = btn:CreateTexture(nil, "OVERLAY")
-    arrow:SetSize(11, 11)
-    arrow:SetPoint("RIGHT", btn, "RIGHT", -7, 0)
-    arrow:SetTexture("Interface\\AddOns\\SuspicionsPack\\Media\\GUITextures\\chevron.png")
-    Paint(arrow, function(f, t) f:SetVertexColor(t.textMuted[1], t.textMuted[2], t.textMuted[3], 1) end)
-    arrow:SetRotation(0)
+    if not GUI.FOREVER then
+        -- A '<' chevron: pointing left when closed, rotated down when open.
+        arrow = btn:CreateTexture(nil, "OVERLAY")
+        arrow:SetSize(11, 11)
+        arrow:SetPoint("RIGHT", btn, "RIGHT", -7, 0)
+        arrow:SetTexture("Interface\\AddOns\\SuspicionsPack\\Media\\GUITextures\\chevron.png")
+        Paint(arrow, function(f, t) f:SetVertexColor(t.textMuted[1], t.textMuted[2], t.textMuted[3], 1) end)
+        arrow:SetRotation(0)
+    end
 
-    -- 0 = pointing left (closed), +pi/2 = pointing down (open). Negative
-    -- rotation turned it UP, which reads as "this collapses upward".
-    local function SpinArrow(open)
+    -- Retail: 0 = pointing left (closed), +pi/2 = pointing down (open), tinted
+    -- with the accent while open. Negative rotation turned it UP, which reads
+    -- as "this collapses upward". Forever: Plumber's arrow square stays
+    -- pressed while its list is open.
+    local function ShowArrow(open)
+        if GUI.FOREVER then
+            GUI.PlumberRect(arrow, PLUMBER.FRAME, open and 828 or 764, open and 892 or 828, 256, 320)
+            return
+        end
         local from = arrow:GetRotation() or 0
         local to   = open and (math.pi / 2) or 0
         if SP.Tick then
@@ -829,6 +1112,8 @@ function W.Dropdown(parent, spec)
         else
             arrow:SetRotation(to)
         end
+        local c = open and T.accent or T.textMuted
+        arrow:SetVertexColor(c[1], c[2], c[3], 1)
     end
 
     row.btn        = btn
@@ -853,8 +1138,7 @@ function W.Dropdown(parent, spec)
         if GUI._activePopupClose == self._closeFn then GUI._activePopupClose = nil end
         if not self.popup or not self.popup:IsShown() then return end
         self.popup:Hide()
-        SpinArrow(false)
-        arrow:SetVertexColor(T.textMuted[1], T.textMuted[2], T.textMuted[3], 1)
+        ShowArrow(false)
         if btn._spBorder then
             btn._spBorder:SetVertexColor(T.border[1], T.border[2], T.border[3], 1)
         end
@@ -863,6 +1147,7 @@ function W.Dropdown(parent, spec)
 
     function row:Open()
         if self._disabled or #self.options == 0 then return end
+        GUI.Sound(GUI.SOUND_ON)
         GUI.CloseActivePopup()
         LayoutPopup(self)
         PaintPopup(self)
@@ -870,7 +1155,7 @@ function W.Dropdown(parent, spec)
         pop:SetWidth(btn:GetWidth())
         -- Derived from the button rather than read back off the ScrollFrame:
         -- an anchor-driven size does not settle until the next frame.
-        pop.content:SetWidth(math.max(1, (btn:GetWidth() or 2) - 2 - BAR_W - 3))
+        pop.content:SetWidth(math.max(1, (btn:GetWidth() or 2) - 2 * POP_PAD_H - POP_BAR_ROOM))
         -- Land the list on the current value. With 60 fonts and yours at #45,
         -- opening on entries 1 to 10 is barely better than not opening at all.
         local sel = 0
@@ -885,11 +1170,13 @@ function W.Dropdown(parent, spec)
         pop:UpdateBar()
         pop:ClearAllPoints()
         -- Flip upward when the list would run off the bottom of the screen.
+        -- Forever: 6 off the button, as Plumber's, clear of both pieces' art.
+        local gap = GUI.FOREVER and 6 or 2
         local below = btn:GetBottom() or 0
         if below - pop:GetHeight() < 20 then
-            pop:SetPoint("BOTTOMLEFT", btn, "TOPLEFT", 0, 2)
+            pop:SetPoint("BOTTOMLEFT", btn, "TOPLEFT", 0, gap)
         else
-            pop:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
+            pop:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -gap)
         end
         pop:Show()
         -- Slide down from nothing. It used to appear at full height in one
@@ -910,8 +1197,7 @@ function W.Dropdown(parent, spec)
         closer:SetFrameLevel(210)
         closer:Show()
         GUI._activePopupClose = self._closeFn
-        SpinArrow(true)
-        arrow:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1)
+        ShowArrow(true)
         if btn._spBorder then
             btn._spBorder:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1)
         end
@@ -945,9 +1231,24 @@ function W.Dropdown(parent, spec)
     end
 
     btn:SetScript("OnClick", function()
-        if row.popup and row.popup:IsShown() then row:Close() else row:Open() end
+        if row.popup and row.popup:IsShown() then
+            GUI.Sound(GUI.SOUND_OFF)
+            row:Close()
+        else
+            row:Open()
+        end
     end)
     GUI.HoverBorder(btn, function() return row.popup and row.popup:IsShown() end)
+    if GUI.FOREVER then
+        -- Plumber's text turns white under the mouse. A disabled button takes
+        -- no mouse, so this never repaints a greyed one.
+        local function Tint(key)
+            local c = T[key]
+            val:SetTextColor(c[1], c[2], c[3], 1)
+        end
+        btn:HookScript("OnEnter", function() Tint("textHover") end)
+        btn:HookScript("OnLeave", function() Tint("textPrimary") end)
+    end
     -- The popup is UIParent-parented, so hiding the page does not hide it.
     row:SetScript("OnHide", function() row:Close() end)
 
@@ -975,6 +1276,17 @@ function W.Dropdown(parent, spec)
     row._dim = function(en)
         local c = en and T.textPrimary or T.textMuted
         val:SetTextColor(c[1], c[2], c[3], 1)
+        -- Forever: greyed as Plumber greys its own (desaturated, half).
+        if slices then
+            local v = en and 1 or 0.5
+            for _, tex in ipairs(slices) do
+                tex:SetDesaturated(not en)
+                tex:SetVertexColor(v, v, v)
+            end
+            arrow:SetDesaturated(not en)
+            local a = en and 1 or 0.6
+            arrow:SetVertexColor(a, a, a)
+        end
     end
     function row:SetEnabled(en)
         StdSetEnabled(self, en)
@@ -1008,15 +1320,12 @@ end
 function W.EditBox(parent, spec)
     local row = NewRow(parent, spec, spec.ctrlW or 180, CTRL_H)
 
-    local box = CreateFrame("EditBox", nil, row.ctrl)
+    local box = NewInputBox(row.ctrl)
     box:SetAllPoints(row.ctrl)
-    box:SetAutoFocus(false)
-    box:EnableMouse(true)
     box:SetMaxLetters(spec.maxLen or 128)
-    box:SetTextInsets(6, 6, 0, 0)
-    ApplyFont(box, 11)
-    Backdrop(box, "bgMedium", 1, "border", 1, "rr4")
-    Paint(box, function(f, t) f:SetTextColor(t.textPrimary[1], t.textPrimary[2], t.textPrimary[3], 1) end)
+    -- The game's field starts its text at the box's edge; its art already
+    -- frames it.
+    box:SetTextInsets(GUI.FOREVER and 0 or 6, 6, 0, 0)
 
     local function Current() return row.binding:Get() or "" end
 
@@ -1079,7 +1388,45 @@ end
 -- around it dimmed the button and left it firing.
 -- ============================================================
 
+-- Forever: the game's UIPanelButtonTemplate, Keep or Toss's buttons. It greys
+-- its own art and text when disabled, and LockHighlight is its lit state, so
+-- that is what "active" means here. It widens to fit its text, now and on
+-- every SetText: the game's font runs wider than Expressway, and a Blizzard
+-- button does not clip its label, it spills it over the art.
+local function ForeverButton(parent, spec)
+    local btn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    btn:SetHeight(spec.height or 22)
+    local minW = spec.width or 110
+
+    local nativeSetText = btn.SetText
+    function btn:SetText(t)
+        nativeSetText(self, t)
+        self:SetWidth(math.max(minW, math.ceil(self:GetTextWidth() or 0) + 24))
+    end
+    btn:SetText(spec.text or "")
+
+    btn:SetScript("OnClick", function(self)
+        if self._disabled then return end
+        GUI.Sound(GUI.SOUND_ON)
+        if spec.onClick then spec.onClick(self) end
+    end)
+    GUI.Tooltip(btn, spec.tipTitle, spec.tipBody)
+
+    function btn:SetActive(on)
+        self._active = on and true or false
+        if self._active then self:LockHighlight() else self:UnlockHighlight() end
+    end
+    local nativeSetEnabled = btn.SetEnabled
+    function btn:SetEnabled(en)
+        self._disabled = not en
+        nativeSetEnabled(self, en)
+    end
+    return btn
+end
+
 function W.Button(parent, spec)
+    if GUI.FOREVER then return ForeverButton(parent, spec) end
+
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetSize(spec.width or 110, spec.height or 22)
     Backdrop(btn, "bgMedium", 1, "border", 1, "rr4")

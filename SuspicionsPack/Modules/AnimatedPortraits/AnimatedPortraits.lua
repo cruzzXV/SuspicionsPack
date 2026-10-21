@@ -489,7 +489,15 @@ Refresh = function(texture, force)
     if e.dirty then
         e.dirty = false
         e.loaded = false
-        local ok, set = pcall(model.SetUnit, model, e.unit)
+        -- The same unit with a new look (gear, form): SetUnit again kept the
+        -- old shoulders on (reported 2026-10-21). RefreshUnit is what the
+        -- game's inspect model does on UNIT_MODEL_CHANGED.
+        local ok, set
+        if fresh then
+            ok, set = pcall(model.SetUnit, model, e.unit)
+        else
+            ok = pcall(model.RefreshUnit, model)
+        end
         if not ok or (not Secret(set) and set == false) then
             e.dirty, e.blocked = true, true
             model:ClearModel()
@@ -643,6 +651,39 @@ local function UnitChanged(unit, reload)
     end
 end
 
+-- Drawing or sheathing a weapon fires UNIT_MODEL_CHANGED like new gear does,
+-- and loading the model again restarts its idle animation and its camera: the
+-- portrait jumps, all for weapons a face portrait barely shows. Only your own
+-- sheath can be read, so only your model skips that load, and only when no
+-- form or mount changed with it. It keeps the old weapons until the next load.
+local look = {}  -- the player's sheath, form and mount at the last model change
+
+-- False when one of them is a secret: the next change then loads the model.
+local function ReadLook()
+    local sheath, form, mounted = GetSheathState(), GetShapeshiftFormID(), IsMounted()
+    if Secret(sheath) or Secret(form) or Secret(mounted) then
+        look.sheath = nil
+        return false
+    end
+    look.sheath, look.form, look.mounted = sheath, form, mounted
+    return true
+end
+
+local function SheathOnly()
+    local now = GetTime()
+    -- The event comes once per token that names you (player, target...); the
+    -- first one decides for the rest.
+    if look.time == now then return look.only end
+    local sheath, form, mounted = look.sheath, look.form, look.mounted
+    look.time = now
+    look.only = ReadLook() and sheath ~= nil and look.sheath ~= sheath
+        and look.form == form and look.mounted == mounted
+    SP:Debug("AnimatedPortraits", "your model changed: sheath", sheath, "->", look.sheath,
+        "form", form, "->", look.form, "mounted", mounted, "->", look.mounted,
+        look.only and "kept" or "reloaded")
+    return look.only
+end
+
 -- Another unit on a portrait whose identity is hidden (no GUID to compare):
 -- the flat picture first, then the new model.
 Swapped = function(pattern)
@@ -739,8 +780,10 @@ local function OnEvent(_, event, unit)
         OnCombatStart()
     elseif event == "PLAYER_REGEN_ENABLED" then
         OnCombatEnd()
+    elseif event == "UNIT_MODEL_CHANGED" then
+        UnitChanged(unit, not (unit and Same(unit, "player") and SheathOnly()))
     else
-        UnitChanged(unit, event == "UNIT_MODEL_CHANGED")
+        UnitChanged(unit, false)
     end
 end
 
@@ -811,6 +854,7 @@ function AP:Activate()
         watcher:SetScript("OnEvent", OnEvent)
     end
     for _, event in ipairs(EVENTS) do watcher:RegisterEvent(event) end
+    ReadLook()  -- so the first sheath is already told apart
     LowerPartyBackground()
     ApplyAll()
     PrimePortraits()
