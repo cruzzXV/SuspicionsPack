@@ -4,6 +4,49 @@
 
 ---
 
+## 2026-10-21 — v2.8.1 : export, import et sélecteur de couleur au-dessus des options
+
+Retour de Cruzz : la fenêtre d'export / import et le sélecteur de couleur
+s'ouvraient sous la fenêtre d'options. Celle-ci est en `FULLSCREEN_DIALOG`
+(choisi pour passer au-dessus des barres des autres addons) ; le dialogue de
+profil était en `DIALOG`, et le `ColorPickerFrame` de Blizzard a sa propre
+strate, plus basse.
+- **`Core/Theme.lua`** : `GUI.OVER_WINDOW = 300`, le niveau au-dessus de tout
+  ce que la fenêtre utilise (son cadre à +20, les listes à 220).
+- **`Pages/Home.lua`** : le dialogue de profil passe en `FULLSCREEN_DIALOG`,
+  niveau `GUI.OVER_WINDOW`.
+- **`Core/ColorWidgets.lua`** : `ShowPickerOverWindow` monte le sélecteur dans
+  la même strate le temps qu'une de nos pastilles l'a ouvert, et le remet à sa
+  strate et son niveau d'origine à sa fermeture (accroché à son `OnHide`), pour
+  les autres addons. L'origine est notée après l'appel à
+  `SetupColorPickerAndShow`, qui peut cacher puis réafficher un sélecteur déjà
+  ouvert.
+
+**Suite : la demande de rechargement aussi.** `SP.CreateReloadPrompt` est un
+`StaticPopup` de Blizzard, que `StaticPopup_Show` place en `DIALOG`
+(`StaticPopup_SetUpPosition`, branche `forever`), sous la fenêtre.
+- **`Core.lua`** : la définition du popup gagne `OnShow` / `OnHide`
+  (`RaiseReloadPrompt`, `LowerReloadPrompt`) : `FULLSCREEN_DIALOG` au niveau
+  `SP.OVER_OPTIONS` tant qu'il est affiché, puis retour à sa strate et son
+  niveau, car les cadres de popup de Blizzard sont partagés. `OnShow` passe
+  après le placement, donc la montée tient ; on remonte aussi le cadre que
+  rend `StaticPopup_Show`, pour un popup redemandé alors qu'il est déjà
+  affiché (pas de second `OnShow`).
+- `SP.OVER_OPTIONS = 300` vit dans l'addon parent ; `GUI.OVER_WINDOW` le lit.
+
+**Suite : la fenêtre d'export / import à la Plumber (Forever).**
+- **`Pages/Home.lua`** : cadre, cuir et bouton de fermeture de Plumber
+  (`Skin.PlumberFrame`), œil de démon devant le titre, séparateurs de Plumber
+  sous l'en-tête et au-dessus du pied, texte dans sa boîte sombre à liseré
+  bronze, défilement par le `MinimalScrollBar` du jeu (une `ScrollFrame` nue,
+  `ScrollUtil` gère la molette), bouton du jeu à 22 de haut. Retail inchangé.
+- **`Core/Skin.lua`** : la boîte sombre des listes déroulantes devient
+  `Skin.PlumberBox`, partagée avec `Widgets.lua`.
+
+Pas relu en jeu.
+
+---
+
 ## 2026-10-21 — v2.8.0 : la fenêtre d'options au style Forever
 
 Demande de Cruzz : la fenêtre d'options doit avoir le style Forever, comme

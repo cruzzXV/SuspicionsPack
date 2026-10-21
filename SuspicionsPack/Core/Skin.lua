@@ -280,6 +280,35 @@ function Skin.PlumberHeader(parent, label, x, y, right, rightX)
     return diamond
 end
 
+-- Plumber's dark box (its dropdown list's): nine pieces of the frame sheet
+-- (x 512-768, y 320-576) on `f`'s BACKGROUND, the 32 px corners drawn 16 and
+-- centred on `f`'s corners, so the thin bronze rim lands on its edge.
+function Skin.PlumberBox(f)
+    local P = Skin.PLUMBER
+    local xs, ys = { 512, 544, 736, 768 }, { 320, 352, 544, 576 }
+    local p = {}
+    for row = 1, 3 do
+        for col = 1, 3 do
+            p[#p + 1] = Skin.PlumberRect(f:CreateTexture(nil, "BACKGROUND"), P.FRAME,
+                xs[col], xs[col + 1], ys[row], ys[row + 1])
+        end
+    end
+    local corners = { [1] = "TOPLEFT", [3] = "TOPRIGHT", [7] = "BOTTOMLEFT", [9] = "BOTTOMRIGHT" }
+    for i, point in pairs(corners) do
+        p[i]:SetSize(16, 16)
+        p[i]:SetPoint("CENTER", f, point)
+    end
+    local function Between(i, a, aPoint, b, bPoint)
+        p[i]:SetPoint("TOPLEFT", p[a], aPoint)
+        p[i]:SetPoint("BOTTOMRIGHT", p[b], bPoint)
+    end
+    Between(2, 1, "TOPRIGHT",    3, "BOTTOMLEFT")   -- top
+    Between(8, 7, "TOPRIGHT",    9, "BOTTOMLEFT")   -- bottom
+    Between(4, 1, "BOTTOMLEFT",  7, "TOPRIGHT")     -- left
+    Between(6, 3, "BOTTOMLEFT",  9, "TOPRIGHT")     -- right
+    Between(5, 1, "BOTTOMRIGHT", 9, "TOPLEFT")      -- centre
+end
+
 -- Plumber's divider: 24 high, its line in rows 12-16 of those, faded at both
 -- ends. The caller places and sizes it.
 function Skin.PlumberDivider(parent, layer)

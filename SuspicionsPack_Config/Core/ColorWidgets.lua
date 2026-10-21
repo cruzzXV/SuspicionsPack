@@ -57,6 +57,35 @@ local function PickerInfo(r, g, b, onUpdate, onCancel, a)
     return info
 end
 
+-- Blizzard's colour picker opens in its own strata, underneath the options
+-- window (FULLSCREEN_DIALOG, Shell.lua). Lifted over it while one of our
+-- swatches has it open, and put back where it was as it closes, so other
+-- addons find it as they left it.
+local pickerHome   -- { strata, level } while we hold it raised
+local pickerHooked = false
+
+local function ShowPickerOverWindow(info)
+    local picker = ColorPickerFrame
+    if not pickerHooked then
+        pickerHooked = true
+        picker:HookScript("OnHide", function(f)
+            if not pickerHome then return end
+            f:SetFrameStrata(pickerHome[1])
+            f:SetFrameLevel(pickerHome[2])
+            pickerHome = nil
+        end)
+    end
+    picker:SetupColorPickerAndShow(info)
+    -- Noted after the setup, not before: if it hides and re-shows a picker we
+    -- had already raised, the hook above has just put it home and forgotten,
+    -- and noting it first would have kept the raised place as "home".
+    if not pickerHome then
+        pickerHome = { picker:GetFrameStrata(), picker:GetFrameLevel() }
+    end
+    picker:SetFrameStrata("FULLSCREEN_DIALOG")
+    picker:SetFrameLevel(GUI.OVER_WINDOW)
+end
+
 -- ============================================================
 -- Swatch button — checkerboard so alpha is visible
 -- ============================================================
@@ -162,7 +191,7 @@ local function ColorCell(row, spec, host, getFn, setFn, labelText)
         -- Restore the STORED alpha on cancel, not the picker's (which is nil
         -- whenever this swatch has no opacity slider).
         local prev = { r, g, b, c[4] }
-        ColorPickerFrame:SetupColorPickerAndShow(PickerInfo(r, g, b,
+        ShowPickerOverWindow(PickerInfo(r, g, b,
             function(nr, ng, nb, na)
                 -- Keep the fourth component when the picker has no opacity
                 -- slider. Replacing the table with a three-element one silently

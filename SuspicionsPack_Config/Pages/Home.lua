@@ -112,76 +112,124 @@ local function GetProfileDialog()
 
     local SB_W = 4   -- scrollbar width; matches the main window's
 
+    -- Forever: Plumber's panel, as the options window and the changelog popup
+    -- there (Core\Skin.lua): its frame, leather and close button, the demon eye
+    -- by the title, its dividers, its dark box round the text and the game's
+    -- scroll bar. 20 in, clear of the frame's inward shadow.
+    local FOREVER = GUI.FOREVER
+    local Skin    = SP.Skin
+    local PAD     = FOREVER and 20 or 14
+
     local dlg = CreateFrame("Frame", "SP_ProfileDialog", UIParent, "BackdropTemplate")
     dlg:SetSize(620, 480)
     dlg:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
-    dlg:SetFrameStrata("DIALOG")
-    dlg:SetFrameLevel(200)
+    -- In the options window's own strata and above it. At DIALOG it opened
+    -- underneath the window it was opened from (Shell.lua puts the window at
+    -- FULLSCREEN_DIALOG); GUI.OVER_WINDOW clears every level the window uses.
+    dlg:SetFrameStrata("FULLSCREEN_DIALOG")
+    dlg:SetFrameLevel(GUI.OVER_WINDOW)
     dlg:EnableMouse(true)
     dlg:SetMovable(true)
     dlg:RegisterForDrag("LeftButton")
     dlg:SetScript("OnDragStart", dlg.StartMoving)
     dlg:SetScript("OnDragStop",  dlg.StopMovingOrSizing)
-    GUI.Backdrop(dlg, "bgDark", 0.97, "border", 1)
+    if FOREVER then
+        Skin.PlumberFrame(dlg, 0, function() dlg:Hide() end)
+    else
+        GUI.Backdrop(dlg, "bgDark", 0.97, "border", 1)
+    end
     dlg:Hide()
 
     -- ---- title bar ----
     local titleBar = CreateFrame("Frame", nil, dlg, "BackdropTemplate")
-    titleBar:SetHeight(34)
+    titleBar:SetHeight(FOREVER and 52 or 34)
     titleBar:SetPoint("TOPLEFT",  dlg, "TOPLEFT",  0, 0)
     titleBar:SetPoint("TOPRIGHT", dlg, "TOPRIGHT", 0, 0)
-    GUI.Backdrop(titleBar, "bgMedium", 1, "border", 1)
-
-    local accentBar = GUI.Tex(titleBar, "OVERLAY", "accent", 0.9)
-    accentBar:SetHeight(2)
-    accentBar:SetPoint("BOTTOMLEFT",  titleBar, "BOTTOMLEFT",  0, 0)
-    accentBar:SetPoint("BOTTOMRIGHT", titleBar, "BOTTOMRIGHT", 0, 0)
 
     local titleFS = GUI.Text(titleBar, 13, "textPrimary")
-    titleFS:SetPoint("LEFT", titleBar, "LEFT", 14, 0)
     dlg._titleFS = titleFS
 
-    -- The same cross the window header uses, rather than a multiplication sign
-    -- in a font that has no glyph for it.
-    local closeBtn = CreateFrame("Button", nil, titleBar)
-    closeBtn:SetSize(20, 20)
-    closeBtn:SetPoint("RIGHT", titleBar, "RIGHT", -8, 0)
-    local closeTex = closeBtn:CreateTexture(nil, "ARTWORK")
-    closeTex:SetAllPoints()
-    closeTex:SetTexture(CLOSE_TEX)
-    closeTex:SetRotation(math.rad(45))
-    GUI.Paint(closeTex, function(f, t) f:SetVertexColor(t.textMuted[1], t.textMuted[2], t.textMuted[3], 1) end)
-    closeBtn:SetScript("OnEnter", function()
-        local t = GUI.T
-        closeTex:SetVertexColor(t.accent[1], t.accent[2], t.accent[3], 1)
-    end)
-    closeBtn:SetScript("OnLeave", function()
-        local t = GUI.T
-        closeTex:SetVertexColor(t.textMuted[1], t.textMuted[2], t.textMuted[3], 1)
-    end)
-    closeBtn:SetScript("OnClick", function() dlg:Hide() end)
+    if FOREVER then
+        local eye = Skin.DEMON_EYE
+        local logo = titleBar:CreateTexture(nil, "ARTWORK")
+        logo:SetSize(eye.w, eye.h)
+        logo:SetPoint("LEFT", titleBar, "LEFT", PAD, 0)
+        logo:SetTexture(eye.file)
+        logo:SetTexCoord(unpack(eye.uv))
+        logo:SetVertexColor(eye.shade, eye.shade, eye.shade, 1)
+        titleFS:SetPoint("LEFT", logo, "RIGHT", 10, 0)
+
+        -- Plumber's divider along the band's bottom (its line is rows 12-16
+        -- of its 24). The frame brings the close button.
+        local divider = Skin.PlumberDivider(dlg)
+        divider:SetHeight(24)
+        divider:SetPoint("TOPLEFT",  titleBar, "BOTTOMLEFT",  PAD - 8, 14)
+        divider:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", -(PAD - 8), 14)
+    else
+        GUI.Backdrop(titleBar, "bgMedium", 1, "border", 1)
+
+        local accentBar = GUI.Tex(titleBar, "OVERLAY", "accent", 0.9)
+        accentBar:SetHeight(2)
+        accentBar:SetPoint("BOTTOMLEFT",  titleBar, "BOTTOMLEFT",  0, 0)
+        accentBar:SetPoint("BOTTOMRIGHT", titleBar, "BOTTOMRIGHT", 0, 0)
+
+        titleFS:SetPoint("LEFT", titleBar, "LEFT", 14, 0)
+
+        -- The same cross the window header uses, rather than a multiplication
+        -- sign in a font that has no glyph for it.
+        local closeBtn = CreateFrame("Button", nil, titleBar)
+        closeBtn:SetSize(20, 20)
+        closeBtn:SetPoint("RIGHT", titleBar, "RIGHT", -8, 0)
+        local closeTex = closeBtn:CreateTexture(nil, "ARTWORK")
+        closeTex:SetAllPoints()
+        closeTex:SetTexture(CLOSE_TEX)
+        closeTex:SetRotation(math.rad(45))
+        GUI.Paint(closeTex, function(f, t) f:SetVertexColor(t.textMuted[1], t.textMuted[2], t.textMuted[3], 1) end)
+        closeBtn:SetScript("OnEnter", function()
+            local t = GUI.T
+            closeTex:SetVertexColor(t.accent[1], t.accent[2], t.accent[3], 1)
+        end)
+        closeBtn:SetScript("OnLeave", function()
+            local t = GUI.T
+            closeTex:SetVertexColor(t.textMuted[1], t.textMuted[2], t.textMuted[3], 1)
+        end)
+        closeBtn:SetScript("OnClick", function() dlg:Hide() end)
+    end
 
     local descFS = GUI.Text(dlg, 11, "textMuted")
-    descFS:SetPoint("TOPLEFT",  titleBar, "BOTTOMLEFT", 14, -10)
-    descFS:SetPoint("TOPRIGHT", dlg,      "TOPRIGHT",  -14,   0)
+    descFS:SetPoint("TOPLEFT",  titleBar, "BOTTOMLEFT", PAD, -10)
+    descFS:SetPoint("TOPRIGHT", dlg,      "TOPRIGHT",  -PAD,   0)
     descFS:SetJustifyH("LEFT")
     dlg._descFS = descFS
 
     -- ---- the text area ----
     local boxBg = CreateFrame("Frame", nil, dlg, "BackdropTemplate")
     boxBg:SetPoint("TOPLEFT",     descFS, "BOTTOMLEFT",  -2, -10)
-    boxBg:SetPoint("BOTTOMRIGHT", dlg,    "BOTTOMRIGHT", -14,  52)
-    GUI.Backdrop(boxBg, "bgMedium", 1, "border", 1)
+    boxBg:SetPoint("BOTTOMRIGHT", dlg,    "BOTTOMRIGHT", -PAD,  52)
+    if FOREVER then
+        Skin.PlumberBox(boxBg)
+    else
+        GUI.Backdrop(boxBg, "bgMedium", 1, "border", 1)
+    end
 
-    local scrollFrame = CreateFrame("ScrollFrame", nil, boxBg, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT",     boxBg, "TOPLEFT",      6,          -6)
-    scrollFrame:SetPoint("BOTTOMRIGHT", boxBg, "BOTTOMRIGHT", -(SB_W + 8),  6)
+    -- Forever: a plain scroll frame, the game's MinimalScrollBar beside it
+    -- (8 wide, 6 in from the box's right, 6 clear of the text).
+    local scrollFrame
+    if FOREVER then
+        scrollFrame = CreateFrame("ScrollFrame", nil, boxBg)
+        scrollFrame:SetPoint("TOPLEFT",     boxBg, "TOPLEFT",      6,            -6)
+        scrollFrame:SetPoint("BOTTOMRIGHT", boxBg, "BOTTOMRIGHT", -(6 + 8 + 6),  6)
+    else
+        scrollFrame = CreateFrame("ScrollFrame", nil, boxBg, "UIPanelScrollFrameTemplate")
+        scrollFrame:SetPoint("TOPLEFT",     boxBg, "TOPLEFT",      6,          -6)
+        scrollFrame:SetPoint("BOTTOMRIGHT", boxBg, "BOTTOMRIGHT", -(SB_W + 8),  6)
+    end
 
     -- Blizzard's template ships its own chrome: a bordered track, two arrow
     -- buttons and a textured thumb. All of it is suppressed and replaced by the
     -- pack's hairline bar, and each piece gets an OnShow that re-hides it,
     -- because the template shows them again whenever the range changes.
-    local sb = scrollFrame.ScrollBar
+    local sb = not FOREVER and scrollFrame.ScrollBar
     if sb then
         sb:ClearAllPoints()
         sb:SetPoint("TOPRIGHT",    boxBg, "TOPRIGHT",    -4, -6)
@@ -237,28 +285,51 @@ local function GetProfileDialog()
     editBox:HookScript("OnSizeChanged",       UpdateScrollbar)
 
     scrollFrame:EnableMouseWheel(true)
-    scrollFrame:SetScript("OnMouseWheel", function(sf, delta)
-        local maxScroll = sf:GetVerticalScrollRange()
-        sf:SetVerticalScroll(math.max(0, math.min(sf:GetVerticalScroll() - delta * 60, maxScroll)))
-        UpdateScrollbar()
-    end)
+    if FOREVER then
+        -- The options page's scroll bar, wired the same way (ScrollUtil owns
+        -- the wheel), shown only when the string runs past the box.
+        local bar = CreateFrame("EventFrame", nil, boxBg, "MinimalScrollBar")
+        bar:SetPoint("TOPRIGHT",    boxBg, "TOPRIGHT",    -6, -8)
+        bar:SetPoint("BOTTOMRIGHT", boxBg, "BOTTOMRIGHT", -6,  8)
+        ScrollUtil.InitScrollFrameWithScrollBar(scrollFrame, bar)
+        scrollFrame:SetPanExtent(60)
+        bar:Hide()
+        scrollFrame:HookScript("OnScrollRangeChanged", function(_, _, range)
+            bar:SetShown((range or 0) > 0)
+        end)
+    else
+        scrollFrame:SetScript("OnMouseWheel", function(sf, delta)
+            local maxScroll = sf:GetVerticalScrollRange()
+            sf:SetVerticalScroll(math.max(0, math.min(sf:GetVerticalScroll() - delta * 60, maxScroll)))
+            UpdateScrollbar()
+        end)
+    end
 
     editBox:SetScript("OnEscapePressed", function() dlg:Hide() end)
     dlg._editBox = editBox
 
+    -- Forever: Plumber's divider over the footer, as on the changelog popup.
+    if FOREVER then
+        local divider = Skin.PlumberDivider(dlg)
+        divider:SetHeight(24)
+        divider:SetPoint("BOTTOMLEFT",  dlg, "BOTTOMLEFT",  PAD - 8, 36)
+        divider:SetPoint("BOTTOMRIGHT", dlg, "BOTTOMRIGHT", -(PAD - 8), 36)
+    end
+
     local hintFS = GUI.Text(dlg, 10, "textMuted")
-    hintFS:SetPoint("BOTTOMLEFT", dlg, "BOTTOMLEFT", 14, 16)
+    hintFS:SetPoint("BOTTOMLEFT", dlg, "BOTTOMLEFT", PAD, FOREVER and 18 or 16)
     dlg._hintFS = hintFS
 
     -- The action button changes what it does between Export and Import. Its
     -- spec table is kept, not its script: W.Button reads spec.onClick at click
     -- time, so swapping the field is enough and the button keeps its theming.
+    -- Forever: the game's button, at the 22 it is drawn for.
     local actionSpec = {
-        text = "Close", width = 120, height = 30,
+        text = "Close", width = 120, height = FOREVER and 22 or 30,
         onClick = function() dlg:Hide() end,
     }
     local actionBtn = W.Button(dlg, actionSpec)
-    actionBtn:SetPoint("BOTTOMRIGHT", dlg, "BOTTOMRIGHT", -14, 12)
+    actionBtn:SetPoint("BOTTOMRIGHT", dlg, "BOTTOMRIGHT", -PAD, FOREVER and 14 or 12)
     dlg._actionBtn  = actionBtn
     dlg._actionSpec = actionSpec
 

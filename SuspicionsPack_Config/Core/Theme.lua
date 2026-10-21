@@ -107,6 +107,11 @@ end
 local T = GUI.FOREVER and ForeverTheme(SP.Theme) or SP.Theme
 GUI.T = T
 
+-- The level, in the options window's strata (FULLSCREEN_DIALOG), for a window
+-- opened from it that has to sit on top: the profile dialog, Blizzard's colour
+-- picker. The parent's, which its reload prompt uses too (Core.lua).
+GUI.OVER_WINDOW = SP.OVER_OPTIONS
+
 -- Forever's window chrome is Plumber's settings panel: its files and the rect
 -- helper are the parent's (Core\Skin.lua).
 GUI.PLUMBER     = SP.Skin.PLUMBER

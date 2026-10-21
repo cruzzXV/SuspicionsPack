@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.8.0"
+SP.VERSION = "2.8.1"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1187,6 +1187,34 @@ end
 local SP_RELOAD_DIALOG = "SP_RELOAD_PROMPT"
 local _reloadDialogCreated = false
 
+-- The level, in the options window's strata (FULLSCREEN_DIALOG), for anything
+-- opened from it that has to sit on top: above the window's deepest nesting,
+-- its frame (20 up) and its dropdown lists (220). The options addon reads it
+-- as GUI.OVER_WINDOW.
+SP.OVER_OPTIONS = 300
+
+-- The reload prompt is one of Blizzard's popups, which StaticPopup_Show puts
+-- in the DIALOG strata -- under the options window, where it is most often
+-- asked for. Lifted over it while shown, through this prompt's own OnShow and
+-- OnHide, so Blizzard's shared popup frames go back as they were for everyone
+-- else's dialogs.
+local reloadPromptHome   -- { strata, level } of the popup frame we raised
+
+local function RaiseReloadPrompt(dialog)
+    if not reloadPromptHome then
+        reloadPromptHome = { dialog:GetFrameStrata(), dialog:GetFrameLevel() }
+    end
+    dialog:SetFrameStrata("FULLSCREEN_DIALOG")
+    dialog:SetFrameLevel(SP.OVER_OPTIONS)
+end
+
+local function LowerReloadPrompt(dialog)
+    if not reloadPromptHome then return end
+    dialog:SetFrameStrata(reloadPromptHome[1])
+    dialog:SetFrameLevel(reloadPromptHome[2])
+    reloadPromptHome = nil
+end
+
 function SP.CreateReloadPrompt(reason)
     if not _reloadDialogCreated then
         _reloadDialogCreated = true
@@ -1195,6 +1223,10 @@ function SP.CreateReloadPrompt(reason)
             button1       = "Reload Now",
             button2       = "Later",
             OnAccept      = function() ReloadUI() end,
+            -- Called after StaticPopup_Show has placed the popup (and set it
+            -- to DIALOG), so the raise sticks.
+            OnShow        = RaiseReloadPrompt,
+            OnHide        = LowerReloadPrompt,
             timeout       = 0,
             whileDead     = true,
             hideOnEscape  = true,
@@ -1205,7 +1237,10 @@ function SP.CreateReloadPrompt(reason)
         StaticPopupDialogs[SP_RELOAD_DIALOG].text = reason
             or "A UI reload is required for this change to take effect."
     end
-    StaticPopup_Show(SP_RELOAD_DIALOG)
+    -- Raised here as well: asked again while already shown, the popup is not
+    -- shown again, so OnShow does not run.
+    local dialog = StaticPopup_Show(SP_RELOAD_DIALOG)
+    if dialog then RaiseReloadPrompt(dialog) end
 end
 
 -- Slash command handler
@@ -1342,6 +1377,9 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.8.1"] = {
+        { type = "fix", text = "Small fixes." },
+    },
     ["2.8.0"] = {
         { type = "new", text = "Player dragon: the rare, elite or boss dragon around your own portrait, on Blizzard's and EllesmereUI's player frames. Off by default, in Interface." },
         { type = "fix", text = "Animated portraits: drawing or sheathing your weapon no longer jolts your portrait, and new gear now shows on it." },
