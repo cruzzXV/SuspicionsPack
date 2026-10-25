@@ -239,6 +239,26 @@ function SP.AurasSecret()
 end
 
 -- StatusBar texture helpers (LibSharedMedia)
+
+-- Merfin's bars, copied from MerfinPlus (All Rights Reserved, Merfin; shipped
+-- anyway by Cruzz's choice). Same LSM names as MerfinPlus on purpose: a bar
+-- picked by name in any addon keeps resolving with MerfinPlus off, and with it
+-- on LSM keeps the first registration, so the menus show no duplicates.
+do
+    local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+    if LSM then
+        local MERFIN = [[Interface\AddOns\SuspicionsPack\Media\Merfin\]]
+        LSM:Register("statusbar", "Flatt",                      MERFIN .. "Flatt.blp")
+        LSM:Register("statusbar", "Merfin Main Texture",        MERFIN .. "MerfinTexture.blp")
+        LSM:Register("statusbar", "Merfin Plater Border",       MERFIN .. "MerfinBorderPlater.tga")
+        LSM:Register("statusbar", "Merfin Plater Border (1px)", MERFIN .. "MerfinBorderPlater_1px.tga")
+        LSM:Register("statusbar", "MerfinMain",                 MERFIN .. "MerfinMain.tga")
+        LSM:Register("statusbar", "MerfinMainDark",             MERFIN .. "MerfinMainDark.tga")
+        LSM:Register("statusbar", "MerfinMainLeft",             MERFIN .. "MerfinMainLeft.tga")
+        LSM:Register("statusbar", "MerfinMainRight",            MERFIN .. "MerfinMainRight.tga")
+    end
+end
+
 local _statusBarListCache = nil
 
 function SP.GetStatusBarList()

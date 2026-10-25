@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-10-21 — les barres de Merfin dans le pack
+
+Demande de Cruzz : avoir les textures de barre de MerfinPlus sans dépendre de
+l'addon. Sa licence est « All Rights Reserved » et interdit explicitement de
+copier ou redistribuer ses fichiers ; Cruzz l'a su avant la copie et a choisi de
+les publier quand même. Seules les 8 barres sont prises (pas les anneaux,
+flèches, polices, sons ni l'art de ses options).
+- **`Media/Merfin/`** : les 8 fichiers de `MerfinPlus/Media/statusbar`, copiés à
+  l'identique (`MerfinFlatt.tga`, qu'il n'inscrit nulle part, est laissé).
+- **`Core.lua`** : inscription dans LibSharedMedia au chargement, sous les mêmes
+  noms que MerfinPlus (« MerfinMain », « Flatt »…). Un choix fait par nom dans
+  n'importe quel addon tient donc sans MerfinPlus ; avec lui, LSM garde la
+  première inscription et les menus n'ont pas de doublon. Vérifié hors jeu avec
+  la vraie LibSharedMedia (sans MerfinPlus, chargé avant, chargé après) ; pas
+  encore vu en jeu.
+
+---
+
+## 2026-10-21 — essayé puis retiré : les titres en Goodmountain (Forever)
+
+Essayé à la demande de Cruzz : les titres (nom de la fenêtre, titres de page,
+catégories, popups, bannière de Home) dans la police Goodmountain
+(Hermann-S-Designs/Goodmountain, licence compatible si `LICENSE.md` est joint et
+le fichier ni modifié ni renommé). Même réduits d'environ un tiers, Cruzz ne
+l'a pas aimé : tout est revenu à l'état de la 2.8.1, fichiers de police
+compris. Rien n'a été publié.
+
+---
+
 ## 2026-10-21 — v2.8.1 : export, import et sélecteur de couleur au-dessus des options
 
 Retour de Cruzz : la fenêtre d'export / import et le sélecteur de couleur
