@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-25 — v2.9.0
+
+Release : Datatexts sur Forever, tiroir de la minicarte et couleur « thème »
+au style Forever, barres de Merfin dans LibSharedMedia.
+- Versions : `## Version: 2.9.0` dans les trois .toc, `SP.VERSION`.
+- `SP.Changelog["2.9.0"]` : quatre entrées courtes, validées par Cruzz.
+- `.github/RELEASE_NOTES.md` en anglais (à partir de cette version ; les
+  précédentes étaient en français), sans expliquer les fonctions.
+
+---
+
 ## 2026-10-23 — Tiroir : un onglet plus clair
 
 Retour de Cruzz (capture) : l'onglet est très foncé. À 6 px d'épaisseur,
