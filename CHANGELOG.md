@@ -4,6 +4,317 @@
 
 ---
 
+## 2026-10-23 — Tiroir : un onglet plus clair
+
+Retour de Cruzz (capture) : l'onglet est très foncé. À 6 px d'épaisseur,
+l'art « repos » du bouton de Plumber (corps vers 70,30,13, fait pour porter
+un texte crème) donnait 60-72,20-27,2-5 à l'écran. Trois rendus montrés hors
+jeu ; Cruzz a pris le B, repos et survol inversés.
+- **`Drawer.lua`** : l'onglet prend toujours les lignes « survol » de
+  Plumber (576-640, cuivre plus chaud) ; au repos, les mêmes tranches sont
+  ajoutées par-dessus en `ADD` à 35 % (plus clair) ; au survol, l'art seul.
+  La teinte rouge d'erreur s'applique aux deux couches.
+- `test_drawer` : Forever 19/19 (lignes 576, couche ajoutée à 35 % au même
+  endroit, teinte d'erreur sur les deux), retail 2/2. Le passage au survol
+  n'est pas testé (il faut des boutons dans le tiroir). Copié dans l'install
+  Forever. Pas vu en jeu.
+
+---
+
+## 2026-10-23 — Tiroir de la minicarte au style Forever
+
+Demandes de Cruzz (capture du bouton « Return to List » de Plumber) : sur
+Forever, l'onglet du tiroir prend la texture de ce bouton, au repos et au
+survol, et l'intérieur du tiroir passe au style Forever. Aperçus hors jeu
+montrés avant d'écrire le code ; Cruzz a choisi la boîte sombre de Plumber
+pour l'intérieur, et l'épaisseur réglée (Tab width, 6 par défaut) pour
+l'onglet.
+- Le bouton est le `CreateRedButton` de Plumber
+  (`ExpansionLandingPage/Basic.lua`) : trois tranches de
+  `ExpansionBorder_TWW.tga` (le même fichier que le pack publie déjà dans
+  `Media/Plumber`), lignes 448-512 au repos, 576-640 au survol, x 768-800 |
+  800-972 | 972-1004, bouts de 16 dépassant de 2,5, le tout 32 d'épais pour
+  un bouton de 24.
+- **`Modules/Drawer/Drawer.lua`** (Forever seulement, `Skin.FOREVER`) :
+  l'onglet est ce bouton, mis à l'échelle de son épaisseur et debout sur les
+  côtés gauche et droit de la minicarte (quart de tour par `SetTexCoord` à
+  huit valeurs), couché en haut et en bas. Survol : l'état survol de
+  Plumber ; erreur Lua attrapée : teinté rouge. Le tiroir ouvert est
+  `Skin.PlumberBox`. `Refresh` ne repose plus les fonds plats de retail.
+  Retail inchangé.
+- **`Pages/Drawer.lua`** : sur Forever, « Tab border », « Tab colour »,
+  « Panel border » et « Border colour » sont retirés (le bouton et la boîte
+  ont leurs propres couleurs), avec une note à la place.
+- **Tests** : `tests/test_drawer.lua` (`--drawer`), lancé pour les deux
+  clients : retail garde la barre plate et le fond ; Forever a les trois
+  tranches, leurs tailles, le quart de tour, la teinte d'erreur, le passage
+  couché en haut. `wowstub` enregistre maintenant `SetTexCoord`. Drawer
+  retail 2/2, Forever 17/17 ; GUI retail 139/139, Forever 40/40 ; les autres
+  suites vertes. Copié dans l'install Forever. Pas vu en jeu.
+
+---
+
+## 2026-10-23 — essayé puis retiré : couper le bout du côté sur les coins d'Ornated
+
+Essayé à la demande de Cruzz (sur l'aperçu de « Top and sides ») : couper le
+petit trait bronze au-dessus du triangle cuivre (le début de la seconde barre
+du liseré du côté), en retirant les 4 lignes source du bout intérieur d'un
+coin dont le côté est retiré (`cornerTrim`). Cruzz a préféré avant : le
+code, les tests et l'install Forever sont revenus à l'état de l'entrée
+« Top and sides » (Datatexts 87/87, Forever 40/40). Le coin reste entier.
+
+---
+
+## 2026-10-23 — Datatexts : « Top and sides » et « Bottom and sides »
+
+Demande de Cruzz (capture, Ornated bord haut ouvert) : un rendu sans les
+côtés ni le haut, sans couper les triangles cuivre du bas.
+- **`Skins.lua`** : deux choix de plus dans « Open edge » : **Top and sides**
+  (seul le liseré du bas) et **Bottom and sides** (seul celui du haut).
+  `FitLines` lit un ensemble de côtés ouverts (`OPEN`) : une ligne du haut
+  ou du bas n'est rentrée à un bout que si un côté l'y rejoint, sinon elle
+  court sur toute la largeur, ombre extérieure de Forever comprise. Un coin
+  suit son bord haut ou bas et reste entier sans les côtés (son petit
+  montant fait partie de l'ornement). Marche pour Forever et Ornated.
+- **`Datatexts.lua`** : la clé est passée telle quelle (une clé inconnue
+  dessine le bord entier).
+- Rendu hors jeu à la taille de la barre. Datatexts 87/87, GUI retail
+  139/139, Forever 40/40. Copié dans l'install Forever. Pas vu en jeu.
+
+---
+
+## 2026-10-23 — Datatexts : 100 % d'opacité est vraiment opaque
+
+Retour de Cruzz (capture) : à 100 %, le fond restait transparent. Le fond de
+Forever et de Text only gardait l'alpha 0,9 de la boîte de Plumber, et le
+curseur le multipliait : 100 % donnait 0,9.
+- **`Skins.lua`** : le fond de Forever (et de Text only) est opaque ; le
+  curseur est son alpha. La ligne sombre intérieure de Forever passe aussi à
+  1 (elle était à 0,96).
+- **Page** : la description dit « 100% hides what is behind the bar ».
+- **Test** : l'opacité vérifiée composée (alpha de la couleur × alpha de la
+  texture) ; avec l'ancien fond à 0,9, le test sort rouge. Datatexts 78/78,
+  GUI retail 139/139, Forever 40/40. Copié dans l'install Forever. Leçon
+  ajoutée.
+
+---
+
+## 2026-10-23 — Datatexts : opacité du fond
+
+Demande de Cruzz : pouvoir choisir l'opacité du fond.
+- **Page** : « Background opacity » par barre, 0 à 100 %.
+- **`Skins.lua`** : `Skins.Apply` reçoit l'opacité et la pose sur le fond du
+  skin seul (`SetAlpha`, qui se multiplie à l'alpha propre du fond : 90 %
+  pour Forever et Text only) ; liseré, ombre et coins restent entiers.
+- **`Datatexts.lua`** : champ `bgOpacity` (100 par défaut) ; une barre
+  enregistrée avant (celles de Cruzz) n'en a pas et se lit à 100 %.
+- Datatexts 75/75 (les trois skins, le fond seul, la valeur absente),
+  GUI retail 139/139, Forever 40/40. Copié dans l'install Forever.
+
+---
+
+## 2026-10-23 — Datatexts : une seule barre par défaut, au centre
+
+Demande de Cruzz : garder ses réglages, mais un nouvel utilisateur reçoit une
+seule barre au milieu de l'écran, sans les noms Chat / Details / Minimap.
+- **`Datatexts.lua`** : `DEFAULT_BARS` = « Bar 1 », 360 × 22, au centre,
+  Durability, Gold, Time. Le semis ne tourne qu'une fois par profil
+  (`_seeded`) : le profil de Cruzz (vérifié dans son
+  `SavedVariables\SuspicionsPack.lua` Forever : Chat, Details, Minimap,
+  `_seeded = true`) garde ses trois barres.
+- **Page** : « Restore default bars » remet cette barre unique (texte mis à
+  jour).
+- Tests : le défaut vérifié (une barre, au centre), le semis jamais rejoué ;
+  les tests de l'éditeur se bâtissent leurs trois barres. Datatexts 66/66,
+  GUI retail 139/139, Forever 40/40. Copié dans l'install Forever.
+
+---
+
+## 2026-10-23 — Forever : la couleur « thème » devient l'or du jeu
+
+Demande de Cruzz : le thème du pack étant Forever, l'accent doit être la
+couleur de Forever. En 2.8.0 l'accent de `SP.Theme` était resté rouge sur
+Forever exprès (seule la fenêtre d'options avait sa palette or) ; c'est cet
+accent que lisent la source de couleur « Theme » des modules et la teinte de
+l'icône de minicarte.
+- **`Core.lua`** : `SP.ThemePresets.Forever` = la palette Suspicion avec
+  l'or du jeu (FFD100, 1 / 0,82 / 0) pour `accent`, `accentHover`,
+  `accentDim`, `selectedBg`, `selectedText` (alphas gardés).
+  `SP.ActiveThemePreset(name)` le choisit sur Forever et le préréglage
+  enregistré ailleurs ; `SP.Theme` à sa création, `OnInitialize` et
+  `RefreshTheme` passent par lui. Rien n'est enregistré : le profil garde
+  « Suspicion », retail reste rouge. Vérifié en évaluant le bloc de
+  `Core.lua` dans les deux cas (retail 0,898 / 0,063 / 0,224 ; Forever
+  1 / 0,82 / 0).
+- **`Core/Theme.lua`** (options) : le commentaire qui disait l'accent des
+  modules « rouge sur tous les clients » est corrigé.
+- Suites vertes (GUI retail 139, Forever 40, datatexts 64). Copié dans
+  l'install Forever. Pas vu en jeu.
+
+---
+
+## 2026-10-23 — Datatexts : Text only a un fond, plus de séparateurs
+
+Demande de Cruzz : Text only doit avoir un fond, et sans les séparateurs.
+- **`Skins.lua`** : Text only = le fond de Forever (14,13,9 à 90 %) seul,
+  sans liseré, ombre ni séparateurs. Le séparateur de Plumber debout
+  (`DIV_*`, `Fit.text`) est retiré.
+- **Page** : la description d'« Open edge » dit que Text only n'a pas de bord.
+- `test_datatexts` 64/64, GUI retail 139/139, Forever 40/40. Copié dans
+  l'install Forever. Pas vu en jeu.
+
+---
+
+## 2026-10-23 — Datatexts : skins Forever et Ornated, bouts carrés, X et Y
+
+Demandes de Cruzz : renommer les skins, des bouts gauche et droit carrés pour
+la boîte (ses coins chanfreinés de 8 px se rejoignent sur une barre de 24 et
+pointent les deux bouts), et des réglages X / Y par barre.
+- **`Skins.lua`** : « Plumber box » devient **Forever**, « Leather and
+  bronze » devient **Ornated** ; les clés enregistrées (`box`, `frame`) ne
+  changent pas, aucune barre à migrer. Les deux skins bordés passent par un
+  même constructeur de lignes d'un pixel physique (lignes dedans, halo
+  dehors, fond dessous, coins dessus pour Ornated). Forever reprend la boîte
+  des listes déroulantes à pleine échelle, mesurée dans
+  `ExpansionBorder_TWW.tga` : liseré bronze de 2 px (182,153,129 puis
+  85,71,60), une ligne sombre, fond 14,13,9 à 90 %, ombre extérieure de 3 px
+  (0,73 / 0,39 / 0,1), en onglets carrés. Rendu hors jeu avant.
+- **`Core/Skin.lua`** : `PlumberBoxOpen` retiré (plus aucun appelant), la
+  boîte chanfreinée reste pour les listes, l'infobulle et le roster.
+- **Page** : « X offset » et « Y offset » (−2000 à 2000), décalages depuis
+  l'ancre de la barre ; un glisser les met à jour (`GUI.RefreshAll` à la fin
+  du glisser). La note sur le rebord de 8 px de la boîte est retirée.
+- `test_datatexts` 62/62, GUI retail 139/139, Forever 40/40. Copié dans
+  l'install Forever. Pas vu en jeu.
+
+---
+
+## 2026-10-23 — Datatexts : le cuir et bronze redessiné à la demi-échelle de Plumber
+
+Retour de Cruzz (capture) : les côtés gauche et droit du skin cuir et bronze
+étaient bizarres. Mesuré sur sa capture : côtés en brun très sombre
+(29,22,14) sur 2-3 px, bas avec une ligne bronze nette, coins en diagonale
+floue. Cause : le cadre fin de Plumber (`SettingsPanel.png`) est dessiné pour
+environ deux fois la hauteur d'une barre ; réduit cinq fois, son liseré de
+12 px (deux barres bronze autour d'un canal cuivre sombre) et ses coins
+cuivre se brouillaient, et chaque côté crénelait à sa façon. Le fond « cuir »
+est noir sur la capture parce que l'image l'est presque (moyenne 16,10,7) :
+pas un défaut.
+
+- **`Skins.lua`** : le liseré est redessiné à la demi-échelle de Plumber,
+  celle où il dessine lui-même son art : six lignes d'un pixel physique, aux
+  couleurs de son profil de 12 px moyennées deux à deux, puis quatre lignes
+  de son ombre intérieure. La ligne k est rentrée de k pixels aux deux bouts :
+  les côtés se rejoignent en onglets nets. Coins cuivre découpés sur 26 px à
+  partir de la ligne extérieure et dessinés à 13 px physiques (moins sur une
+  barre trop basse pour deux). Un bord ouvert retire ses lignes et ses coins.
+  Rendu hors jeu avant d'écrire le code (aperçu ffmpeg à la taille réelle).
+- **`Datatexts.lua`** : `UI_SCALE_CHANGED` / `DISPLAY_SIZE_CHANGED` refont la
+  mise en page (les lignes sont en pixels physiques), plus seulement le bouton
+  sécurisé.
+- `test_datatexts` 59/59, GUI retail 139/139, Forever 38/38. Copié dans
+  l'install Forever. Pas vu en jeu.
+
+---
+
+## 2026-10-23 — Datatexts : un bord ouvert
+
+Retour de Cruzz (capture, skin cuir et bronze sous le chat) : pouvoir enlever
+le bord du haut.
+- **Option par barre « Open edge »** (None / Top / Bottom) : le bord choisi
+  et ses deux coins disparaissent, les côtés et le fond vont jusqu'au bord de
+  la barre. Pour une barre collée sous le chat (Top) ou sous la minicarte
+  (Bottom). Sans effet sur Text only.
+- **`Core/Skin.lua`** : le placement des neuf pièces de `PlumberBox` sort
+  dans `Skin.PlumberBoxOpen(f, open)` ; `PlumberBox` l'appelle sans bord
+  ouvert, donc les autres boîtes (listes, infobulle, roster, dialogue de
+  profil) sont placées comme avant.
+- **`Skins.lua`** : le cuir et bronze se place dans `Fit.frame` à chaque
+  passe, selon le bord ouvert ; le cuir monte (ou descend) jusqu'au bord.
+- **`Datatexts.lua`** : champ `openEdge` des barres. **`Pages/Datatexts.lua`** :
+  la ligne « Open edge ».
+- `test_datatexts` : 54/54 (les deux skins, les deux bords, aucune frame
+  créée en changeant de bord). GUI retail 139/139, Forever 38/38. Copié dans
+  l'install Forever. Pas vu en jeu.
+
+---
+
+## 2026-10-23 — Datatexts (Forever), phase 1 : le socle et les 8 de Cruzz
+
+Demande de Cruzz : une version du pack de Simple DataTexts (SDT, Cilraaz),
+pour Forever, à notre style Forever. SDT est sous GPL-3 : lu comme référence
+fonctionnelle seulement, aucun code, police ni texture copiés (les pièces
+coin du jeu, `GetCoinTextureString`). Les skins réutilisent l'art de Plumber
+déjà publié dans `Media/Plumber` : aucun nouveau fichier publié.
+
+Chaque datatext de SDT a été vérifié sur la branche `forever` de
+Gethe/wow-ui-source (la feuille de personnage de Forever sert de guide).
+Gardés ou à corriger en phase 2 : stats, Bags, Currency, Date, Coordinates,
+Zone, Quests, Mail, Combat timer, Experience, Item level, Speed, LDB. Ajouts
+prévus (feuille de Forever) : Stamina, Spirit, Hit, Defense, Résistances,
+Mana regen, Dual spec. Écartés (pas de contenu sur Forever) : Avoidance,
+Leech, Versatility, Mastery, Stagger, Collapsing Star, clé M+, spé, spé de
+butin, changement de spé.
+
+- **`Modules/Datatexts/Datatexts.lua`** (nouveau) : registre, barres
+  (jusqu'à 8 cases), un fournisseur par datatext affiché (une frame
+  d'événements, un ticker ; texte calculé une fois et poussé à toutes les
+  cases qui le montrent ; une rafale d'événements = une mise à jour). Style
+  (polices, couleurs) appliqué tout de suite ; géométrie, affectations et
+  bouton sécurisé reportés hors combat (`RequestLayout`). Le bouton sécurisé
+  de la pierre de foyer est sur UIParent, posé par coordonnées absolues sur
+  sa case : les barres ne deviennent jamais protégées. Barres de Cruzz par
+  défaut (Chat, Details, Minimap, relevées dans son profil SDT).
+- **`Skins.lua`** (nouveau) : boîte Plumber, cuir et bronze (le cadre fin à
+  coins cuivre de `SettingsPanel.png`, mesuré dans le fichier), texte seul
+  (le séparateur de Plumber debout). Choisi par barre.
+- **`Tooltip.lua`** (nouveau) : GameTooltip privé, NineSlice à alpha 0
+  (Blizzard le ré-affiche à chaque masquage), boîte Plumber dessus.
+- **`Roster.lua`** (nouveau) : panneau Guilde / Amis cliquable (clic :
+  chuchoter ; Alt+clic : inviter), `C_BattleNet` et non l'ancien
+  `BNGetFriendInfo`.
+- **`Texts/`** (nouveau) : Hearthstone (choix de la pierre ou d'un jouet au
+  clic droit), Durability, Gold (persos du royaume en compte, jeton si le
+  royaume en a), System, Volume, Time (sans Encounter Journal, absent de
+  Forever), Guild, Friends.
+- **`Pages/Datatexts.lua`** (nouveau, catégorie Interface) : réglages
+  généraux, éditeur de barres (lignes construites une fois, masquées selon la
+  barre choisie ; hors de « Reset page »), options par datatext.
+- **`Core.lua`** : défauts `datatexts`, section `global` et
+  `SP.GetGlobalDB()`. **`Core/Skin.lua`** : `PlumberBox` rend ses pièces et
+  ne les recrée pas. **`Pages/Home.lua`** : un import qui porte des barres
+  les remplace au lieu de les mêler entrée par entrée.
+- **Tests** (locaux) : le chargeur de `test_gui.lua` honore les directives
+  `[AllowLoadGameType …]` (il plantait depuis la 2.7.1) ; passe Forever
+  (`--forever`) ; `test_datatexts.lua` (`--datatexts`). Chaque nouvelle
+  assertion a été vue rouge en cassant le code exprès.
+
+**Relecture contre le client (branche `forever`), corrigé avant l'essai :**
+- Les cases recevaient du texte avant d'avoir une police : le client lève
+  « Font not set » et tout `Layout()` s'arrêtait. Police posée à la création
+  (`GetSlot`). `wowstub` lève maintenant la même erreur (FontString jamais
+  dotée d'une police), et `spstub` a un vrai `SetFontSafe`.
+- `GetCoinTextureString` global n'existe pas sur ce moteur (seulement
+  `C_CurrencyInfo.`) : le coût de réparation passe par notre `Money`.
+- Guilde : la demande de roster au login partait avant que `IsInGuild()` soit
+  vrai et consommait l'attente de 10 s. L'attente ne démarre qu'à une vraie
+  demande ; nouvelle demande sur `PLAYER_GUILD_UPDATE` et sur
+  `GUILD_ROSTER_UPDATE` quand son argument `canRequestRosterUpdate` est vrai.
+- Pierre de foyer : `*type1` / `*item1` / `*toy1`, pour qu'un clic avec
+  Maj, Ctrl ou Alt l'utilise aussi.
+- Bouton sécurisé replacé aussi à l'image suivante (rectangle lu trop tôt), à
+  `UI_SCALE_CHANGED` et `DISPLAY_SIZE_CHANGED`, et jusqu'à 5 essais au login.
+- Infobulle : un rebâti déclenché pendant son propre bâti (prix du jeton) est
+  ignoré, sinon ses lignes doublaient.
+- Le panneau de roster s'ouvre aussi en combat (il se ferme à l'entrée en
+  combat).
+
+Copié dans l'install Forever beta (identique au projet). Pas encore vu en
+jeu. Le module est coupé par défaut ; SDT encore actif dessinerait ses barres
+aux mêmes endroits.
+
+---
+
 ## 2026-10-21 — les barres de Merfin dans le pack
 
 Demande de Cruzz : avoir les textures de barre de MerfinPlus sans dépendre de

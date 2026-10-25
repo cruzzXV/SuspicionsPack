@@ -146,6 +146,96 @@ local function IsVertical()
     return side == "TOP" or side == "BOTTOM"
 end
 
+-- ============================================================
+-- WoW: Forever. The tab wears Plumber's red button (its
+-- LandingPageUtil.CreateRedButton; ExpansionBorder_TWW.tga, the pack's copy in
+-- Media\Plumber) and the open drawer Plumber's dark box (Skin.PlumberBox).
+-- Retail keeps the flat colour bar and backdrop.
+--
+-- The button is three slices, x 768-800 | 800-972 | 972-1004, drawn by
+-- Plumber at half size round a button 24 thick: caps 16 long standing 2.5
+-- past its ends, everything 32 thick. Here scaled to the tab's thickness
+-- (Tab width), and turned upright on the minimap's left and right, where the
+-- tab stands.
+--
+-- Always its warm "under the mouse" rows (576-640): Plumber's rest rows
+-- (448-512) are made to sit behind cream text and read near black 6 px thick
+-- (Cruzz, 2026-10-23). At rest the same slices are added over it at 35 %,
+-- brighter; under the mouse the plain art shows -- the order Cruzz chose.
+-- ============================================================
+local Skin    = SP.Skin
+local FOREVER = Skin and Skin.FOREVER
+local RED_X   = { 768, 800, 972, 1004 }
+local RED_TOP = 576
+local RED_GLOW = 0.35
+
+local function NewRedSlice(layer, sublevel)
+    local tex = tab:CreateTexture(nil, layer, nil, sublevel)
+    tex:SetTexture(Skin.PLUMBER.FRAME)
+    tex:SetTexelSnappingBias(0)
+    tex:SetSnapToPixelGrid(false)
+    return tex
+end
+
+local function BuildForeverTab()
+    local t, glow = {}, {}
+    for i = 1, 3 do
+        t[i] = NewRedSlice("BACKGROUND", 0)
+        glow[i] = NewRedSlice("BACKGROUND", 1)
+        glow[i]:SetBlendMode("ADD")
+        glow[i]:SetAlpha(RED_GLOW)
+        glow[i]:SetAllPoints(t[i])
+    end
+    tab._red, tab._redGlow = t, glow
+end
+
+-- Upright, slice 1 is the top cap and shows the art's right end: a quarter
+-- turn, so down the tab runs right to left along the art, and across it runs
+-- from the art's top edge to its bottom.
+local function PaintForeverTab(isHover, isError)
+    local t = tab and tab._red
+    if not t then return end
+    tab._redHover, tab._redError = isHover, isError
+    local y1, y2 = RED_TOP / 1024, (RED_TOP + 64) / 1024
+    for i, tex in ipairs(t) do
+        local s = tab._redUpright and (4 - i) or i
+        local l, r = RED_X[s] / 1024, RED_X[s + 1] / 1024
+        for _, layer in ipairs({ tex, tab._redGlow[i] }) do
+            if tab._redUpright then
+                layer:SetTexCoord(r, y1, l, y1, r, y2, l, y2)
+            else
+                layer:SetTexCoord(l, r, y1, y2)
+            end
+            if isError then layer:SetVertexColor(1, 0.4, 0.4) else layer:SetVertexColor(1, 1, 1) end
+        end
+        tab._redGlow[i]:SetShown(not isHover)
+    end
+end
+
+-- Lays the slices out for the tab's size and the side it is on.
+local function FitForeverTab()
+    local t = tab and tab._red
+    if not t then return end
+    local upright = not IsVertical()
+    local w, h = tab:GetSize()
+    local k = (upright and w or h) / 24
+    local cap, art, over = 16 * k, 32 * k, 2.5 * k
+    for _, tex in ipairs(t) do tex:ClearAllPoints() end
+    if upright then
+        t[1]:SetSize(art, cap); t[1]:SetPoint("TOP", tab, "TOP", 0, over)
+        t[3]:SetSize(art, cap); t[3]:SetPoint("BOTTOM", tab, "BOTTOM", 0, -over)
+        t[2]:SetPoint("TOPLEFT", t[1], "BOTTOMLEFT")
+        t[2]:SetPoint("BOTTOMRIGHT", t[3], "TOPRIGHT")
+    else
+        t[1]:SetSize(cap, art); t[1]:SetPoint("LEFT", tab, "LEFT", -over, 0)
+        t[3]:SetSize(cap, art); t[3]:SetPoint("RIGHT", tab, "RIGHT", over, 0)
+        t[2]:SetPoint("TOPLEFT", t[1], "TOPRIGHT")
+        t[2]:SetPoint("BOTTOMRIGHT", t[3], "BOTTOMLEFT")
+    end
+    tab._redUpright = upright
+    PaintForeverTab(tab._redHover, tab._redError)
+end
+
 local function UpdateTabSize()
     if not tab then return end
     local scaledW = Px.Scale(TAB_W())
@@ -155,6 +245,7 @@ local function UpdateTabSize()
     else
         tab:SetSize(scaledW, scaledH)
     end
+    FitForeverTab()
 end
 
 local function PositionTab()
@@ -248,6 +339,11 @@ local function TabColor(isHover)
 end
 
 local function ApplyTabColor(isHover)
+    if tab and tab._red then
+        -- Forever: the button's own art, its hover state, red on an error.
+        PaintForeverTab(isHover, hasSessionError and GetDB().errorAlert ~= false)
+        return
+    end
     local c = TabColor(isHover)
     if tab and tab._bgTex then
         tab._bgTex:SetColorTexture(c[1], c[2], c[3], c[4])
@@ -344,9 +440,13 @@ function Drawer.Create()
     bgFrame = CreateFrame("Frame", "SP_AddonDrawerBg", UIParent, "BackdropTemplate")
     bgFrame:SetFrameStrata("MEDIUM")
     bgFrame:SetFrameLevel(100)
-    local db = SP.GetDB().drawer
-    local bR, bG, bB, bA = 0.12, 0.12, 0.12, (db and db.showBorder ~= false) and 1 or 0
-    Px.SetupFrameBackdrop(bgFrame, 0.06, 0.06, 0.06, 0.95, bR, bG, bB, bA)
+    if FOREVER then
+        Skin.PlumberBox(bgFrame)
+    else
+        local db = SP.GetDB().drawer
+        local bR, bG, bB, bA = 0.12, 0.12, 0.12, (db and db.showBorder ~= false) and 1 or 0
+        Px.SetupFrameBackdrop(bgFrame, 0.06, 0.06, 0.06, 0.95, bR, bG, bB, bA)
+    end
     bgFrame:EnableMouse(true)
     bgFrame:Hide()
 
@@ -361,12 +461,17 @@ function Drawer.Create()
     UpdateTabSize()
     tab:SetFrameStrata("MEDIUM")
     tab:SetFrameLevel(111)
-    -- Solid color texture for the fill (dynamically recolored via ApplyTabColor)
-    local tc = TabColor(false)
-    tab._bgTex = tab:CreateTexture(nil, "BACKGROUND")
-    tab._bgTex:SetAllPoints(tab)
-    tab._bgTex:SetColorTexture(tc[1], tc[2], tc[3], tc[4])
-    do  -- initial tab border (black, toggled by showTabBorder)
+    if FOREVER then
+        BuildForeverTab()
+        UpdateTabSize()
+        ApplyTabColor(false)
+    else
+        -- Solid color texture for the fill (dynamically recolored via ApplyTabColor)
+        local tc = TabColor(false)
+        tab._bgTex = tab:CreateTexture(nil, "BACKGROUND")
+        tab._bgTex:SetAllPoints(tab)
+        tab._bgTex:SetColorTexture(tc[1], tc[2], tc[3], tc[4])
+        -- initial tab border (black, toggled by showTabBorder)
         local dbInit = SP.GetDB().drawer
         local tabBorderAInit = (dbInit and dbInit.showTabBorder) and 1 or 0
         -- transparent bg so _bgTex fill shows through; only the 1px black border is drawn
@@ -942,7 +1047,9 @@ function Drawer.Refresh()
     if not enabled or not tab then return end
     InvalidateTabColorCache()  -- settings may have changed color source
     local db = SP.GetDB().drawer
-    if bgFrame then
+    -- Forever: Plumber's box and button carry their own rims; the colour and
+    -- border settings are retail's.
+    if bgFrame and not FOREVER then
         local bA = (db and db.showBorder ~= false) and 1 or 0
         local bR, bG, bB = 0.12, 0.12, 0.12
         if bA > 0 then
@@ -958,7 +1065,7 @@ function Drawer.Refresh()
         end
         Px.SetupFrameBackdrop(bgFrame, 0.06, 0.06, 0.06, 0.95, bR, bG, bB, bA)
     end
-    if tab then
+    if tab and not FOREVER then
         local tabBorderA = (db and db.showTabBorder) and 1 or 0
         -- transparent bg so _bgTex fill shows through; only the 1px black border is drawn
         Px.SetupFrameBackdrop(tab, 0, 0, 0, 0, 0, 0, 0, tabBorderA)

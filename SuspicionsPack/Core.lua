@@ -320,12 +320,35 @@ SP.ThemePresets = {
 -- dropdown, and a one-entry ordering table with no reader is just a claim that
 -- a picker still exists somewhere.
 
+-- WoW: Forever. Same test as Core\Skin.lua's Skin.FOREVER, which loads after
+-- this file.
+local IS_FOREVER = (WOW_PROJECT_CAMELOT ~= nil) and (WOW_PROJECT_ID == WOW_PROJECT_CAMELOT)
+
+-- On Forever the theme is Forever's: Suspicion's palette with the game's gold
+-- (FFD100, Skin.FOREVER_TEXT.gold) as the accent, wherever the pack draws with
+-- the "theme" colour -- module texts, the minimap icon. Chosen by client, never
+-- saved: the profile keeps "Suspicion" and retail stays red.
+do
+    local forever = {}
+    for k, c in pairs(SP.ThemePresets["Suspicion"]) do forever[k] = { c[1], c[2], c[3], c[4] } end
+    for _, k in ipairs({ "accent", "accentHover", "accentDim", "selectedBg", "selectedText" }) do
+        forever[k][1], forever[k][2], forever[k][3] = 1, 0.82, 0
+    end
+    SP.ThemePresets["Forever"] = forever
+end
+
+-- The preset in force: Forever's on that client, the saved one elsewhere.
+function SP.ActiveThemePreset(name)
+    if IS_FOREVER then return SP.ThemePresets["Forever"] end
+    return SP.ThemePresets[name or "Suspicion"] or SP.ThemePresets["Suspicion"]
+end
+
 -- ============================================================
 -- SP.Theme — live table referenced by the GUI
 -- All color keys are updated by SP.RefreshTheme().
 -- Dimension keys are fixed (not per-preset).
 -- ============================================================
-local echoDefaults = SP.ThemePresets["Suspicion"]
+local echoDefaults = SP.ActiveThemePreset()
 SP.Theme = {
     -- Colors (from preset, mutated by RefreshTheme)
     bgDark        = { echoDefaults.bgDark[1],        echoDefaults.bgDark[2],        echoDefaults.bgDark[3],        echoDefaults.bgDark[4]        },
@@ -362,7 +385,7 @@ SP.Theme = {
 function SP.RefreshTheme()
     local db     = SP.GetDB()
     local name   = db and db.settings and db.settings.theme and db.settings.theme.preset or "Suspicion"
-    local preset = SP.ThemePresets[name] or SP.ThemePresets["Suspicion"]
+    local preset = SP.ActiveThemePreset(name)
     local T      = SP.Theme
 
     local colorKeys = {
@@ -579,6 +602,25 @@ local DEFAULTS = {
         -- adds an entry to Details' skin list, nothing changes until it is picked.
         detailsSkin = {
             enabled = true,
+        },
+        -- Forever only (see the .toc gate). Bars of datatexts, as Simple
+        -- DataTexts draws them. `bars` and `texts` stay empty here: the module
+        -- seeds the default bars itself (Datatexts.lua, EnsureSeeded), and an
+        -- empty table is what lets a profile import carry any bar list.
+        datatexts = {
+            enabled      = false,
+            locked       = true,
+            hideInCombat = false,
+            _seeded      = false,
+            fontFace     = "Friz Quadrata TT",
+            fontSize     = 12,
+            fontOutline  = "NONE",
+            labelSource  = "class",
+            labelColor   = { 1, 0.82, 0, 1 },
+            valueSource  = "custom",
+            valueColor   = { 0.843, 0.753, 0.639, 1 },
+            bars         = {},
+            texts        = {},
         },
         -- 3D models in place of the flat portraits. Off by default: models
         -- cost GPU, and it reshapes every unit frame the moment it turns on.
@@ -980,6 +1022,12 @@ local DEFAULTS = {
             },
         },
     },
+    -- ── Account-wide data (every character, every profile) ───────────────
+    global = {
+        datatexts = {
+            gold = {},   -- [realm][name] = { money = copper, class = "WARRIOR" }
+        },
+    },
 }
 
 -- Exposed so the GUI profile import can use the current schema as a
@@ -999,6 +1047,15 @@ end
 -- Use for settings that differ between characters (e.g. AutoBuy presets).
 function SP.GetCharDB()
     return SP.db and SP.db.char or {}
+end
+
+-- Account-wide DB accessor (shared by every character and profile), for data
+-- that is about the account rather than a setting: the Gold datatext's alts.
+-- Profile export and import never touch it. A migration of it writes
+-- ctx.db.global, not ctx.global (Core\Migration.lua's "global" scope is the
+-- whole saved table).
+function SP.GetGlobalDB()
+    return SP.db and SP.db.global or {}
 end
 
 -- ============================================================
@@ -1105,7 +1162,7 @@ function SP:OnInitialize()
     -- Apply the saved theme into SP.Theme before the GUI is ever built
     local profile = self.db.profile
     local saved   = profile.settings and profile.settings.theme and profile.settings.theme.preset or "Suspicion"
-    local preset = SP.ThemePresets[saved] or SP.ThemePresets["Suspicion"]
+    local preset = SP.ActiveThemePreset(saved)
     local T      = SP.Theme
     local colorKeys = {
         "bgDark","bgMedium","bgLight","bgHover","border",

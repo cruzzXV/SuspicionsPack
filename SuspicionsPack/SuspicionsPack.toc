@@ -64,6 +64,16 @@ Modules\PlayerDragon\PlayerDragon.lua
 # Forever only: a Details! skin for the Vanilla-content client. Both directives are
 # needed: retail does not recognise "camelot", and an unrecognised list counts as satisfied.
 Modules\DetailsSkin\DetailsSkin.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+# Forever only, same gate: bars of datatexts (our own take on Simple DataTexts).
+# The module first: it holds the registry every Texts file registers into.
+Modules\Datatexts\Datatexts.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\Datatexts\Skins.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\Datatexts\Tooltip.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\Datatexts\Roster.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\Datatexts\Texts\Character.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\Datatexts\Texts\System.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\Datatexts\Texts\World.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\Datatexts\Texts\Social.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\InterruptAlert\InterruptAlert.lua
 Modules\GatewayAlert\GatewayAlert.lua [AllowLoadGameType standard]
 Modules\CombatCross\CombatCross.lua [AllowLoadGameType standard]

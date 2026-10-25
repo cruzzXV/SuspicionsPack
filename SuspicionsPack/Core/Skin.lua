@@ -282,8 +282,12 @@ end
 
 -- Plumber's dark box (its dropdown list's): nine pieces of the frame sheet
 -- (x 512-768, y 320-576) on `f`'s BACKGROUND, the 32 px corners drawn 16 and
--- centred on `f`'s corners, so the thin bronze rim lands on its edge.
+-- centred on `f`'s corners, so the thin bronze rim lands on its edge. Returns
+-- the nine pieces. Built once per frame: a second call hands back the same
+-- pieces instead of stacking nine more (the datatext tooltip is skinned
+-- from code that may run again).
 function Skin.PlumberBox(f)
+    if f._plumberBox then return f._plumberBox end
     local P = Skin.PLUMBER
     local xs, ys = { 512, 544, 736, 768 }, { 320, 352, 544, 576 }
     local p = {}
@@ -307,6 +311,8 @@ function Skin.PlumberBox(f)
     Between(4, 1, "BOTTOMLEFT",  7, "TOPRIGHT")     -- left
     Between(6, 3, "BOTTOMLEFT",  9, "TOPRIGHT")     -- right
     Between(5, 1, "BOTTOMRIGHT", 9, "TOPLEFT")      -- centre
+    f._plumberBox = p
+    return p
 end
 
 -- Plumber's divider: 24 high, its line in rows 12-16 of those, faded at both

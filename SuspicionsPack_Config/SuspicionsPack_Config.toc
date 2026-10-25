@@ -65,6 +65,7 @@ Pages\MicroMenuSkin.lua
 Pages\AnimatedPortraits.lua
 Pages\PlayerDragon.lua
 Pages\DetailsSkin.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Pages\Datatexts.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\Drawer.lua
 Pages\Performance.lua
 Pages\SilvermoonMapIcon.lua [AllowLoadGameType standard]

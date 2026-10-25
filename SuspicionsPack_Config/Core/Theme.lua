@@ -54,7 +54,8 @@ GUI.FOREVER = SP.Skin.FOREVER
 -- 148,124,102 for section headers. Black fills.
 --
 -- A COPY, not a rewrite of SP.Theme. SP.Theme.accent is also the "theme" colour
--- the modules draw with, and that stays Suspicion red on every client.
+-- the modules draw with; on Forever it is this same gold too (Core.lua,
+-- ThemePresets.Forever), on retail Suspicion red.
 --
 -- Fills keep an alpha. Borders do not: several hover and reset paths write a
 -- border at alpha 1, so the border is gold already darkened to how FFD100

@@ -68,29 +68,42 @@ GUI.RegisterPage{
                       and math.floor(defaults.hideDelay * 10 + 0.5) or nil,
         }
 
+        -- WoW: Forever draws the tab as Plumber's button and the drawer as
+        -- Plumber's box, each with its own rim and colours: the colour and
+        -- border rows below are retail's, and are left out there.
         local c2 = page:Card("Tab", "The handle that opens the drawer.")
         c2:Pair(
             { kind = "slider", key = "tabW", label = "Tab width",  min = 4,  max = 48, step = 1 },
             { kind = "slider", key = "tabH", label = "Tab height", min = 16, max = 80, step = 1 })
-        c2:Toggle{ key = "showTabBorder", label = "Tab border",
-                   desc = "Draws a thin black outline around the handle." }
+        if not GUI.FOREVER then
+            c2:Toggle{ key = "showTabBorder", label = "Tab border",
+                       desc = "Draws a thin black outline around the handle." }
+        end
         c2:Toggle{ key = "errorAlert", label = "Error alert",
                    desc = "Turns the tab red when BugGrabber catches a Lua error this session." }
-        c2:ColorSource{ label = "Tab colour", srcKey = "tabColorSource", colorKey = "tabColor" }
+        if GUI.FOREVER then
+            c2:Note("On WoW: Forever the tab is Plumber's button and the drawer Plumber's box, " ..
+                    "with their own colours and borders.")
+        else
+            c2:ColorSource{ label = "Tab colour", srcKey = "tabColorSource", colorKey = "tabColor" }
+        end
 
         local c3 = page:Card("Button layout",
-            "The panel border, button padding and icon sizing inside the drawer.")
-        local borderOn = c3:Toggle{ key = "showBorder", label = "Panel border" }
-        c3:GateBelow(borderOn)
-        c3:Dropdown{
-            key   = "borderColorSource",
-            label = "Border colour",
-            options = {
-                { key = "theme", label = "Theme accent" },
-                { key = "class", label = "Class colour" },
-            },
-        }
-        c3:EndGate()
+            GUI.FOREVER and "Button padding and icon sizing inside the drawer."
+                        or "The panel border, button padding and icon sizing inside the drawer.")
+        if not GUI.FOREVER then
+            local borderOn = c3:Toggle{ key = "showBorder", label = "Panel border" }
+            c3:GateBelow(borderOn)
+            c3:Dropdown{
+                key   = "borderColorSource",
+                label = "Border colour",
+                options = {
+                    { key = "theme", label = "Theme accent" },
+                    { key = "class", label = "Class colour" },
+                },
+            }
+            c3:EndGate()
+        end
         c3:Pair(
             { kind = "slider", key = "btnSize",  label = "Button size", min = 14, max = 40, step = 1 },
             { kind = "slider", key = "iconSize", label = "Icon size",   min = 10, max = 36, step = 1 })

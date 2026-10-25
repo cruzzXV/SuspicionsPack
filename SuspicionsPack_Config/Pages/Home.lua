@@ -379,6 +379,14 @@ local function ShowImport()
             print(ERR .. "Import failed: no profile loaded")
             return
         end
+        -- The datatext bars are a list, and the merge goes into nested tables
+        -- entry by entry: two imported bars over three local ones would keep
+        -- the third, and a bar's slots would mix both lists. An import that
+        -- carries bars replaces them.
+        local dt = data.datatexts
+        if type(dt) == "table" and type(dt.bars) == "table" and SP.db.profile.datatexts then
+            SP.db.profile.datatexts.bars = {}
+        end
         SP_DeepMerge(SP.db.profile, data, SP.DEFAULTS and SP.DEFAULTS.profile or nil)
         if SP.RefreshTheme then SP.RefreshTheme() end
         -- RefreshTheme only repaints. The import rewrote the profile under
