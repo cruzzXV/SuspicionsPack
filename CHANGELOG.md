@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-11-03 — v2.10.0
+
+Release : macros de consommables sur Forever. Le travail `/spack perf` n'y est
+pas : il reste hors commit, Cruzz n'a pas demandé de le publier.
+- Versions : `## Version: 2.10.0` dans les trois .toc, `SP.VERSION`.
+- `SP.Changelog["2.10.0"]` : une entrée, validée par Cruzz.
+- `.github/RELEASE_NOTES.md` : la même ligne.
+- Pas vu en jeu : Forever sort le 2026-11-04, Cruzz a choisi de publier sans essai.
+
+---
+
 ## 2026-11-03 — Macros de consommables sur Forever
 
 Demande de Cruzz : les macros nourriture/boisson, bandage et santé d'EnhanceQoL

@@ -6,7 +6,7 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
-SP.VERSION = "2.9.0"
+SP.VERSION = "2.10.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1472,6 +1472,9 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.10.0"] = {
+        { type = "new", text = "WoW: Forever: added food and drink, bandage and health macros. Off by default, in Items." },
+    },
     ["2.9.0"] = {
         { type = "new", text = "WoW: Forever: added datatexts. Off by default, in Interface." },
         { type = "change", text = "WoW: Forever: the minimap drawer uses the Forever look." },
