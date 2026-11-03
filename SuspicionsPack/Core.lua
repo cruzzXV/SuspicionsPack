@@ -622,6 +622,24 @@ local DEFAULTS = {
             bars         = {},
             texts        = {},
         },
+        -- Forever only (see the .toc gate). Macros that follow your bags.
+        consumableMacros = {
+            enabled            = false,
+            foodDrink          = true,
+            includeFood        = false,
+            preferConjured     = true,
+            manaPotionInCombat = false,
+            minManaPercent     = 0,
+            bandage            = true,
+            health             = true,
+            healthFood         = true,
+            stopCasting        = false,
+            priority1          = "stone",
+            priority2          = "potion",
+            priority3          = "spell",
+            reset              = "combat",
+            customSpells       = "",
+        },
         -- 3D models in place of the flat portraits. Off by default: models
         -- cost GPU, and it reshapes every unit frame the moment it turns on.
         animatedPortraits = {

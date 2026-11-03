@@ -74,6 +74,9 @@ Modules\Datatexts\Texts\Character.lua [AllowLoadGameType camelot][ExcludeLoadGam
 Modules\Datatexts\Texts\System.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\Datatexts\Texts\World.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\Datatexts\Texts\Social.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+# Forever only, same gate: macros that follow your food, bandages and healing items.
+Modules\ConsumableMacros\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\ConsumableMacros\ConsumableMacros.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\InterruptAlert\InterruptAlert.lua
 Modules\GatewayAlert\GatewayAlert.lua [AllowLoadGameType standard]
 Modules\CombatCross\CombatCross.lua [AllowLoadGameType standard]

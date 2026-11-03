@@ -4,6 +4,38 @@
 
 ---
 
+## 2026-11-03 — Macros de consommables sur Forever
+
+Demande de Cruzz : les macros nourriture/boisson, bandage et santé d'EnhanceQoL
+sur notre version Forever. **Réécrites, pas copiées** : les dépôts publics
+d'EnhanceQoL portent « ALL RIGHTS RESERVED » et le nôtre est public. Même
+comportement en jeu, code et données à nous.
+- **`Modules/ConsumableMacros/ConsumableMacros.lua`** (nouveau, Forever seulement) :
+  trois macros de compte, `SPFoodDrink`, `SPBandage`, `SPHealth`, réécrites hors
+  combat et seulement si leur texte change. Choix de l'objet : dans les sacs,
+  niveau et rang de Secourisme suffisants, puis recharge la plus courte, conjuré
+  si préféré, plus gros soin, niveau requis, ID.
+- **`Modules/ConsumableMacros/Data.lua`** (nouveau, généré, 368 objets) : tiré des
+  tables DB2 de Blizzard, build 1.60.1.70753, par `tests/gen_consumables.js`. Sont
+  exclus les objets limités à une zone ou à une réputation, ceux avec un effet
+  secondaire, Mageblood (une heure de regen) et Lily Root (objet équipé requis).
+  Contrôle ponctuel : sur les 356 objets communs avec la table d'EnhanceQoL, aucun
+  écart. Rien n'en est copié.
+- **Écarts voulus** : noms de macro courts ; une page avec un interrupteur par
+  macro ; sorts perso dans un seul champ d'IDs ; `IsPlayerSpell` (un ID par rang) ;
+  les sacs lus une fois par reconstruction, sans `GetItemCount` (leçon du
+  2026-10-26) ; aucun événement fréquent écouté en combat.
+- **`Pages/ConsumableMacros.lua`** (nouveau), **`Core.lua`** (défauts), les deux
+  **`.toc`** (lignes réservées à Forever).
+- **Tests** : `tests/test_consumable_macros.lua` (147), 68 mutations du module dont
+  66 rouges. Les 2 autres sont des gardes de valeurs secrètes que le stub ne peut
+  pas exprimer (ni test de vérité ni `~=` entre types différents en Lua 5.1).
+  `test_gui.lua` : Forever 48 (+8), le reste inchangé.
+- Trouvé par les mutations : `id and not issecretvalue(id)` testait la valeur avant
+  de la garder, corrigé. Pas vu en jeu.
+
+---
+
 ## 2026-10-25 — v2.9.0
 
 Release : Datatexts sur Forever, tiroir de la minicarte et couleur « thème »

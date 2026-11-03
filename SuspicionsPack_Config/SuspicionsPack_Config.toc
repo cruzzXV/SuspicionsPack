@@ -54,6 +54,7 @@ Pages\AutoPlaystyle.lua [AllowLoadGameType standard]
 Pages\FilterExpansionOnly.lua [AllowLoadGameType standard]
 Pages\AutoBuy.lua [AllowLoadGameType standard]
 Pages\CraftShopper.lua
+Pages\ConsumableMacros.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\FastLoot.lua
 Pages\Durability.lua
 Pages\GroupInvitations.lua
