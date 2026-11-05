@@ -1,0 +1,5 @@
+campfire.png: "Campfire" icon by Lorc, available on https://game-icons.net
+Licence: Creative Commons Attribution 3.0, https://creativecommons.org/licenses/by/3.0/
+Changes: background removed, recoloured white, rendered to 128 x 128 pixels.
+
+ring.png, pointer.png, glow.png: drawn for this addon.

@@ -650,17 +650,28 @@ local DEFAULTS = {
             enabled = false,
             tooltip = true,
         },
-        -- Forever only (see the .toc gate). The nearest herb or vein, around your character.
+        -- Forever only (see the .toc gate). The nearest herbs and veins, around your character.
         nodeRadar = {
             enabled      = false,
             herbs        = true,
             ore          = true,
             range        = 200,
+            maxNodes     = 3,
             scale        = 100,
+            otherScale   = 70,
             orbit        = 70,
             showDistance = true,
+            showArrows   = true,
+            arrowScale   = 100,
             x            = 0,
             y            = 0,
+        },
+        -- Forever only (see the .toc gate). A wheel of camp items near a campfire.
+        campWheel = {
+            enabled = false,
+            scale   = 100,
+            x       = 0,
+            y       = -170,
         },
         -- 3D models in place of the flat portraits. Off by default: models
         -- cost GPU, and it reshapes every unit frame the moment it turns on.
@@ -1492,6 +1503,11 @@ function SP:ToggleGUI(input)
         if not SP.NodeRadar then print("SuspicionsPack: the node radar is only on WoW: Forever.")
         elseif arg == "radar names" then SP.NodeRadar.PrintUnknown()
         else SP.NodeRadar.PrintStatus() end
+        return
+    end
+    if arg == "camp status" then
+        if not SP.CampWheel then print("SuspicionsPack: the campfire wheel is only on WoW: Forever.")
+        else SP.CampWheel.PrintStatus() end
         return
     end
     if not SP.EnsureGUI() then return end

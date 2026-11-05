@@ -1,7 +1,9 @@
 -- SuspicionsPack — NodeRadar (WoW: Forever only, see the .toc gate)
 --
--- The nearest herb or vein you can gather, as an icon around your character, like a
--- compass needle: it turns to point where the node is and stays at the same distance.
+-- The nearest herbs and veins you can gather, as icons around your character, like
+-- compass needles: each turns to point where its node is, stays at the same distance,
+-- and has a small arrow between it and the middle. The nearest is drawn in front, full
+-- size and with its distance; the others are smaller.
 --
 -- The game gives addons no list of nodes, but the minimap's tracking dots can be read.
 -- A pretend mouse (Minimap:UpdateMouseoverAtPoint) visits a grid of points, a few per
@@ -26,7 +28,7 @@ local NODES, Key = Data.nodes, Data.Key
 
 local _issecretvalue = issecretvalue or function() return false end
 local sin, cos, atan2, sqrt = math.sin, math.cos, math.atan2, math.sqrt
-local floor, min = math.floor, math.min
+local floor, min, max, rad, deg = math.floor, math.min, math.max, math.rad, math.deg
 
 -- The scan.
 local STEP      = 10    -- grid spacing, minimap units
@@ -49,10 +51,18 @@ local SKIP      = 5     -- yards: the node you are standing at is passed over
 local KEEP      = 5     -- yards: another node must be this much closer to take over
 local FOLLOW    = 0.05  -- seconds between updates (20 per second)
 
--- The look, at the size setting's 100%.
+-- The look, at the size settings' 100%.
 local ICON_WIDTH = 30
+local ARROW_SIZE = 16   -- the art's square; the dart inside it is 13 by 10
 local FONT_SIZE = 12
 local UNIT = GetLocale() == "frFR" and "m" or "yd"
+local ARROW = "Interface\\AddOns\\SuspicionsPack\\Media\\NodeRadar\\arrow.png"
+local MAX_NODES = 8     -- the settings page's limit
+-- The settings page's Preview, up to MAX_NODES: a name and a way, in radians.
+local SAMPLES = {
+    { "Peacebloom", 0.9 }, { "Copper Vein", 3 }, { "Silverleaf", 5 }, { "Tin Vein", 2 },
+    { "Mageroyal", 4 }, { "Silver Vein", 0.1 }, { "Briarthorn", 5.6 }, { "Iron Deposit", 1.5 },
+}
 
 -- ============================================================
 -- State
@@ -64,7 +74,8 @@ local moving   = false
 local previewing = false
 
 local nodes  = {}        -- the last scan's nodes
-local target = nil       -- the node shown
+local target = nil       -- the nearest node shown, in front
+local others = {}        -- the other nodes, nearest first, reused at every update
 local range  = nil       -- yards: the setting or the minimap's reach, whichever is less
 local viewRadius = nil   -- the minimap's reach at the last scan
 local finderOn = nil     -- nil until asked
@@ -78,8 +89,10 @@ local scheduled = 0      -- the live timer's number: an older one does nothing
 local scanDue = nil      -- when it fires
 local grid, gridWidth, gridRound
 
-local frame, holder, icon, label, ticker
-local shown = {}         -- what the frames show, so only changes reach the client
+local frame, ticker
+local frameOn = false
+local slots = {}         -- one per node on screen, the nearest first; each remembers
+                         -- what it shows, so only changes reach the client
 local StartScan
 
 -- ============================================================
@@ -277,6 +290,7 @@ local function Smooth(found, before, width, height)
             node.mx = (best.mx * n + node.mx) / (n + 1)
             node.my = (best.my * n + node.my) / (n + 1)
             node.count = n + 1
+            node.picked = best.picked
             if best == target then target = node end
         end
     end
@@ -292,6 +306,31 @@ end
 -- ============================================================
 -- The display
 -- ============================================================
+-- The first slot is the nearest node's: on top of the others, and the only one with a
+-- distance. The arrows are on the frame itself, so under every icon.
+local function MakeSlot(index)
+    local holder = CreateFrame("Frame", nil, frame)
+    holder:SetSize(1, 1)
+    holder:EnableMouse(false)
+    holder:SetFrameLevel(frame:GetFrameLevel() + MAX_NODES + 1 - index)
+    local icon = holder:CreateTexture(nil, "ARTWORK")
+    icon:SetPoint("CENTER", holder, "CENTER")
+    local arrow = frame:CreateTexture(nil, "ARTWORK")
+    arrow:SetTexture(ARROW)
+    -- Off the pixel grid, or a small texture shimmers as it turns.
+    arrow:SetTexelSnappingBias(0)
+    arrow:SetSnapToPixelGrid(false)
+    local slot = { holder = holder, icon = icon, arrow = arrow, on = true, arrowOn = true }
+    if index == 1 then
+        local label = holder:CreateFontString(nil, "OVERLAY")
+        SP.SetFontSafe(label, SP.ResolveFont("Expressway"), FONT_SIZE, "OUTLINE")
+        label:SetPoint("TOP", icon, "BOTTOM", 0, -1)
+        slot.label = label
+    end
+    slots[index] = slot
+    return slot
+end
+
 local function EnsureFrames()
     if frame then return end
     frame = CreateFrame("Frame", "SP_NodeRadar", UIParent)
@@ -299,62 +338,108 @@ local function EnsureFrames()
     frame:SetFrameStrata("MEDIUM")
     frame:EnableMouse(false)
     frame:Hide()
-    holder = CreateFrame("Frame", nil, frame)
-    holder:SetSize(1, 1)
-    holder:EnableMouse(false)
-    icon = holder:CreateTexture(nil, "ARTWORK")
-    icon:SetPoint("CENTER", holder, "CENTER")
-    label = holder:CreateFontString(nil, "OVERLAY")
-    SP.SetFontSafe(label, SP.ResolveFont("Expressway"), FONT_SIZE, "OUTLINE")
-    label:SetPoint("TOP", icon, "BOTTOM", 0, -1)
+    MakeSlot(1)
 end
 
 local function ShowFrame()
-    if not shown.on then
-        shown.on = true
+    if not frameOn then
+        frameOn = true
         frame:Show()
     end
 end
 
 local function HideFrame()
-    if shown.on then
-        shown.on = false
+    if frameOn then
+        frameOn = false
         frame:Hide()
     end
 end
 
-local function ShowPicture(info)
-    if shown.info == info then return end
-    shown.info = info
-    icon:SetAtlas(Data.symbol[info.kind].atlas)
+-- Every slot from this one on.
+local function HideSlots(first)
+    for i = first, #slots do
+        local slot = slots[i]
+        if slot.on then
+            slot.on, slot.arrowOn = false, false
+            slot.holder:Hide()
+            slot.arrow:Hide()
+        end
+    end
+end
+
+local function ShowPicture(slot, info)
+    if slot.info == info then return end
+    slot.info = info
+    slot.icon:SetAtlas(Data.symbol[info.kind].atlas)
     -- Gray first: a colour on the gold art would come out as a muddy mix of both.
-    icon:SetDesaturated(true)
-    icon:SetVertexColor(info.r, info.g, info.b)
+    slot.icon:SetDesaturated(true)
+    slot.icon:SetVertexColor(info.r, info.g, info.b)
+    slot.arrow:SetVertexColor(info.r, info.g, info.b)
 end
 
-local function SizeIcon(info, width)
+local function SizeIcon(slot, info, width)
     local height = floor(width * Data.symbol[info.kind].ratio + 0.5)
-    if shown.width == width and shown.height == height then return end
-    shown.width, shown.height = width, height
-    icon:SetSize(width, height)
+    if slot.width == width and slot.height == height then return end
+    slot.width, slot.height = width, height
+    slot.icon:SetSize(width, height)
 end
 
--- Yards away, and the way in radians clockwise from where your character faces.
-local function Draw(info, yards, way, withLabel)
+-- The arrow, this many pixels from the middle, on the way to its node. The art points up
+-- and SetRotation turns counterclockwise. Whole degrees, or every update would turn it.
+local function DrawArrow(slot, way, at, size)
+    local x, y = floor(at * sin(way) + 0.5), floor(at * cos(way) + 0.5)
+    if x ~= slot.arrowX or y ~= slot.arrowY then
+        slot.arrowX, slot.arrowY = x, y
+        slot.arrow:SetPoint("CENTER", frame, "CENTER", x, y)
+    end
+    local turn = floor(deg(way) + 0.5)
+    if turn ~= slot.turn then
+        slot.turn = turn
+        slot.arrow:SetRotation(-rad(turn))
+    end
+    if size ~= slot.arrowSize then
+        slot.arrowSize = size
+        slot.arrow:SetSize(size, size)
+    end
+    if not slot.arrowOn then
+        slot.arrowOn = true
+        slot.arrow:Show()
+    end
+end
+
+-- One node. Yards away, and the way in radians clockwise from where your character faces.
+local function DrawNode(index, info, yards, way)
     local db = NR:GetDB()
+    local slot = slots[index] or MakeSlot(index)
+    if not slot.on then
+        slot.on = true
+        slot.holder:Show()
+    end
     local x, y = floor(db.orbit * sin(way) + 0.5), floor(db.orbit * cos(way) + 0.5)
-    if x ~= shown.x or y ~= shown.y then
-        shown.x, shown.y = x, y
-        holder:SetPoint("CENTER", frame, "CENTER", x, y)
+    if x ~= slot.x or y ~= slot.y then
+        slot.x, slot.y = x, y
+        slot.holder:SetPoint("CENTER", frame, "CENTER", x, y)
     end
-    SizeIcon(info, floor(ICON_WIDTH * db.scale / 100 + 0.5))
-    ShowPicture(info)
-    local text = withLabel and (floor(yards + 0.5) .. " " .. UNIT) or ""
-    if text ~= shown.text then
-        shown.text = text
-        label:SetText(text)
+    local part = index == 1 and 1 or db.otherScale / 100
+    local full = floor(ICON_WIDTH * db.scale / 100 + 0.5)
+    SizeIcon(slot, info, floor(full * part + 0.5))
+    ShowPicture(slot, info)
+    if db.showArrows then
+        -- Halfway from the middle to the nearest icon's edge, one circle for all of them.
+        -- A whole number, or rounding puts it a pixel nearer on one side than the other.
+        DrawArrow(slot, way, floor(max(0, (db.orbit - full / 2) / 2) + 0.5),
+            floor(ARROW_SIZE * db.arrowScale / 100 * part + 0.5))
+    elseif slot.arrowOn then
+        slot.arrowOn = false
+        slot.arrow:Hide()
     end
-    ShowFrame()
+    if slot.label then
+        local text = db.showDistance and (floor(yards + 0.5) .. " " .. UNIT) or ""
+        if text ~= slot.text then
+            slot.text = text
+            slot.label:SetText(text)
+        end
+    end
 end
 
 -- ============================================================
@@ -389,6 +474,29 @@ local function PickTarget(db)
     return best
 end
 
+local function ByRank(a, b) return a.rank < b.rank end
+
+-- The next nearest after the target, as many as there is room for; how many. One already
+-- shown counts as KEEP yards nearer, for the same reason as above.
+local function PickOthers(db)
+    local count = 0
+    for i = 1, #nodes do
+        local node = nodes[i]
+        if node ~= target and Eligible(node, db) then
+            count = count + 1
+            others[count] = node
+            node.rank = node.yards - (node.picked and KEEP or 0)
+        end
+    end
+    for i = #others, count + 1, -1 do others[i] = nil end
+    table.sort(others, ByRank)
+    for i = 1, #nodes do nodes[i].picked = false end
+    count = min(count, db.maxNodes - 1)
+    for i = 1, count do others[i].picked = true end
+    if target then target.picked = true end
+    return count
+end
+
 local function Follow()
     if previewing then return false end
     if not active or not nodes[1] or not range then
@@ -414,8 +522,15 @@ local function Follow()
         end
     end
     target = PickTarget(db)
+    local count = PickOthers(db)
     if target then
-        Draw(target.info, target.yards, target.world + facing, db.showDistance)
+        DrawNode(1, target.info, target.yards, target.world + facing)
+        for i = 1, count do
+            local node = others[i]
+            DrawNode(i + 1, node.info, node.yards, node.world + facing)
+        end
+        HideSlots(count + 2)
+        ShowFrame()
     else
         HideFrame()
     end
@@ -641,7 +756,12 @@ end
 
 local function DrawPreview()
     local db = NR:GetDB()
-    Draw(NODES[Key("Peacebloom")], db.range / 2, 0.9, db.showDistance)
+    for i = 1, db.maxNodes do
+        local sample = SAMPLES[i]
+        DrawNode(i, NODES[Key(sample[1])], db.range / 2, sample[2])
+    end
+    HideSlots(db.maxNodes + 1)
+    ShowFrame()
 end
 
 -- Runs again on every settings change.
@@ -677,7 +797,7 @@ function NR:Deactivate()
     if frame then HideFrame() end
 end
 
--- The settings page's Preview: an icon where you can see it, without any node.
+-- The settings page's Preview: icons where you can see them, without any node.
 function NR:SetPreview(on)
     if on and not active then return end
     previewing = on and true or false
@@ -694,7 +814,7 @@ function NR:IsPreviewing()
     return previewing
 end
 
--- /spack radar status: why the icon is or is not there, at the moment you ask.
+-- /spack radar status: why an icon is or is not there, at the moment you ask.
 function NR.PrintStatus()
     local db = NR:GetDB()
     print(("SuspicionsPack: node radar: on %s, failed %s, combat %s (no scan), finder %s, minimap shown %s"):format(
@@ -706,7 +826,8 @@ function NR.PrintStatus()
         local node = nodes[i]
         print(("  %s: %s yd, skill %d of %s, cave %s%s"):format(
             node.key, node.yards and floor(node.yards + 0.5) or "other map", node.info.skill,
-            tostring(Skill(node.info.kind)), tostring(node.gray), node == target and ", shown" or ""))
+            tostring(Skill(node.info.kind)), tostring(node.gray),
+            node == target and ", shown in front" or node.picked and ", shown" or ""))
     end
 end
 

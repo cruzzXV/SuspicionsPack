@@ -86,6 +86,8 @@ Modules\ProfessionMarks\ProfessionMarks.lua [AllowLoadGameType camelot][ExcludeL
 # Forever only, same gate: the nearest herb or vein around your character.
 Modules\NodeRadar\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\NodeRadar\NodeRadar.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+# Forever only, same gate: a wheel of camp items near a campfire.
+Modules\CampWheel\CampWheel.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\InterruptAlert\InterruptAlert.lua
 Modules\GatewayAlert\GatewayAlert.lua [AllowLoadGameType standard]
 Modules\CombatCross\CombatCross.lua [AllowLoadGameType standard]
