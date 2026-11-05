@@ -1494,6 +1494,7 @@ SP.Changelog = {
         { type = "change", text = "Potion alert: with a display time set, bag updates no longer show it again or extend it." },
         { type = "change", text = "Movement alert, Potion alert and the cursor do less work." },
         { type = "fix", text = "Potion alert: covers every combat potion, in both qualities." },
+        { type = "fix", text = "Micro menu skin: fixed a protected function error in combat with the size and spacing override on." },
     },
     ["2.10.0"] = {
         { type = "new", text = "WoW: Forever: added food and drink, bandage and health macros. Off by default, in Items." },

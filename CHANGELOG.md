@@ -8,7 +8,8 @@
 
 Release : Profession marks sur Forever et le travail `/spack perf`.
 - Versions : `## Version: 2.11.0` dans les trois .toc, `SP.VERSION`.
-- `SP.Changelog["2.11.0"]` : cinq entrées, validées par Cruzz.
+- `SP.Changelog["2.11.0"]` : six entrées, validées par Cruzz, dont le correctif du micro-menu
+  (`a706d4b`, session à part). Commité à sa demande, sans résultat d'essai en jeu rapporté.
 - `.github/RELEASE_NOTES.md` : les mêmes lignes.
 - « Do less work » plutôt qu'un gain chiffré : MovementAlert −90 % en M+, curseur dans le
   bruit, le PotionAlert final jamais mesuré.

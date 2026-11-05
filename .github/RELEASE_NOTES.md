@@ -11,3 +11,4 @@
 ## Fixes
 
 - Potion alert: covers every combat potion, in both qualities.
+- Micro menu skin: fixed a protected function error in combat with the size and spacing override on.
