@@ -97,8 +97,8 @@ GUI.RegisterPage{
                    min = 0, max = 60, step = 1 })
 
         local c4 = page:Card("Size and spacing",
-            "Takes over the button size and the gap between them, then lets Blizzard's own " ..
-            "grid re-lay everything out. Leave off to keep Blizzard's sizing.")
+            "Takes over the button size and the gap between them. Leave off to keep " ..
+            "Blizzard's sizing.")
         local override = c4:Toggle{ key = "overrideLayout", label = "Override size and spacing" }
         c4:GateBelow(override)
         c4:Slider{ key = "buttonSize", label = "Button size", min = 12, max = 48, step = 1 }

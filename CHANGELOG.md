@@ -19,6 +19,36 @@ Release : Profession marks sur Forever et le travail `/spack perf`.
 
 ---
 
+## 2026-11-05 — Micro-menu : ADDON_ACTION_BLOCKED sur MicroMenuContainer:SetSize()
+
+Rapport de Cruzz sur Forever (BugGrabber, 2x). Pile relue contre la branche `forever` :
+`PLAYER_SPECIALIZATION_CHANGED` → `UpdateLayoutInfo` → `secureexecuterange` →
+`MicroMenuContainerMixin:Layout`, ligne 55.
+- **Cause, dans `MicroMenuSkin.lua`** : l'option « Override size and spacing » (active chez
+  Cruzz) écrivait `childXPadding`, `childYPadding`, `stride` et `oldGridSettings` sur
+  `MicroMenu`, et appelait `MicroMenuContainer:Layout()` depuis notre code, qui écrit
+  `oldGridSettings` et `dirty`. Edit Mode relit ces champs en code sécurisé : l'exécution est
+  contaminée, et le client refuse le `SetSize` final en combat. Un garde « pas en combat » n'y
+  aurait rien changé : le champ reste contaminé jusqu'au `/reload`.
+- **Correctif** : plus aucun champ Lua écrit ni méthode Lua de Blizzard appelée sur ces deux
+  cadres. La grille de Blizzard tourne avec ses propres réglages, et les boutons sont ancrés
+  par-dessus avec des appels de widget : post-hook sur `MicroMenu:Layout` et notre propre passe
+  quand un réglage change. Orientation, sens et `stride` natif sont lus, pas écrits.
+- **Combat** : `MicroMenuContainer` n'est redimensionné par nous que hors combat s'il est
+  protégé, le reste repart sur `PLAYER_REGEN_ENABLED`. Pareil pour la barre ou un bouton protégé.
+- **`Pages/MicroMenuSkin.lua`** : la description disait que Blizzard refait la grille.
+- **Tests** : `tests/test_micromenu.lua` (nouveau), port de la grille de Blizzard et modèle des
+  règles de taint. 1615 sur retail, 1615 sur Forever, 43 mutations, 43 rouges. **L'ancien code
+  y reproduit le rapport** : `MicroMenuContainer:SetSize()` bloqué et 4 champs contaminés. Les
+  autres suites sont inchangées.
+- **Copié dans `_forever_`** (l'install était égale au commit d'avant pour ces deux fichiers).
+- **Pas vu en jeu.** Ce que le modèle ne peut pas dire : si le client garde une trace de taint
+  sur un `SetPoint`/`SetSize` de widget. `EllesmereUIActionBars` appelle aussi
+  `MicroMenuContainer:Layout()` depuis son code (`EUI_ActionBars_ExtraBars.lua:575`) : si le
+  message revient, regarder le nom de l'addon qu'il cite.
+
+---
+
 ## 2026-11-05 — Profession marks : glyphes détourés
 
 Essai en jeu : ça marche. Cruzz voulait des icônes plus mignonnes, détourées et pas

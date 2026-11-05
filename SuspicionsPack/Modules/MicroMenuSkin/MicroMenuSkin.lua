@@ -4,9 +4,10 @@
 -- border on hover, all of Blizzard's button chrome stripped away and the icon
 -- glyph cropped so it fills the square.
 --
--- VISUAL SKIN ONLY. Button placement stays wherever Blizzard / Edit Mode puts
--- it -- we never reparent or move buttons, which keeps this taint-free and
--- safe in combat.
+-- The bar itself stays where Blizzard / Edit Mode puts it, and nothing is ever
+-- reparented. The size and spacing override re-anchors the buttons inside it,
+-- with widget calls only: see "Layout" below for why no Lua field is written on
+-- Blizzard's frames.
 --
 -- Reference: ElvUI/Game/Shared/Modules/ActionBars/MicroBar.lua (chrome element
 -- names, the OnEnter alpha workaround and the SetHighlightAtlas hook come from
@@ -94,6 +95,7 @@ end
 -- ============================================================
 local hookedUpdate = false   -- hooksecurefunc("UpdateMicroButtons") installed
 local hookedPulse  = false   -- hooksecurefunc("MicroButtonPulse") installed
+local hookedLayout = false   -- hooksecurefunc(MicroMenu, "Layout") installed
 local applying     = false   -- re-entrancy guard
 local hidPerfBar   = false   -- so the perf bar can be restored
 local hidPVPTex    = false
@@ -827,42 +829,161 @@ end
 -- ============================================================
 -- Layout (size + spacing)
 --
--- We resize the buttons and then drive Blizzard's OWN grid rather than
--- re-anchoring buttons ourselves. MicroMenu is a GridLayoutFrame: setting
--- childXPadding/childYPadding and invalidating oldGridSettings makes
--- ShouldUpdateLayout() return true, and Blizzard's Layout() does the rest.
+-- Never write a Lua field on MicroMenu or MicroMenuContainer from here, and never
+-- call a Blizzard method that writes one (Layout and MarkDirty both do). Edit Mode
+-- lays the bar out from secure code: reading a field an addon wrote taints that
+-- whole call, and the SetSize ending MicroMenuContainerMixin:Layout is then
+-- blocked in combat. That is the ADDON_ACTION_BLOCKED this module used to cause by
+-- setting childXPadding, childYPadding, stride and oldGridSettings. The taint stays
+-- on those fields until a /reload, so skipping the write in combat would not help.
 --
--- Doing it this way matters:
---   * the stacked two-row layout (vehicle / override bar / pet battle, where
---     MicroMenu gets a stride of numButtons/2) keeps working -- chaining
---     buttons LEFT->RIGHT ourselves would flatten both rows into one;
---   * MicroMenu's own size stays correct, so the Edit Mode selection box,
---     QueueStatusButton, FramerateFrame and the GM ticket button stay anchored;
---   * there is no ordering to guess, so no unstable sort on tied X positions.
---
--- No combat guard: micro buttons are plain Buttons, not protected frames, and
--- LayoutFrame methods are unprotected too.
+-- So Blizzard's grid keeps its own settings and runs untouched, and the buttons are
+-- anchored over its result with widget calls, which leave no taint behind:
+--   * from a post-hook on MicroMenu:Layout, so whatever Blizzard lays out (Edit
+--     Mode, a button shown or hidden, the vehicle and pet battle bars) is corrected
+--     in the same frame, before the container measures the bar;
+--   * from our own pass, when a setting changed.
+-- The orientation and growth directions are read from Blizzard's fields, so the
+-- Edit Mode settings keep working, and the bar's size stays right for the Edit Mode
+-- box, QueueStatusButton, FramerateFrame and the GM ticket button.
 -- ============================================================
 local function ApproxEq(a, b)
     return a ~= nil and b ~= nil and math.abs(a - b) < 0.5
 end
 
--- Blizzard's native padding, captured once. Held in a table so that a nil
--- native value round-trips correctly.
-local nativePad
+local IS_FOREVER = WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT
 
--- Same trick for the grid's stride: MicroMenu's native value can legitimately
--- be nil, and `nativeStride or default` would never give it back.
-local nativeStride
+-- What our own pass last placed. nil means the next pass has to place again.
+local placedGap, placedPerRow
 
-local function RelayoutMicroMenu(mm)
-    mm.oldGridSettings = nil   -- forces ShouldUpdateLayout() to return true
-    local container = _G.MicroMenuContainer
-    if container and container.Layout then
-        container:Layout()
-    elseif mm.Layout then
-        mm:Layout()
+-- Micro buttons are plain frames, but a protected frame anchored to one of them
+-- would make it protected too, and addon code cannot move those in combat.
+local function BarLocked(mm)
+    if not InCombatLockdown() then return false end
+    if mm:IsProtected() then return true end
+    for _, e in ipairs(GetButtons()) do
+        if e.button:IsProtected() then return true end
     end
+    return false
+end
+
+local function RetryAfterCombat()
+    placedGap, placedPerRow = nil, nil
+    MMS:RegisterEvent("PLAYER_REGEN_ENABLED", "OnRegenEnabled")
+end
+
+-- Same anchors and size as GridLayoutFrameMixin:Layout for these settings. A stride
+-- can hold half a button (OverrideMicroMenuPosition: numButtons / 2); Blizzard's
+-- grid rounds that down.
+local function PlaceGrid(mm, xPad, yPad, stride)
+    -- Only reads, so it is safe to call from here, and it is Blizzard's own answer
+    -- to which buttons count (hidden ones do not).
+    local children = mm:GetLayoutChildren()
+    local count = #children
+    if count == 0 then return end
+
+    local cellW, cellH = 0, 0
+    for i = 1, count do
+        cellW = math.max(cellW, children[i]:GetWidth())
+        cellH = math.max(cellH, children[i]:GetHeight())
+    end
+
+    stride = math.floor(stride or count)
+    if stride < 1 then stride = count end
+
+    local goRight, goUp = mm.layoutFramesGoingRight, mm.layoutFramesGoingUp
+    local point = (goUp and "BOTTOM" or "TOP") .. (goRight and "LEFT" or "RIGHT")
+    local xDir, yDir = goRight and 1 or -1, goUp and 1 or -1
+    local horizontal = mm.isHorizontal
+
+    local cols, rows = 0, 0
+    for i = 1, count do
+        -- A horizontal bar fills rows of `stride` buttons, a vertical one columns.
+        local along, across = (i - 1) % stride, math.floor((i - 1) / stride)
+        local col, row = along, across
+        if not horizontal then col, row = across, along end
+        cols, rows = math.max(cols, col + 1), math.max(rows, row + 1)
+
+        local b = children[i]
+        b:ClearAllPoints()
+        b:SetPoint(point, mm, point, col * (cellW + xPad) * xDir, row * (cellH + yPad) * yDir)
+    end
+    mm:SetSize(cols * cellW + (cols - 1) * xPad, rows * cellH + (rows - 1) * yPad)
+end
+
+-- What MicroMenuContainerMixin:Layout measures, minus its MicroMenu:Layout() call.
+-- Only for our own pass: when Blizzard lays out, it sizes the container itself.
+-- False when combat refuses it (the reported frame IS protected in combat).
+local function SizeContainer(mm)
+    local c = _G.MicroMenuContainer
+    if not c or mm:GetParent() ~= c then return true end   -- the bar is on loan
+    if InCombatLockdown() and c:IsProtected() then return false end
+
+    local scale = mm:GetScale()
+    local w, h = mm:GetWidth() * scale, mm:GetHeight() * scale
+
+    -- Part of the container on retail only.
+    local q = not IS_FOREVER and _G.QueueStatusButton
+    if q then
+        local qs = q:GetScale()
+        local qw, qh = q:GetWidth() * qs, q:GetHeight() * qs
+        local _, _, _, ox, oy = q:GetPoint(1)
+        if mm.isHorizontal then
+            w, h = w + qw + math.abs((ox or 0) * qs), math.max(h, qh)
+        else
+            w, h = math.max(w, qw), h + qh + math.abs((oy or 0) * qs)
+        end
+    end
+
+    c:SetSize(math.max(w, 1), math.max(h, 1))
+    return true
+end
+
+local function PerRow(db)
+    return math.floor(Num(db.iconsPerRow, 0) + 0.5)
+end
+
+-- 0 icons per row leaves the wrapping to Blizzard, which is what the vehicle,
+-- override and pet battle bars need: they stack the bar with a stride of their own,
+-- and forcing ours would flatten it back out.
+local function PlaceOverride(mm, db)
+    if BarLocked(mm) then
+        RetryAfterCombat()
+        return false
+    end
+
+    local size = Num(db.buttonSize, 26)
+    for _, e in ipairs(GetButtons()) do
+        local b = e.button
+        -- Native aspect ratio captured once so width tracks height.
+        if b._spOrigW == nil then
+            b._spOrigW = b:GetWidth()
+            b._spOrigH = b:GetHeight()
+        end
+        local ratio = (b._spOrigH and b._spOrigH > 0) and (b._spOrigW / b._spOrigH) or 1
+        if not ApproxEq(b:GetHeight(), size) then
+            if SP.DEBUG then
+                SP:Debug("MicroMenuSkin", ("resize %s from %.1fx%.1f to %.1fx%.1f"):format(
+                    e.name, b:GetWidth(), b:GetHeight(), size * ratio, size))
+            end
+            b:SetSize(size * ratio, size)
+        end
+    end
+
+    local gap, perRow = Num(db.buttonSpacing, 0), PerRow(db)
+    PlaceGrid(mm, gap, gap, perRow > 0 and perRow or mm.stride)
+    if SP.DEBUG then
+        SP:Debug("MicroMenuSkin", ("placed: bar %s, gap %s, per row %s"):format(
+            Rect(mm), tostring(gap), tostring(perRow)))
+    end
+    return true
+end
+
+-- Post-hook on MicroMenu:Layout. Rare (Edit Mode, a button shown or hidden), so it
+-- re-places without first checking whether Blizzard's grid actually moved anything.
+local function OnBlizzardLayout(mm)
+    local db = GetDB()
+    if db and db.enabled and db.overrideLayout then PlaceOverride(mm, db) end
 end
 
 local RestoreLayout   -- forward declaration: LayoutButtons calls it when the
@@ -872,89 +993,43 @@ local function LayoutButtons(db)
     local mm = _G.MicroMenu
     if not mm then return end
 
-    if nativePad == nil then
-        nativePad = { x = mm.childXPadding, y = mm.childYPadding }
-    end
-
     if not db.overrideLayout then
         -- Override just got turned off: hand the native geometry back.
-        if MMS.layoutApplied then
-            MMS.layoutApplied = false
-            RestoreLayout()
-        end
+        if MMS.layoutApplied then RestoreLayout() end
         return
     end
-
-    local size = Num(db.buttonSize,    26)
-    local gap  = Num(db.buttonSpacing,  0)
-    local changed = false
-
-    for _, e in ipairs(GetButtons()) do
-        local b = e.button
-        if b then
-            -- Native aspect ratio captured once so width tracks height.
-            if b._spOrigW == nil then
-                b._spOrigW = b:GetWidth()
-                b._spOrigH = b:GetHeight()
-            end
-            local ratio = (b._spOrigH and b._spOrigH > 0) and (b._spOrigW / b._spOrigH) or 1
-            if not ApproxEq(b:GetHeight(), size) then
-                if SP.DEBUG then
-                    SP:Debug("MicroMenuSkin", ("resize %s from %.1fx%.1f to %.1fx%.1f"):format(
-                        e.name, b:GetWidth(), b:GetHeight(), size * ratio, size))
-                end
-                b:SetSize(size * ratio, size)
-                changed = true
-            end
-        end
-    end
-
-    if mm.childXPadding ~= gap or mm.childYPadding ~= gap then
-        mm.childXPadding = gap
-        mm.childYPadding = gap
-        changed = true
-    end
-
-    -- Icons per row.
-    --
-    -- MicroMenu is a GridLayoutFrame, and a grid's `stride` IS its number of
-    -- children per row -- so wrapping the bar onto two or three rows is one
-    -- assignment plus the same relayout the padding already triggers. No
-    -- re-anchoring, which is what keeps the Edit Mode box, QueueStatusButton
-    -- and the GM ticket button attached.
-    --
-    -- 0 means "leave it to Blizzard". That matters more than it looks: the
-    -- vehicle, override and pet battle bars set a stride of their own
-    -- (numButtons/2) when they take over, and forcing ours would flatten those
-    -- back out. We re-apply on every UpdateMicroButtons, so an override that
-    -- reclaims the stride mid-session gets ours back on its next pass.
-    local perRow = math.floor(Num(db.iconsPerRow, 0) + 0.5)
-    if perRow > 0 then
-        if nativeStride == nil then nativeStride = { v = mm.stride } end
-        if mm.stride ~= perRow then
-            mm.stride = perRow
-            changed = true
-        end
-    elseif nativeStride ~= nil and mm.stride ~= nativeStride.v then
-        mm.stride = nativeStride.v
-        changed = true
-    end
-
-    if changed then
-        if SP.DEBUG then
-            SP:Debug("MicroMenuSkin", ("relayout: bar %s, padding %s/%s, stride %s"):format(
-                Rect(mm), tostring(mm.childXPadding), tostring(mm.childYPadding), tostring(mm.stride)))
-        end
-        RelayoutMicroMenu(mm)
-    end
     MMS.layoutApplied = true
+
+    -- This runs on nearly every UpdateMicroButtons: push only what changed.
+    local gap, perRow = Num(db.buttonSpacing, 0), PerRow(db)
+    local changed = gap ~= placedGap or perRow ~= placedPerRow
+    if not changed then
+        local size = Num(db.buttonSize, 26)
+        for _, e in ipairs(GetButtons()) do
+            if not ApproxEq(e.button:GetHeight(), size) then
+                changed = true
+                break
+            end
+        end
+    end
+
+    if changed and PlaceOverride(mm, db) then
+        placedGap, placedPerRow = gap, perRow
+        if not SizeContainer(mm) then RetryAfterCombat() end
+    end
 end
 
 -- Real implementation of the forward-declared local.
 RestoreLayout = function()
     -- Opacity is ours, so hand it back before anything else.
-    local restore = _G.MicroMenu
-    if restore then restore:SetAlpha(1) end
+    local mm = _G.MicroMenu
+    if mm then mm:SetAlpha(1) end
+
+    if not (mm and MMS.layoutApplied) then return end
+    if BarLocked(mm) then
+        RetryAfterCombat()
+        return
+    end
 
     for _, e in ipairs(GetButtons()) do
         local b = e.button
@@ -963,13 +1038,14 @@ RestoreLayout = function()
         end
     end
 
-    local mm = _G.MicroMenu
-    if mm and nativePad then
-        mm.childXPadding = nativePad.x
-        mm.childYPadding = nativePad.y
-        if nativeStride ~= nil then mm.stride = nativeStride.v end
-        RelayoutMicroMenu(mm)
+    -- Blizzard's padding and stride were never touched: they are still native.
+    PlaceGrid(mm, mm.childXPadding or 0, mm.childYPadding or 0, mm.stride)
+    if not SizeContainer(mm) then
+        RetryAfterCombat()
+        return
     end
+    MMS.layoutApplied = false
+    placedGap, placedPerRow = nil, nil
 end
 
 -- Real implementation of the forward-declared local.
@@ -1012,6 +1088,12 @@ local function ApplyNow()
 end
 
 MMS.ApplySkin = ApplySkin
+
+-- Whatever combat refused is placed again now. See RetryAfterCombat.
+function MMS:OnRegenEnabled()
+    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    ApplyNow()
+end
 
 -- ============================================================
 -- Restore
@@ -1109,6 +1191,13 @@ function MMS:Activate()
             SP:Debug("MicroMenuSkin", #names .. " buttons: " .. table.concat(names, ", "))
         end
 
+        -- Anything Blizzard lays out gets the override back. See "Layout" above.
+        local mm = _G.MicroMenu
+        if not hookedLayout and mm and mm.Layout then
+            hookedLayout = true
+            hooksecurefunc(mm, "Layout", OnBlizzardLayout)
+        end
+
         ApplySkin()
         KillStrayFlashes()
 
@@ -1133,6 +1222,5 @@ function MMS:Activate()
 end
 
 function MMS:Deactivate()
-    self.layoutApplied = false
     RemoveSkin()
 end
