@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-11-05 — skin Details « Forever » (Forever seulement, pas encore publié)
+
+Demande de Cruzz : un skin Details dans le style Forever du pack, inspiré du skin TWW. Choisi sur six
+tours de maquettes : barres TWW affinées, break à flèche en titre, anneau bronze du portrait, aucun fond.
+
+- **`Modules/DetailsSkin/DetailsSkin.lua`** : second skin, « SuspicionPack Forever », dérivé de la table TWW
+  (`Derive`, copie profonde : les deux skins ne partagent rien). Rang de 22 + 4 : 7 rangs dans une fenêtre de
+  182 au lieu de 5. Le skin TWW ne change pas.
+- **Ce qu'une table de skin ne sait pas faire**, posé par le module : la ligne de section des options
+  (`P.SHEET` 456-736 x 80-120) et la grande flèche cuivre (`P.FRAME` 66-94 x 619-654, tournée par ses quatre
+  coins) sur `baseframe.titleBar`, l'anneau sur chaque rang. Le titre de Details reste transparent (alpha 0) :
+  il étire une seule texture, un losange ou une flèche s'y déformerait.
+- **Anneau** : l'anneau du portrait des cadres Forever est peint d'un bloc avec les barres
+  (`UI-HUD-UnitFrame-Player-PortraitOn`), on ne peut pas le sortir seul. Pris à la place :
+  `UI-HUD-UnitFrame-SmallCircle`, celui du badge de niveau, même bronze, fermé. Atlas du client : rien dans le
+  dépôt. Les nameplates d'EllesmereUI n'ont pas de portrait : Cruzz a validé sur ce cadre joueur.
+- **Accroche** : `hooksecurefunc(Details, "ChangeSkin")` et `"InstanceRefreshRows"`, posés AVANT `InstallSkin` :
+  à la connexion, c'est `InstallSkin` qui remet le skin sur une fenêtre en attente. `CreateNewLine` range le rang
+  puis rafraîchit : un rang créé plus tard reçoit donc son anneau. Passent par `Perf.HookFunc`
+  (`test_profiler` l'a exigé).
+- **`Media/DetailsSkin/`** (`tests/gen_details_forever.js`) : `forever_track.png` et `ClassIconsForever.png` tirés
+  de l'art MIT du skin TWW. `forever_bar.png` : MerfinMain à la demande de Cruzz, niveaux intacts (écart de 1/255
+  au plus), serrée dans la bande de la barre, avec les bouts arrondis de la barre TWW pour rester dans la pierre.
+  `MerfinMain` telle quelle remplirait tout le rang, sous le texte : Details étire une seule texture. Moyenne
+  83 % de luminosité, contre 53 % pour la barre TWW. C'est une copie de plus d'un art « All Rights Reserved »
+  déjà publié dans `Media/Merfin` (voir l'entrée du 2026-10-21). Cellules d'icônes de 32 texels, dessinées en 20 :
+  pas de mips pour un PNG, une texture bien plus grande que son rendu crénelerait.
+- **`Pages/DetailsSkin.lua`** : deux boutons, un par skin.
+- **Tests** : `test_details_skin.lua`, 148 assertions dont les hypothèses relues dans le vrai Details installé,
+  46 mutations rouges. Deux gardes tuées par la mutation retirées (code mort). Toutes les suites vertes.
+- **Vu en jeu par Cruzz** après le passage à MerfinMain : « ça rend bien ». Pas encore vus : une icône de sort
+  dans l'anneau, le passage TWW ↔ Forever et retour.
+- Copié dans `_forever_` après `diff -rq` : redémarrer le client, il y a de nouvelles textures.
+
+---
+
 ## 2026-11-05 — v2.13.0
 
 Release : Campfire wheel, réglages de fond des Datatexts, Node radar à plusieurs nodes. Tout est réservé à Forever.
