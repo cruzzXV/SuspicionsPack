@@ -4,6 +4,39 @@
 
 ---
 
+## 2026-11-05 — Node radar sur Forever
+
+Demande de Cruzz : reprendre la logique de la flèche de NodeSight pour un radar rond centré sur
+le perso, qui apparaît quand une ressource est à portée. Design choisi sur maquettes : l'icône se
+rapproche et grossit quand on avance. Cruzz a retiré les deux effets : taille et distance au perso
+sont fixes, comme l'aiguille d'une boussole. **Réécrit, pas copié** : NodeSight n'a pas de licence et ses
+données sont privées à l'addon, donc rien à brancher.
+- **`Modules/NodeRadar/NodeRadar.lua`** (nouveau, Forever seulement) : lit les points de la minimap
+  avec une fausse souris, garde chaque node en coordonnées de carte, affiche le plus proche que le
+  métier peut récolter. Une autre ressource ne prend sa place que si elle est plus proche de 5 m.
+- **`Modules/NodeRadar/Data.lua`** (nouveau) : 66 ressources, noms anglais et français, compétence,
+  couleur de l'icône. Noms relevés sur Wowhead, la DB2 ne les a pas. Contrôle contre NodeSight, rien
+  n'en est copié : nos 65 noms français y sont tous.
+- **`Pages/NodeRadar.lua`** (nouveau), **`Core.lua`** (défauts, `/spack radar names`, `/spack radar status`), les deux
+  **`.toc`** (lignes réservées à Forever).
+- **Icône, choix de Cruzz sur aperçu entre l'actuelle, les glyphes du jeu, Phosphor et game-icons.net :**
+  le glyphe à étincelles de la minimap (`professions_tracking_*_special`), désaturé puis coloré, une
+  couleur par ressource. Rien d'ajouté au dépôt. Plus d'icône d'objet, de masque ni d'anneau.
+- **Réglages :** « Circle size » règle le rayon du cercle (70 px par défaut, 20 à 300), demandé par Cruzz. « Icon size » ne règle plus que l'icône.
+- **Écart avec le plan :** portée d'une minimap carrée à 1,42 fois le rayon, sinon ses coins restaient
+  invisibles au radar. Découvert par les tests.
+- **Coût :** au repos, rien. Sans recherche active, plus aucun appel au client ni minuteur, et un
+  événement relance. Le pilote par image n'existe que pendant un scan (40 points par image), le suivi
+  à 20 par seconde s'arrête sans cible. Pas chiffré en jeu, et un second scan tourne si NodeSight reste
+  actif.
+- **Tests :** `tests/test_node_radar.lua` (237), `--radar`, `test_gui.lua` Forever 59 (+7), le reste
+  inchangé. 124 mutations, 124 rouges. Le premier passage en laissait 19 : des tests trop faibles et
+  deux gardes mortes, retirées.
+- **Vu en jeu par Cruzz, pas validé :** l'icône a disparu devant un minerai, puis est revenue en s'approchant. Aucune erreur dans BugGrabber. Sa capture montre CombatTimer à 00:05 : combat ou limite de la minimap, pas tranché. Cruzz a retiré « Hide in combat » : le radar reste affiché en combat et suit les nodes connus, le scan attend la fin du combat. `/spack radar status` dira si la disparition revient.
+- Feux de camp : idée abandonnée le même jour, pas de suivi à distance sans réseau de joueurs.
+
+---
+
 ## 2026-11-05 — v2.11.0
 
 Release : Profession marks sur Forever et le travail `/spack perf`.

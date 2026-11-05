@@ -650,6 +650,18 @@ local DEFAULTS = {
             enabled = false,
             tooltip = true,
         },
+        -- Forever only (see the .toc gate). The nearest herb or vein, around your character.
+        nodeRadar = {
+            enabled      = false,
+            herbs        = true,
+            ore          = true,
+            range        = 200,
+            scale        = 100,
+            orbit        = 70,
+            showDistance = true,
+            x            = 0,
+            y            = 0,
+        },
         -- 3D models in place of the flat portraits. Off by default: models
         -- cost GPU, and it reshapes every unit frame the moment it turns on.
         animatedPortraits = {
@@ -1474,6 +1486,12 @@ function SP:ToggleGUI(input)
     if arg == "debug trail" or arg == "trail" then
         if SP.Cursor and SP.Cursor.DebugTrail then SP.Cursor.DebugTrail()
         else print("SuspicionsPack: the cursor module is not loaded.") end
+        return
+    end
+    if arg == "radar names" or arg == "radar status" then
+        if not SP.NodeRadar then print("SuspicionsPack: the node radar is only on WoW: Forever.")
+        elseif arg == "radar names" then SP.NodeRadar.PrintUnknown()
+        else SP.NodeRadar.PrintStatus() end
         return
     end
     if not SP.EnsureGUI() then return end
