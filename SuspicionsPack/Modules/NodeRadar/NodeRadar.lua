@@ -15,8 +15,13 @@
 -- Herbs or Find Minerals on, and the minimap's zoom sets how far it reaches. Up is the
 -- way your character faces, not the camera.
 --
--- Idle costs nothing: the scan's per-frame driver and the follow ticker both stop when
--- they have nothing to do, and with no finder on only an event starts them again.
+-- Icons move every frame: your facing is read again each time, and a node whose place
+-- changed glides to it, as in WaypointUI. Distances and choices are updated 20 times a
+-- second, which is plenty for them.
+--
+-- Idle costs nothing: the scan's per-frame driver, the follow ticker and the per-frame
+-- drawing all stop when they have nothing to do, and with no finder on only an event
+-- starts them again.
 
 local SP = SuspicionsPack
 
@@ -27,8 +32,8 @@ local Data = SP.NodeRadarData
 local NODES, Key = Data.nodes, Data.Key
 
 local _issecretvalue = issecretvalue or function() return false end
-local sin, cos, atan2, sqrt = math.sin, math.cos, math.atan2, math.sqrt
-local floor, min, max, rad, deg = math.floor, math.min, math.max, math.rad, math.deg
+local sin, cos, atan2, sqrt, exp, pi = math.sin, math.cos, math.atan2, math.sqrt, math.exp, math.pi
+local floor, min, max = math.floor, math.min, math.max
 
 -- The scan.
 local STEP      = 10    -- grid spacing, minimap units
@@ -41,6 +46,7 @@ local SQUARE_REACH = 1.42 -- a square minimap's corner, per its radius
 local MAX_LINES = 300   -- tooltip lines remembered
 local MAX_UNKNOWN = 200 -- unknown names remembered
 local KEY_SCAN  = "NodeRadarScan"
+local KEY_DRAW  = "NodeRadarDraw"
 -- Grid points are keyed x * 1000 + y; these are the 8 neighbours.
 local AROUND = { -1001, -1000, -999, -1, 1, 999, 1000, 1001 }
 
@@ -49,7 +55,9 @@ local MERGE     = 15    -- yards: a node seen again within this keeps its place,
 local AVERAGE   = 8     -- scans the average runs over
 local SKIP      = 5     -- yards: the node you are standing at is passed over
 local KEEP      = 5     -- yards: another node must be this much closer to take over
-local FOLLOW    = 0.05  -- seconds between updates (20 per second)
+local FOLLOW    = 0.05  -- seconds between updates of distances and choices (20 per second)
+local GLIDE     = 20    -- per second: how fast a moved node's icon catches up, a 35 ms half-life
+local SETTLED   = 0.0005 -- radians: closer than this, it is there
 
 -- The look, at the size settings' 100%.
 local ICON_WIDTH = 30
@@ -74,6 +82,7 @@ local moving   = false
 local previewing = false
 
 local nodes  = {}        -- the last scan's nodes
+local lastId = 0         -- each node's id, kept by Smooth from one scan to the next
 local target = nil       -- the nearest node shown, in front
 local others = {}        -- the other nodes, nearest first, reused at every update
 local range  = nil       -- yards: the setting or the minimap's reach, whichever is less
@@ -290,6 +299,7 @@ local function Smooth(found, before, width, height)
             node.mx = (best.mx * n + node.mx) / (n + 1)
             node.my = (best.my * n + node.my) / (n + 1)
             node.count = n + 1
+            node.id = best.id
             node.picked = best.picked
             if best == target then target = node end
         end
@@ -313,11 +323,14 @@ local function MakeSlot(index)
     holder:SetSize(1, 1)
     holder:EnableMouse(false)
     holder:SetFrameLevel(frame:GetFrameLevel() + MAX_NODES + 1 - index)
+    -- Both off the pixel grid: they move by fractions of a pixel, and a snapped texture
+    -- would step a whole one at a time, and shimmer as it turns.
     local icon = holder:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("CENTER", holder, "CENTER")
+    icon:SetTexelSnappingBias(0)
+    icon:SetSnapToPixelGrid(false)
     local arrow = frame:CreateTexture(nil, "ARTWORK")
     arrow:SetTexture(ARROW)
-    -- Off the pixel grid, or a small texture shimmers as it turns.
     arrow:SetTexelSnappingBias(0)
     arrow:SetSnapToPixelGrid(false)
     local slot = { holder = holder, icon = icon, arrow = arrow, on = true, arrowOn = true }
@@ -349,6 +362,7 @@ local function ShowFrame()
 end
 
 local function HideFrame()
+    SP.Tick.Remove(KEY_DRAW)
     if frameOn then
         frameOn = false
         frame:Hide()
@@ -384,60 +398,86 @@ local function SizeIcon(slot, info, width)
     slot.icon:SetSize(width, height)
 end
 
--- The arrow, this many pixels from the middle, on the way to its node. The art points up
--- and SetRotation turns counterclockwise. Whole degrees, or every update would turn it.
-local function DrawArrow(slot, way, at, size)
-    local x, y = floor(at * sin(way) + 0.5), floor(at * cos(way) + 0.5)
-    if x ~= slot.arrowX or y ~= slot.arrowY then
-        slot.arrowX, slot.arrowY = x, y
-        slot.arrow:SetPoint("CENTER", frame, "CENTER", x, y)
-    end
-    local turn = floor(deg(way) + 0.5)
-    if turn ~= slot.turn then
-        slot.turn = turn
-        slot.arrow:SetRotation(-rad(turn))
-    end
-    if size ~= slot.arrowSize then
-        slot.arrowSize = size
-        slot.arrow:SetSize(size, size)
-    end
-    if not slot.arrowOn then
-        slot.arrowOn = true
-        slot.arrow:Show()
+-- The icon and its arrow where the slot's angle puts them, if it moved: its node's way
+-- from north, plus your facing. Not rounded: the textures are off the pixel grid, so they
+-- glide instead of stepping a pixel at a time. The arrow's art points up, and SetRotation
+-- turns counterclockwise.
+local function Place(slot, facing)
+    local way = slot.world + facing
+    if way == slot.drawn then return end
+    slot.drawn = way
+    local s, c = sin(way), cos(way)
+    slot.holder:SetPoint("CENTER", frame, "CENTER", slot.orbit * s, slot.orbit * c)
+    if slot.arrowOn then
+        slot.arrow:SetPoint("CENTER", frame, "CENTER", slot.at * s, slot.at * c)
+        slot.arrow:SetRotation(-way)
     end
 end
 
--- One node. Yards away, and the way in radians clockwise from where your character faces.
-local function DrawNode(index, info, yards, way)
+-- One node in a slot. Yards away, its way in radians clockwise from north, and its id,
+-- which stays the same from one scan to the next. A new node is put straight in place; the
+-- same node, moved, glides there (DrawStep).
+local function Assign(index, info, yards, world, id)
     local db = NR:GetDB()
     local slot = slots[index] or MakeSlot(index)
     if not slot.on then
         slot.on = true
         slot.holder:Show()
     end
-    local x, y = floor(db.orbit * sin(way) + 0.5), floor(db.orbit * cos(way) + 0.5)
-    if x ~= slot.x or y ~= slot.y then
-        slot.x, slot.y = x, y
-        slot.holder:SetPoint("CENTER", frame, "CENTER", x, y)
-    end
     local part = index == 1 and 1 or db.otherScale / 100
     local full = floor(ICON_WIDTH * db.scale / 100 + 0.5)
     SizeIcon(slot, info, floor(full * part + 0.5))
     ShowPicture(slot, info)
+    -- The arrow halfway from the middle to the nearest icon's edge: one circle for all.
+    local at = max(0, (db.orbit - full / 2) / 2)
+    if db.orbit ~= slot.orbit or at ~= slot.at then
+        slot.orbit, slot.at, slot.drawn = db.orbit, at, nil
+    end
     if db.showArrows then
-        -- Halfway from the middle to the nearest icon's edge, one circle for all of them.
-        -- A whole number, or rounding puts it a pixel nearer on one side than the other.
-        DrawArrow(slot, way, floor(max(0, (db.orbit - full / 2) / 2) + 0.5),
-            floor(ARROW_SIZE * db.arrowScale / 100 * part + 0.5))
+        local size = floor(ARROW_SIZE * db.arrowScale / 100 * part + 0.5)
+        if size ~= slot.arrowSize then
+            slot.arrowSize = size
+            slot.arrow:SetSize(size, size)
+        end
+        if not slot.arrowOn then
+            slot.arrowOn, slot.drawn = true, nil
+            slot.arrow:Show()
+        end
     elseif slot.arrowOn then
         slot.arrowOn = false
         slot.arrow:Hide()
     end
+    if id ~= slot.id then
+        slot.id, slot.world = id, world
+    end
+    slot.goal = world
     if slot.label then
         local text = db.showDistance and (floor(yards + 0.5) .. " " .. UNIT) or ""
         if text ~= slot.text then
             slot.text = text
             slot.label:SetText(text)
+        end
+    end
+end
+
+-- Every frame while icons are shown: your facing, read again, so turning is smooth, and
+-- each node's way eased towards the last update's, so the 20 updates a second and the
+-- scans' corrections do not show as jumps. Facing is one cheap call; the map position,
+-- which makes a table each time, stays in Follow.
+local function DrawStep(elapsed)
+    local facing = Facing()
+    if not facing then return end
+    local ease = 1 - exp(-elapsed * GLIDE)
+    for i = 1, #slots do
+        local slot = slots[i]
+        if slot.on then
+            local gap = (slot.goal - slot.world + pi) % (2 * pi) - pi
+            if gap > SETTLED or gap < -SETTLED then
+                slot.world = slot.world + gap * ease
+            else
+                slot.world = slot.goal
+            end
+            Place(slot, facing)
         end
     end
 end
@@ -524,13 +564,15 @@ local function Follow()
     target = PickTarget(db)
     local count = PickOthers(db)
     if target then
-        DrawNode(1, target.info, target.yards, target.world + facing)
+        Assign(1, target.info, target.yards, target.world, target.id)
         for i = 1, count do
             local node = others[i]
-            DrawNode(i + 1, node.info, node.yards, node.world + facing)
+            Assign(i + 1, node.info, node.yards, node.world, node.id)
         end
         HideSlots(count + 2)
+        for i = 1, count + 1 do Place(slots[i], facing) end
         ShowFrame()
+        SP.Tick.Add(KEY_DRAW, DrawStep)
     else
         HideFrame()
     end
@@ -607,8 +649,9 @@ local function FinishScan()
             local yards = sqrt(dx * dx + dy * dy) / half * radius
             local bearing = atan2(dx, dy)              -- clockwise from the minimap's top
             local world = rotating and bearing - facing or bearing   -- clockwise from north
+            lastId = lastId + 1
             found[#found + 1] = {
-                key = key, info = NODES[key], map = map, count = 1,
+                key = key, info = NODES[key], map = map, count = 1, id = lastId,
                 gray = gray * 2 > #keys,
                 mx = x + yards * sin(world) / mapWidth,
                 my = y - yards * cos(world) / mapHeight,
@@ -756,9 +799,12 @@ end
 
 local function DrawPreview()
     local db = NR:GetDB()
+    -- Still: the samples do not turn with you.
+    SP.Tick.Remove(KEY_DRAW)
     for i = 1, db.maxNodes do
         local sample = SAMPLES[i]
-        DrawNode(i, NODES[Key(sample[1])], db.range / 2, sample[2])
+        Assign(i, NODES[Key(sample[1])], db.range / 2, sample[2], -i)
+        Place(slots[i], 0)
     end
     HideSlots(db.maxNodes + 1)
     ShowFrame()
