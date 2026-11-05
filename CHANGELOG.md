@@ -4,7 +4,7 @@
 
 ---
 
-## 2026-11-05 — skin Details « Forever » (Forever seulement, pas encore publié)
+## 2026-11-05 — skin Details « Forever » (Forever seulement, publié en 2.13.1)
 
 Demande de Cruzz : un skin Details dans le style Forever du pack, inspiré du skin TWW. Choisi sur six
 tours de maquettes : barres TWW affinées, break à flèche en titre, anneau bronze du portrait, aucun fond.
@@ -37,6 +37,44 @@ tours de maquettes : barres TWW affinées, break à flèche en titre, anneau bro
 - **Vu en jeu par Cruzz** après le passage à MerfinMain : « ça rend bien ». Pas encore vus : une icône de sort
   dans l'anneau, le passage TWW ↔ Forever et retour.
 - Copié dans `_forever_` après `diff -rq` : redémarrer le client, il y a de nouvelles textures.
+
+---
+
+## 2026-11-05 — v2.13.1
+
+Release : radar fluide et skin Details « Forever » (commit `8b19baa`, d'une autre session, déjà sur `main`).
+Cruzz a choisi de publier les deux, prévenu que le skin ajoute une copie de l'art MerfinMain.
+- Versions : `## Version: 2.13.1` dans les trois .toc, `SP.VERSION`.
+- `SP.Changelog["2.13.1"]` : deux entrées, validées par Cruzz. `.github/RELEASE_NOTES.md` : les mêmes lignes.
+- Le mouvement du radar n'a pas été vu en jeu avant la publication.
+
+---
+
+## 2026-11-05 — Node radar : icônes et flèches fluides
+
+Rapport de Cruzz : le déplacement des flèches n'est pas fluide, alors que celui de WaypointUI l'est.
+WaypointUI 1.7.5 lu dans `_forever_` (`Code/Waypoint/Waypoint.lua`, `NavigatorMixin`), pour le
+comportement seulement : sa flèche est recalculée à chaque image, sans arrondi, ses textures sont hors
+de la grille de pixels (`ui-kit/.../texture.lua`), et elle va vers sa cible par étapes (1/3 de l'écart par
+image pour la place, 1/2 pour l'angle). Nos trois écarts :
+- le radar redessinait **20 fois par seconde** : sur un écran à 60 ou 144 images, tourner faisait des
+  sauts ;
+- positions **arrondies au pixel** et flèche **au degré entier** : à 28 px du centre, la flèche avançait
+  par pas de 2° (un choix de la session précédente pour économiser des appels) ;
+- aucun glissement : une mise à jour ou la correction d'un scan posait l'icône d'un coup.
+
+- **`Modules/NodeRadar/NodeRadar.lua`** : `Follow` garde les distances et les choix à 20 par seconde
+  (la position sur la carte crée une table à chaque appel). Un pas par image (`DrawStep`, `SP.Tick`) relit
+  le cap et place icônes et flèches sans arrondi, icônes sorties de la grille de pixels comme la flèche. Le
+  cap n'est pas lissé, il est exact. Le sens d'un node l'est, avec une demi-vie de 35 ms quelle que soit la
+  cadence d'images, et par le chemin le plus court, aussi en passant le sud. Un node a maintenant un
+  numéro qu'il garde d'un scan à l'autre : le même node glisse, un autre arrive directement à sa place.
+- **Coût :** par image, un appel au client (`GetPlayerFacing`) et rien d'autre. À l'arrêt, aucune mise à
+  jour d'écran. En tournant, jusqu'à 3 appels par case et par image, comme WaypointUI. Le pas s'arrête
+  avec les icônes et pendant l'aperçu. Pas chiffré en jeu.
+- **Tests :** `test_node_radar.lua` 394 (+39), 113 mutations, 113 rouges. Le premier passage en laissait 7 :
+  6 tests trop faibles, et une remise à zéro inutile, retirée.
+- Copié dans `_forever_`, pas encore vu en jeu. Publié en 2.13.1.
 
 ---
 

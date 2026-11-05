@@ -11,7 +11,7 @@ local Perf = NS.Perf
 SP.Perf = Perf
 Perf.InstrumentAce(SP, "Core")
 local hooksecurefunc = Perf.HookFunc("Core")
-SP.VERSION = "2.13.0"
+SP.VERSION = "2.13.1"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1522,6 +1522,10 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.13.1"] = {
+        { type = "new", text = "Details skin on WoW: Forever: added a Forever look, under Customise > Details skin." },
+        { type = "fix", text = "WoW: Forever: the node compass icons and arrows now move smoothly." },
+    },
     ["2.13.0"] = {
         { type = "new", text = "WoW: Forever: added a wheel of camp items that opens near a campfire. Off by default, in Interface." },
         { type = "new", text = "WoW: Forever: Datatexts: added a background gradient, a background colour and a border setting for each bar." },
