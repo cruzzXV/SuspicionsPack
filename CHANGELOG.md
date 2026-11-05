@@ -4,6 +4,146 @@
 
 ---
 
+## 2026-11-05 — v2.13.0
+
+Release : Campfire wheel, réglages de fond des Datatexts, Node radar à plusieurs nodes. Tout est réservé à Forever.
+- Versions : `## Version: 2.13.0` dans les trois .toc, `SP.VERSION`.
+- `SP.Changelog["2.13.0"]` : trois entrées, validées par Cruzz. `.github/RELEASE_NOTES.md` : les mêmes lignes.
+- Publié à sa demande, prévenu que les flèches du radar n'ont pas été vues en jeu à notre connaissance.
+
+---
+
+## 2026-11-05 — Node radar : plusieurs nodes et petite flèche
+
+Demande de Cruzz : voir plusieurs nodes à la fois, avec une petite flèche entre le centre et le node,
+comme la première proposition. Retrouvée dans la session d'origine : la maquette B, « Orbite et aiguille ».
+Choix sur aperçu à taille réelle avec les vrais glyphes : le plus proche en avant (mon conseil était tous
+pareils, Cruzz a pris l'autre), flèches de la couleur du node.
+- **`Modules/NodeRadar/NodeRadar.lua`** : une case par node affiché, créée à la demande. Le plus proche
+  garde `PickTarget` et ses 5 m de stabilité. Les autres suivent par distance, avec les mêmes 5 m pour un
+  node déjà affiché, sur une liste réutilisée à chaque mise à jour. Un node dépassé par un autre reste
+  affiché s'il en a la place. Seul le plus proche a sa distance, donc les textes ne se chevauchent jamais.
+- **Flèche :** à mi-chemin entre le centre et le bord de l'icône du plus proche, un seul cercle pour toutes.
+  `SetRotation` n'est appelé qu'au degré entier, pour ne pas payer un appel par mise à jour. Les flèches sont
+  sur le cadre, donc sous toutes les icônes.
+- **`Media/NodeRadar/arrow.png`** (nouveau) : dessiné ici, avec les proportions de la maquette B. Blanc pour
+  prendre la couleur du node, bord sombre. Rien de tiers.
+- **`Core.lua`**, **`Pages/NodeRadar.lua`** : « Nodes shown » (3 par défaut, 1 à 8), « Other nodes' size »
+  (70 %), « Arrows », « Arrow size », caché quand les flèches sont coupées.
+- **Choix non demandés :** les curseurs de taille et l'interrupteur des flèches, et 3 nodes par défaut. Un
+  profil existant passe donc à 3 nodes et aux flèches sans rien régler.
+- **Coût :** le scan ne change pas, il lisait déjà toute la minimap. En plus, un tri à chaque mise à jour et
+  jusqu'à 3 appels par case quand on tourne. Rien à l'arrêt. Pas chiffré en jeu.
+- **Tests :** `test_node_radar.lua` 355 (+118), `test_gui.lua` Forever 110 (+11). 86 mutations, 86 rouges.
+  Le premier passage en laissait 10, tous des tests trop faibles. Les 237 cas du radar à un node passent
+  avec `maxNodes = 1` comme avec 3. Un défaut de test corrigé en route : `Reset` envoyait
+  `SKILL_LINES_CHANGED` module coupé, et une compétence basse passait d'un cas au suivant.
+- **Copié dans `_forever_`, pas encore vu en jeu :** le sens de `SetRotation` et la netteté de la flèche sont
+  à confirmer. Rien de commité.
+
+---
+
+## 2026-11-05 — Dégradé sur le fond des Datatexts
+
+Demande de Cruzz : reprendre le dégradé de Chattynator pour le fond de nos barres. Lu dans le code
+qui tourne (version 228) : `Skins/Dark.lua` pose `Assets/ChatBackground.tga`, retourné en hauteur par
+`SetTexCoord(0, 1, 1, 0)` et teinté par `SetVertexColor(r, g, b, 1 - transparence)`. Le fichier est
+blanc, seul son alpha varie : 255 sur les 4 % du haut, puis une droite jusqu'à 30, sans aucun écart en
+largeur. Son option « solid_chat_background » remplace le tout par `SetColorTexture`. Fichier et code
+sont All Rights Reserved : rien n'est copié, la même plage est dessinée avec `SetGradient`.
+- **`Modules/Datatexts/Skins.lua`** : `Skins.fades` (None, Fades upward, Fades downward), `BuildFill`
+  et `PaintFill`. Le dégradé a sa propre texture : son alpha de sommet passe devant `SetAlpha` (voir
+  `GUI.TintGradientH`), donc l'opacité entre dans les deux couleurs, et le fond uni n'en porte jamais.
+  Une barre sans dégradé garde exactement le même rendu.
+- **`Modules/Datatexts/Datatexts.lua`** : champ `bgFade` par barre, « none » par défaut.
+- **`Pages/Datatexts.lua`** : ligne « Background gradient » sous « Background opacity ».
+- **Choix non demandés :** deux sens, là où Chattynator n'en a qu'un, car une barre peut coller au haut
+  comme au bas de l'écran. Le bord ne bouge pas.
+- **Force réglable, après le premier essai de Cruzz (« trop strong ») :** la baisse de 88 % de Chattynator
+  est faite pour une fenêtre de chat ; sur sa barre, 14 pixels de haut sur la capture, elle tombe d'un
+  coup. Curseur « Gradient strength » par barre, 0 % uni à 100 % transparent au bord clair, champ
+  `bgFadeStrength`, caché tant que le dégradé est sur None. **50 % par défaut au lieu de 88 %**, sans que
+  Cruzz l'ait demandé. Avec « Background opacity » et le sens, tout dégradé droit à deux bouts se règle.
+- **Réglage « Border » par barre, demandé par Cruzz :** coupe le filet, l'ombre et les coins du skin (clé
+  interne `all` de `OPEN`, champ `border`). « Open edge » est gardé, et caché tant que la bordure est
+  coupée. « Text only » n'a plus aucune des deux lignes (`Skins.bordered`), alors qu'« Open edge » y restait
+  affiché avec une note.
+- **La ligne sombre de sa capture n'est pas cette bordure :** le fond de Chattynator et celui de la barre se
+  recouvrent sur une rangée (bas du chat à 1056 depuis le haut, haut de la barre à 1055 pour un écran de
+  1080 unités, hauteur supposée). Calcul sur la première capture : chat (41, 23, 14) sous le haut de la barre
+  à 12 % donne (38, 21, 13), relevé (37, 20, 12). Le dégradé l'a rendue visible. Remède sans code : barre
+  « Chat » en Height 24. Pas encore essayé en jeu.
+- **Couleur de fond par barre, proposée puis validée par Cruzz :** il n'arrivait pas à refaire le fond de
+  Chattynator, `#1a1a1a` à 85 %, car le fond était fixé par le skin (cuir 16, 10, 8 ; Forever et Text only
+  14, 13, 9). Interrupteur « Custom background colour » et pastille « Background colour », cachée tant qu'il
+  est coupé, champs `bgCustom` et `bgColor`. Elle part de `#1a1a1a` (`DT.BG_COLOR`). Unie, à la place du fond
+  du skin, sur une troisième texture blanche ; opacité, dégradé et bordure continuent de marcher. Coupé, rien
+  ne change et la couleur choisie est gardée.
+- **Tests :** `test_datatexts.lua` 211 (+124), `test_gui.lua` Forever 99 (+36), retail inchangé à 139.
+  87 mutations, 87 rouges (gradient et force 35, bordure 19, couleur 33).
+- **Sens vu sur la capture de Cruzz :** le bas est sombre, le haut laisse passer le décor, ce que doit
+  faire « Fades upward ». Le réglage de sa barre n'est pas relu : le fichier de sauvegarde date d'avant.
+- **Copié dans `_forever_`, le curseur pas encore vu en jeu.** Rien de commité.
+
+---
+
+## 2026-11-05 — Campfire wheel sur Forever
+
+Demande de Cruzz : près d'un feu de camp, une petite roue propose les objets qu'on peut poser et
+le jouet Bourse de poussière pourpre. Choix sur aperçu à taille réelle : icônes rondes, moyeu qui
+affiche le nom survolé. Objets en recharge cachés. Tente d'aventurier ajoutée si débloquée.
+CampKit lu pour le comportement (fichier LICENSE : MIT, page CurseForge : All Rights Reserved) :
+rien n'en est copié.
+- **`Modules/CampWheel/CampWheel.lua`** (nouveau, Forever seulement) : s'ouvre sur le buff
+  *Campfire Nearby* (1283391, 100 m). 37 objets de camp portés et utilisables, puis les 2 jouets
+  débloqués, sans ceux en recharge. Clic sur le moyeu : fermée jusqu'au prochain feu.
+- **`Pages/CampWheel.lua`** (nouveau), **`Core.lua`** (défauts, `/spack camp status`), les deux
+  **`.toc`** (lignes réservées à Forever).
+- **Combat :** les boutons sont sécurisés, donc tout ce qui les touche attend la fin du combat. Un
+  pilote de visibilité cache la roue en combat, à monture et mort. Il est retiré à la fermeture, car
+  il remontrerait la roue toutes les 0,2 s.
+- **Coût :** au repos, une lecture du buff par `UNIT_AURA` du joueur, hors combat. Ni pilote ni
+  événement de sacs tant qu'il n'y a pas de feu.
+- **Tests :** `tests/test_camp_wheel.lua` (307), `--camp`, `test_gui.lua` Forever 63 (+4), le reste
+  inchangé. 129 mutations, 129 rouges. Le premier passage en laissait 12 : un trou réel dans les
+  tests (une mutation qui coupait la lecture du buff après chaque combat passait) et du code mort,
+  retiré (`placed`, un `Hide` à la création, un marqueur d'aperçu).
+- **Relecture contre la branche `forever` :** `[dead]` testait la cible, d'où `[@player,dead]`.
+  Recharge des jouets lue avec `C_Spell.GetItemCooldown`, comme la boîte à jouets de Blizzard.
+  `SPELL_UPDATE_USABLE` ajouté : si « utilisable » dépend de la distance au feu, l'objet revient en
+  s'approchant. Aucun des 39 objets n'est équipable : un clic ne peut pas en équiper un.
+- **Limites connues :** le jeu dit seulement « feu à moins de 100 m », la roue peut donc s'ouvrir
+  avant que la pose marche. La Bourse exige l'événement de lancement : s'il se termine, elle reste
+  dans la roue et le jeu refuse le clic.
+- **Centre de la roue, demandé par Cruzz :** une silhouette de feu de camp, sans fond, à la place du
+  texte. Clic : `/sit`, par une macro sécurisée, car le client réserve l'emote au code de Blizzard.
+  Clic droit : fermée jusqu'au prochain feu (choix par défaut, à confirmer par Cruzz). Plus de nom
+  au centre au survol, l'infobulle du jeu reste.
+- **Art ajouté au dépôt public, choisi par Cruzz sur aperçu :** `Media/CampWheel/campfire.png`,
+  icône « Campfire » de Lorc (game-icons.net), CC BY 3.0, crédit dans `Media/CampWheel/CREDITS.txt`.
+  `ring.png`, `pointer.png` et `glow.png` sont dessinés pour le pack.
+- **Animations, demandées par Cruzz « comme OPie » :** OPie 8.10.2 lu pour le comportement (All Rights
+  Reserved), rien n'en est copié. Ouverture et fermeture en 0,25 s, icône survolée +10 % en 0,1 s,
+  flèche vers l'objet survolé, lueur en 0,3 s, anneau qui tourne en 4 s, rien sous 20 images/s.
+- **Image et clic séparés :** les boutons sécurisés restent immobiles et invisibles. Tout ce qui se voit
+  est sur `SP_CampWheelVisual`, un cadre simple qu'aucun bouton sécurisé ne protège, donc libre de
+  s'animer même quand un combat commence. Le pilote qui cache `holder` lance l'animation par `OnHide`.
+- **Retouches de Cruzz sur aperçu :** feu de 42 à 30 px, anneau de 44 px, rayon minimal de 58 à 46 px,
+  icônes zoomées de 7 % à 12 % de recadrage. Valeurs de mon choix pour « un brin », à juger en jeu.
+- **Corrigé au passage :** les décalages X/Y étaient multipliés par la taille, changer la taille
+  déplaçait la roue.
+- **Tests, état final :** `tests/test_camp_wheel.lua` (507), 246 mutations, 246 rouges, plus une
+  équivalente (`phase = nil` à la fin d'une fermeture : rien ne le relit tant que le cadre est caché).
+  Les mutations ont fait retirer du code mort et trouver un bug : l'objet survolé qui disparaît laissait
+  la lueur et la flèche allumées. La relecture a ajouté la sortie de la grille de pixels et deux remises
+  à zéro pour un bouton caché sous la souris.
+- **Vu en jeu par Cruzz : « ça marche ».** Sans détail point par point : fermeture au clic droit,
+  recharge de la Bourse et retour après un combat ne sont pas confirmés un à un. Rien de commité.
+  `Datatexts.lua`, `Skins.lua` et `Pages/Datatexts.lua` modifiés dans le projet pendant ce travail :
+  pas par moi, pas copiés.
+
+---
+
 ## 2026-11-05 — v2.12.0
 
 Release : Node radar sur Forever, le seul changement depuis la 2.11.0.
