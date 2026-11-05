@@ -4,6 +4,70 @@
 
 ---
 
+## 2026-11-05 — Profession marks : glyphes détourés
+
+Essai en jeu : ça marche. Cruzz voulait des icônes plus mignonnes, détourées et pas
+carrées. Choix sur aperçu entre l'actuel, les glyphes du jeu, Phosphor et game-icons.net :
+**les glyphes du jeu**, donc aucun fichier ajouté au dépôt.
+- **`ProfessionMarks.lua`** : `SetAtlas` à la place de `SetTexture`, plus de fond noir ni de
+  recadrage. Une texture par glyphe, dans le même quart de case. L'infobulle utilise le
+  même glyphe (`|A:nom:14:14|a`).
+- **`tests/gen_profession_items.js`, `Data.lua`** : table `atlases` à la place de `icons`,
+  `worldquest-icon-*` et `poisons` pour les Poisons. Le générateur échoue si un nom n'existe
+  pas dans `UiTextureAtlasMember` du build (1.60.1.70790).
+- **Tailles, demande de Cruzz après essai en jeu** : First Aid plus petit, Cooking plus grand.
+  Mesuré : la croix de First Aid remplit toute sa boîte, le glyphe de Cooking n'en occupe
+  qu'environ 12 × 15 px sur 17. `GLYPH_GROWTH` : −3 et +3 px vers le milieu de la case,
+  soit 14 et 20 px sur une case de 37. Décalage en pixels, il ne suit pas la taille de la case.
+- **Tests** : 163 pour le module, 112 mutations, 107 rouges, les 5 autres sont toujours les
+  gardes de valeurs secrètes. Copié dans `_forever_`.
+- **Vu en jeu par Cruzz : validé.** Les glyphes sont étirés au carré (8 % au plus).
+
+---
+
+## 2026-11-05 — Profession marks sur Forever
+
+Demande de Cruzz : reprendre de Keep or Toss ce qui dit si un objet sert à un métier,
+vérifier que le perso l'a, et poser le logo du métier sur l'objet pour ne pas le vendre.
+**Réécrit, pas copié** : KoT n'a aucune licence et notre dépôt est public. Même
+comportement en jeu, code et données à nous. KoT ne dessine d'ailleurs rien sur
+EllesmereUIBags, et son logo est le même pour tous les métiers.
+- **`Modules/ProfessionMarks/ProfessionMarks.lua`** (nouveau, Forever seulement) :
+  logo du métier en haut à droite (le quart de la case, deux au plus), ligne
+  d'infobulle pour ses métiers et ceux des autres. Sur les sacs EUI (grille, liste,
+  composants, banque) via son API `RegisterItemOverlayIcon`, et sur les sacs Blizzard.
+  Compte : composant de n'importe quelle recette du métier, outil, recette pas apprise.
+- **`Modules/ProfessionMarks/Data.lua`** (nouveau, généré) : 594 composants, 28 outils,
+  2082 recettes, 13 métiers, build 1.60.1.70790, par `tests/gen_profession_items.js`.
+  Survival est exclu (une recette, pas de place dans le livre, icône générique).
+- **Contrôle contre KoT, rien n'en est copié** : les 594 composants identiques, 18 outils
+  identiques (nous avons en plus les cannes à pêche et le Gnomish Army Knife), 1970
+  recettes sur 1978. Les 8 absentes sont sans profession lisible dans les fichiers, dont
+  les manuels de poison des voleurs.
+- **`Pages/ProfessionMarks.lua`** (nouveau), **`Core.lua`** (défauts), les deux **`.toc`**
+  (lignes réservées à Forever).
+- **Écart avec le plan : Auto Sell Junk n'est pas touché.** Je croyais Ruined Leather
+  Scraps gris ; il est blanc, et aucun objet utile n'est gris parmi ceux dont les fichiers
+  donnent la qualité (249 n'en ont pas). Une garde aurait été du code mort.
+- **Coût** : chaque objet est jugé une fois. Une fois le cache rempli, 100 repeintures de
+  30 cases ne posent aucune question au client et ne poussent rien qui n'a pas changé.
+  Rien en combat sur `SKILL_LINES_CHANGED`.
+- **Tests** : `tests/test_profession_marks.lua` (151), `--marks`, `test_gui.lua` Forever 52
+  (+4), le reste inchangé. 106 mutations, 101 rouges ; les 5 autres sont des gardes de
+  valeurs secrètes que le stub ne peut pas exprimer, ordre relu à la main.
+- **Relecture contre `forever` et EllesmereUIBags, trouvé et corrigé** : le tooltip d'un
+  objet pas chargé est un texte de remplacement qui passait pour « pas apprise » et
+  restait en cache ; banque et sac de composants se rafraîchissent à part ; `Show()` était
+  en trop après les post-calls de Blizzard.
+- **Dépend de `Core/Perf.lua`** : le travail `/spack perf` est commité juste avant, les
+  deux partent ensemble.
+- **Essayé en jeu par Cruzz : ça marche.** Copié dans `_forever_` (l'install était égale
+  au commit d'avant, 204 fichiers). Pas vérifié pour autant : une recette
+  pas apprise dont l'objet créé est déjà connu (animal, monture) peut perdre son logo si
+  sa ligne « Already known » arrive dans le même tooltip.
+
+---
+
 ## 2026-11-03 — v2.10.0
 
 Release : macros de consommables sur Forever. Le travail `/spack perf` n'y est

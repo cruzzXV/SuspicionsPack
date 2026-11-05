@@ -645,6 +645,11 @@ local DEFAULTS = {
             reset              = "combat",
             customSpells       = "",
         },
+        -- Forever only (see the .toc gate). A profession's icon on the items it wants.
+        professionMarks = {
+            enabled = false,
+            tooltip = true,
+        },
         -- 3D models in place of the flat portraits. Off by default: models
         -- cost GPU, and it reshapes every unit frame the moment it turns on.
         animatedPortraits = {

@@ -80,6 +80,9 @@ Modules\Datatexts\Texts\Social.lua [AllowLoadGameType camelot][ExcludeLoadGameTy
 # Forever only, same gate: macros that follow your food, bandages and healing items.
 Modules\ConsumableMacros\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\ConsumableMacros\ConsumableMacros.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+# Forever only, same gate: a profession's icon on the bag items it wants.
+Modules\ProfessionMarks\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\ProfessionMarks\ProfessionMarks.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\InterruptAlert\InterruptAlert.lua
 Modules\GatewayAlert\GatewayAlert.lua [AllowLoadGameType standard]
 Modules\CombatCross\CombatCross.lua [AllowLoadGameType standard]
