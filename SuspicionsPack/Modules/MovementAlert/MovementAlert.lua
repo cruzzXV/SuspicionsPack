@@ -443,6 +443,37 @@ f.spellsToIgnoreGlow  = {}
 f.timeSpiralOn       = false
 f.timeSinceLastUpdate= 0
 
+-- What a SPELL_UPDATE_COOLDOWN can name for a tracked spell (its id and its
+-- base id), and whether any entry is the buff kind -- the only one UNIT_AURA can
+-- change. Rebuilt with the list, never in between.
+local trackedIds   = {}
+local hasBuffEntry = false
+
+local function SetCachedSpells(list)
+    f.cachedSpells = list
+    for k in pairs(trackedIds) do trackedIds[k] = nil end
+    hasBuffEntry = false
+    for _, entry in ipairs(list) do
+        if entry.checkType == "buffActive" then
+            hasBuffEntry = true
+        else
+            trackedIds[entry.spellId] = true
+            if entry.baseSpellId then trackedIds[entry.baseSpellId] = true end
+        end
+    end
+end
+
+-- UNIT_AURA on the player fires on every buff and debuff change. Only a buff
+-- entry (Burning Rush) reads auras, so without one there is nothing to hear.
+-- Called only while the module is active: Activate, and the rebuild in OnEvent.
+local function RefreshAuraEvent()
+    if hasBuffEntry then
+        f:RegisterUnitEvent("UNIT_AURA", "player")
+    else
+        f:UnregisterEvent("UNIT_AURA")
+    end
+end
+
 local TIME_SPIRAL_DURATION = 10   -- seconds (also used by OnUpdate)
 
 local fsText
@@ -655,10 +686,12 @@ local function CheckMovementCooldown()
         return
     end
 
-    -- Armed BEFORE the timeSpiralOn guard: the 10 s expiry lives inside the
-    -- tick, so a spiral left running with nothing subscribed could never end.
-    ArmTick()
-    if f.timeSpiralOn then return end
+    -- The tick refreshes a countdown on screen, and the Time Spiral's 10 s
+    -- expiry lives in it, so a running spiral must stay subscribed or it could
+    -- never end. Those two arm it; nothing else does. Arming on every call kept
+    -- it running through whole fights: SPELL_UPDATE_COOLDOWN re-armed it faster
+    -- than it could disarm itself (/spack perf, Mythic+, 2026-10-26).
+    if f.timeSpiralOn then ArmTick(); return end
     if f.ignoreMovementCd then fsText:Hide(); return end
     local db   = GetDB()
     local prec = db.precision or 0
@@ -692,6 +725,7 @@ local function CheckMovementCooldown()
                     .. string.format("%." .. prec .. "f", cdInfo.timeUntilEndOfStartRecovery))
                 EnsureStyled()
                 fsText:Show()
+                ArmTick()
                 return
             end
         end
@@ -764,7 +798,8 @@ local function OnEvent(self, event, ...)
         ApplyStyles()
 
         if not InCombatLockdown() then
-            self.cachedSpells = BuildMovementSpellList()
+            SetCachedSpells(BuildMovementSpellList())
+            RefreshAuraEvent()
             self.spellsToIgnoreGlow = GetGlowIgnoreList()
             RefreshCastFilters()
         end
@@ -772,9 +807,27 @@ local function OnEvent(self, event, ...)
         return
     end
 
-    if event == "SPELL_UPDATE_COOLDOWN"
-        or event == "UNIT_AURA"
-    then
+    if event == "SPELL_UPDATE_COOLDOWN" then
+        -- Payload (doc 12.1.5 and 1.60.1): spellID, baseSpellID, category,
+        -- startRecoveryCategory, itemID; a nil spellID means every cooldown
+        -- changed. It fires for every spell on every global cooldown, and a
+        -- check reads a fresh C_Spell.GetSpellCooldown table per tracked spell:
+        -- 20 000 checks and 10 MB in one key. Only an event that can be about a
+        -- tracked spell is worth one. Secrets tested first: a secret cannot be
+        -- compared, nor used as a key -- it gets a check, as before.
+        local spellID, baseSpellID = ...
+        if not _issecretvalue(spellID) and not _issecretvalue(baseSpellID)
+            and spellID ~= nil
+            and not trackedIds[spellID]
+            and not (baseSpellID ~= nil and trackedIds[baseSpellID])
+        then
+            return
+        end
+        CheckMovementCooldown()
+        return
+    end
+
+    if event == "UNIT_AURA" then
         CheckMovementCooldown()
         return
     end
@@ -908,7 +961,7 @@ function MA:Refresh()
     if not f.timeSpiralOn then
         ResetTSTextPosition()
     end
-    f.cachedSpells = BuildMovementSpellList()
+    SetCachedSpells(BuildMovementSpellList())
     f.spellsToIgnoreGlow = GetGlowIgnoreList()
     RefreshCastFilters()
 
@@ -920,7 +973,7 @@ end
 function MA:Activate()
     -- All nine registrations live on the raw frame `f`, so AceEvent's
     -- UnregisterAllEvents does not reach them -- Deactivate below has to.
-    f:SetScript("OnEvent", OnEvent)
+    f:SetScript("OnEvent", SP.Perf.WrapEvent("MovementAlert", OnEvent))
     -- No OnUpdate: the ticker is armed on demand by ArmTick and
     -- unsubscribes itself when nothing is being counted down.
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -940,7 +993,7 @@ function MA:Activate()
     end
     f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
     f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-    f:RegisterUnitEvent("UNIT_AURA", "player")
+    RefreshAuraEvent()
     -- Evaluate current state now: enabling mid-cooldown used to show
     -- nothing until an unrelated event arrived.
     CheckMovementCooldown()

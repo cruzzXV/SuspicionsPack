@@ -47,6 +47,115 @@ comportement en jeu, code et données à nous.
 
 ---
 
+## 2026-10-26 (soir) — PotionAlert refait sur le vrai coût, liste des potions complète
+
+La M+ de contrôle (même donjon) a donné : pack −23 %/s, allocation −78 %,
+MovementAlert −90 %, curseur −5 % (dans le bruit), **PotionAlert +5 % : raté**.
+Le coût n'était pas l'affichage mais, à chaque `BAG_UPDATE_COOLDOWN`, la
+fouille des sacs (`C_Item.GetItemCount` pour chaque potion) et deux
+`GetInstanceInfo`, avant le retour anticipé ajouté le matin. Le premier rapport
+le disait déjà (0 Ko alloué) ; leçon dans `tasks/lessons.md`.
+- **`PotionAlert.lua`** : les potions possédées sont relues sur
+  `BAG_UPDATE_DELAYED` (le contenu des sacs change) et sur les événements de
+  zone/combat/clé/boss, plus à chaque recharge ; « où on est » aussi, sur ces
+  mêmes événements. Un `BAG_UPDATE_COOLDOWN` ne lit plus que la recharge des
+  potions possédées (souvent une), et rien du tout sans potion ou sans potion
+  suivie. Les réglages Donjons / Raids restent lus à chaque fois.
+- **Liste des potions** : elle n'en suivait que 4 sur les 7 potions de combat
+  de Midnight, et une seule qualité de Recklessness. Avec Void-Shrouded Tincture,
+  Devoured Dreams, Zealotry, Enlightenment Tonic ou la Recklessness Q1
+  (241289), l'alerte ne pouvait jamais s'afficher. Elle reprend maintenant
+  toutes les potions de combat d'AutoBuy, les deux qualités ; un test échoue si
+  AutoBuy en gagne une qu'elle n'a pas.
+- **Tests** : la partie PotionAlert de `test_perf.lua` compte maintenant
+  `GetItemCount`, `GetInstanceInfo` et `GetItemCooldown` (9 rouges sur la
+  version du matin, dont 900 `GetItemCount` pour 100 événements). Perf 59,
+  23 mutations toutes rouges, toutes les autres suites inchangées.
+- Pas vu en jeu.
+
+---
+
+## 2026-10-26 — Optimisation mesurée : budgets et top 3 (étapes 3 et 4)
+
+Relevés de Cruzz avec `/spack perf` (retail) : en ville 0,018 ms/image, en M+
+(Temple de Sephraliss, 20 min) 0,036 ms/image, soit ~5 % du coût de ses
+addons. Top 3 en M+ : PotionAlert 1,8 s, MovementAlert 1,4 s (et 17 Mo
+alloués), Cursor 0,9 s. Seuls ces trois-là sont touchés.
+- **`tests/test_perf.lua`** (nouveau, 48) : budgets en appels au client sur des
+  rafales qui n'apportent rien de neuf, plus le comportement autour. 13 rouges
+  sur le code d'avant, tous verts après ; 16 mutations des corrections, toutes
+  rouges. `run.py` connaît `--perf` et `--profiler`.
+- **`PotionAlert.lua`** : tant que la potion est prête, chaque
+  `BAG_UPDATE_COOLDOWN` (~10/s en combat) réappliquait police, texte, ancre et
+  relançait le minuteur d'affichage. Maintenant un événement de sac n'agit que
+  si l'état change (bue → cachée, prête → affichée + voix) ; zone, combat, début
+  de clé et fin de boss réévaluent comme avant (`CheckCooldown(force)`).
+  **Changement visible** : avec une durée d'affichage, l'alerte n'est plus
+  réaffichée et prolongée par chaque événement de sac ; elle reste le temps
+  réglé. Chez Cruzz (durée 0) rien ne change à l'écran.
+- **`MovementAlert.lua`** : `SPELL_UPDATE_COOLDOWN` filtré sur sa charge utile
+  (spellID / baseSpellID d'un sort suivi, nil = tout, secret = vérifié comme
+  avant), au lieu d'un `GetSpellCooldown` par sort suivi à chaque sort lancé ;
+  `UNIT_AURA` écouté seulement s'il y a un sort de type buff (Course ardente) ;
+  le Ticker armé seulement pour un compte à rebours affiché ou un Time Spiral
+  (il restait armé tout le combat, réarmé plus vite qu'il ne se désarmait).
+- **`Cursor.lua`** : l'opacité n'est poussée que si elle change ; plus de
+  `ClearAllPoints` à chaque image de mouvement (une seule ancre CENTER, que
+  `SetPoint` remplace) ; un point de traînée est ancré et montré une fois, puis
+  seuls sa taille et sa couleur s'estompent ; le cadre de traînée n'est plus
+  remontré à chaque tick.
+- Vu en passant, PAS corrigé : avec « limiter la fréquence » du curseur, la
+  traînée et le maintien du clic reçoivent le `elapsed` d'une image au lieu du
+  temps cumulé (traînée plus lente que prévu).
+- Toutes les suites vertes, mêmes comptes (GUI 139, Forever 40, style 11…),
+  profiler 78, perf 48. Pas vu en jeu : la preuve est l'étape 5 (mêmes
+  captures, comparer).
+
+---
+
+## 2026-10-25 — Mesure : `/spack perf` (étape 1, aucune optimisation)
+
+Demande de Cruzz : optimiser le pack par la mesure, pas par une lecture du
+code. Étape 1 : de quoi mesurer en jeu. Rien n'est encore optimisé.
+- **Constat qui a fixé la conception** (doc générée de Blizzard, `live` et
+  `forever` identiques, et règles du wiki) : le compteur du moteur
+  (`C_AddOnProfiler`) facture un OnEvent à l'addon qui a CRÉÉ le cadre. Tous
+  nos gestionnaires AceEvent passent par `AceEvent30Frame`, créé par le premier
+  addon Ace chargé : le chiffre « SuspicionsPack » du moteur ne les compte pas
+  (ou compte ceux de tout le monde). Nos `hooksecurefunc` sur du code Blizzard
+  ne sont pas mesurés du tout. D'où un chronométrage à nous, par gestionnaire.
+- **`Core/Perf.lua`** (nouveau, chargé AVANT `Core.lua` : il ne lui faut que le
+  namespace) : `/spack perf start [engine] [nom]`, `stop`, `report` (aussi
+  `/spack debug perf …`). Compteurs du moteur au début et à la fin pour le pack,
+  Config, tous les addons et le client ; moyenne par image échantillonnée toutes
+  les 0,5 s et pondérée par le temps ; images > 1/5/10/50/100 ms ; nouveau pic ;
+  moyenne de chaque combat de boss (ENCOUNTER_END, charge utile brute gardée) ;
+  créateur d'`AceEvent30Frame` ; budget de script du client
+  (`GetScriptBucketThrottleLimits`). Gestionnaires : temps propre (imbriqués
+  déduits), max, Ko alloués (borne basse), coût de la mesure étalonné. Le rapport
+  complet va dans `SuspicionsPackDB.global.perfReports` (10 derniers).
+- **Enveloppes permanentes**, un test de booléen hors capture : AceEvent de chaque
+  module (`NewSPModule`, MinimapButton, l'objet addon), sonde dans la boucle du
+  Ticker et nom pour chaque AnimTicker (Datatexts, ReapPredict), OnEvent et
+  OnUpdate de nos cadres (14 + 4 sites), `hooksecurefunc` par un
+  `local hooksecurefunc = SP.Perf.HookFunc("Module")` en tête de 8 fichiers,
+  HookScript hors souris (9). Pas chronométrés : `C_Timer` (le moteur les voit),
+  scripts souris.
+- **`Core.lua`** : `SP.Perf`, routage de `/spack perf`, `perfReports` dans
+  `DEFAULTS.global`. **`SuspicionsPack.toc`** : `Core\Perf.lua` avant `Core.lua`.
+- **Tests** : `tests/test_profiler.lua` (78) — vraies libs Ace, Ticker, Perf ;
+  chaque forme d'enregistrement AceEvent livre exactement ce qu'AceEvent seul
+  livre, avec et sans capture ; temps propre d'un imbriqué, erreur, sonde du
+  Ticker, calcul du rapport, plafond de 10, et une assertion statique de
+  couverture sur les fichiers du .toc (le vérificateur est lui-même testé).
+  17 mutations, toutes rouges. `spstub` charge le vrai Perf, donc chaque suite de
+  module passe aussi par les enveloppes. Toutes les suites inchangées et vertes
+  (GUI 139, Forever 40, datatexts 87, interrupt 35…), lancées avec LuaJIT : pas
+  de Python sur cette machine. Chargement réel de `Core.lua` après Perf vérifié.
+  Pas vu en jeu.
+
+---
+
 ## 2026-10-25 — v2.9.0
 
 Release : Datatexts sur Forever, tiroir de la minicarte et couleur « thème »
@@ -55,6 +164,13 @@ au style Forever, barres de Merfin dans LibSharedMedia.
 - `SP.Changelog["2.9.0"]` : quatre entrées courtes, validées par Cruzz.
 - `.github/RELEASE_NOTES.md` en anglais (à partir de cette version ; les
   précédentes étaient en français), sans expliquer les fonctions.
+- Tag `v2.9.0` poussé ; le workflow Release a réussi. Zip téléchargé :
+  les trois dossiers à la racine, identique au commit tagué fichier par
+  fichier, `Core.lua` entier (2123 lignes, `SP.VERSION = "2.9.0"`).
+- À noter : le client Forever a quitté `_classic_beta_` (dossier disparu)
+  pour `_forever_`. L'install `_forever_` est en 2.8.1 (WowUp la mettra à
+  jour) et ses SavedVariables datent du 22/10 : les barres de Datatexts
+  réglées sur la bêta n'y sont pas.
 
 ---
 

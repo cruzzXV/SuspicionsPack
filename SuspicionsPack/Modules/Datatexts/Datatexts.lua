@@ -210,12 +210,12 @@ local function GetProvider(id)
     if p then return p end
     p = { id = id, slots = {}, text = "" }
     local f = CreateFrame("Frame")
-    f:SetScript("OnEvent", function(_, event, ...)
+    f:SetScript("OnEvent", SP.Perf.WrapEvent("Datatexts " .. id, function(_, event, ...)
         SP:Debug("Datatexts", id, event, ...)
         local d = defs[id]
         if d and d.OnEvent then d.OnEvent(O(id), event, ...) end
         Queue(p)
-    end)
+    end))
     p.frame = f
     providers[id] = p
     return p
@@ -238,7 +238,7 @@ local function Start(id)
         p.ticker = p.ticker or SP.Tick.NewAnimTicker(function()
             if p.on then Update(id) end
             return p.on
-        end, d.interval)
+        end, d.interval, "Datatexts " .. id, "ticker")
         p.ticker.Start()
     end
     if d.OnStart then d.OnStart(O(id), p) end
@@ -739,7 +739,7 @@ watcher:RegisterEvent("PLAYER_REGEN_DISABLED")
 watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
 watcher:RegisterEvent("UI_SCALE_CHANGED")
 watcher:RegisterEvent("DISPLAY_SIZE_CHANGED")
-watcher:SetScript("OnEvent", function(_, event)
+watcher:SetScript("OnEvent", SP.Perf.WrapEvent("Datatexts", function(_, event)
     if event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
         if DT._active then DT.RequestLayout() end
     elseif event == "PLAYER_REGEN_DISABLED" then
@@ -755,7 +755,7 @@ watcher:SetScript("OnEvent", function(_, event)
             if pendingSecure then DT.SyncSecure() end
         end
     end
-end)
+end))
 
 -- The module's state, for /dump in game and for the offline tests. Read only.
 DT._internal = { providers = providers, live = live, bars = bars, secure = secure, watcher = watcher }

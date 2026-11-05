@@ -6,6 +6,11 @@ local ADDON_NAME, NS = ...
 -- ============================================================
 local SP = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.SuspicionsPack = SP
+-- Core\Perf.lua loads first and leaves the profiler in the namespace.
+local Perf = NS.Perf
+SP.Perf = Perf
+Perf.InstrumentAce(SP, "Core")
+local hooksecurefunc = Perf.HookFunc("Core")
 SP.VERSION = "2.10.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
@@ -1045,6 +1050,7 @@ local DEFAULTS = {
         datatexts = {
             gold = {},   -- [realm][name] = { money = copper, class = "WARRIOR" }
         },
+        perfReports = {},   -- the last /spack perf captures, oldest first
     },
 }
 
@@ -1115,7 +1121,7 @@ local function GiveBackdrop(frame)
         if type(v) == "function" then frame[k] = v end
     end
     if frame.OnBackdropSizeChanged then
-        frame:HookScript("OnSizeChanged", frame.OnBackdropSizeChanged)
+        frame:HookScript("OnSizeChanged", Perf.Wrap("Core", "OnBackdropSizeChanged", frame.OnBackdropSizeChanged))
     end
 end
 
@@ -1148,10 +1154,10 @@ end
 local scaleWatcher = CreateFrame("Frame")
 scaleWatcher:RegisterEvent("UI_SCALE_CHANGED")
 scaleWatcher:RegisterEvent("DISPLAY_SIZE_CHANGED")
-scaleWatcher:SetScript("OnEvent", function()
+scaleWatcher:SetScript("OnEvent", Perf.WrapEvent("Core", function()
     UpdateMult()
     for _, fn in pairs(scaleCallbacks) do fn() end
-end)
+end))
 hooksecurefunc(UIParent, "SetScale", function()
     UpdateMult()
     for _, fn in pairs(scaleCallbacks) do fn() end
@@ -1453,6 +1459,11 @@ function SP:ToggleGUI(input)
     if arg == "debug portraits" or arg == "portraits" then
         if SP.AnimatedPortraits and SP.AnimatedPortraits.DebugDump then SP.AnimatedPortraits.DebugDump()
         else print("SuspicionsPack: the animated portraits module is not loaded.") end
+        return
+    end
+    local perf = arg:match("^debug perf(.*)$") or arg:match("^perf(.*)$")
+    if perf and (perf == "" or perf:match("^%s")) then
+        SP.Perf.Command(perf)
         return
     end
     if arg == "debug trail" or arg == "trail" then
@@ -1980,7 +1991,7 @@ function SP.ShowChangelogPopup()
         ScrollUtil.InitScrollFrameWithScrollBar(scroll, bar)
         scroll:SetPanExtent(40)
         bar:Hide()
-        scroll:HookScript("OnScrollRangeChanged", function(_, _, range) bar:SetShown((range or 0) > 0) end)
+        scroll:HookScript("OnScrollRangeChanged", Perf.Wrap("Core", "OnScrollRangeChanged", function(_, _, range) bar:SetShown((range or 0) > 0) end))
     else
         scroll:SetScript("OnMouseWheel", function(s, d)
             local range = s:GetVerticalScrollRange() or 0

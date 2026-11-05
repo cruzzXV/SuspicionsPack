@@ -29,6 +29,8 @@
 -- Blizzard frames. Every value read from a unit can be a secret on retail and
 -- is tested with issecretvalue before any comparison (see tasks/lessons.md).
 local SP = SuspicionsPack
+-- Every hook in this file gets a row in /spack perf (Core\Perf.lua).
+local hooksecurefunc = SP.Perf.HookFunc("AnimatedPortraits")
 
 local AP = SP:NewSPModule("AnimatedPortraits", "animatedPortraits")
 SP.AnimatedPortraits = AP
@@ -796,11 +798,11 @@ local function LowerPartyBackground()
     if not bg or (bg.IsProtected and bg:IsProtected()) then return end
     if not partyBgHooked then
         partyBgHooked = true
-        bg:HookScript("OnShow", function(self)
+        bg:HookScript("OnShow", SP.Perf.Wrap("AnimatedPortraits", "background OnShow", function(self)
             if not AP:IsOn() then return end
             self:SetFrameStrata("BACKGROUND")
             self:SetFrameLevel(0)
-        end)
+        end))
     end
     if bg:IsShown() then
         bg:SetFrameStrata("BACKGROUND")
@@ -851,7 +853,7 @@ function AP:Activate()
     end
     if not watcher then
         watcher = CreateFrame("Frame")
-        watcher:SetScript("OnEvent", OnEvent)
+        watcher:SetScript("OnEvent", SP.Perf.WrapEvent("AnimatedPortraits", OnEvent))
     end
     for _, event in ipairs(EVENTS) do watcher:RegisterEvent(event) end
     ReadLook()  -- so the first sheath is already told apart

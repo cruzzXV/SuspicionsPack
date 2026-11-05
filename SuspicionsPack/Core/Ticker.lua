@@ -65,13 +65,18 @@ frame:SetScript("OnUpdate", function(self, elapsed)
     for i = 1, n do
         scratch[i] = reg[i]
     end
+    -- Set by Core\Perf.lua only while a capture runs: times each subscriber
+    -- under its key instead of calling it directly.
+    local probe = Tick.probe
     for i = 1, n do
         local key = scratch[i]
         scratch[i] = nil
         local pos = index[key]
         if pos then
             local fn = regFn[pos]
-            if fn then fn(elapsed) end
+            if fn then
+                if probe then probe("Tick", key, fn, elapsed) else fn(elapsed) end
+            end
         end
     end
 
@@ -133,16 +138,21 @@ end
 -- fn returns truthy to keep ticking, falsy to stop (self-disarm).
 -- Start() on an already-playing ticker is one IsPlaying check, so arming can
 -- stay indiscriminate.
+-- mod / label name the ticker in a /spack perf report.
 -- ============================================================
-function Tick.NewAnimTicker(fn, interval)
+function Tick.NewAnimTicker(fn, interval, mod, label)
     local host = CreateFrame("Frame")
     local ag   = host:CreateAnimationGroup()
     ag:SetLooping("REPEAT")
     local anim = ag:CreateAnimation("Animation")
     anim:SetDuration(interval or 0.05)
 
+    mod, label = mod or "AnimTicker", label or "ticker"
     ag:SetScript("OnLoop", function()
-        if not fn() then ag:Stop() end
+        local probe = Tick.probe
+        local keep
+        if probe then keep = probe(mod, label, fn) else keep = fn() end
+        if not keep then ag:Stop() end
     end)
 
     local t = {}

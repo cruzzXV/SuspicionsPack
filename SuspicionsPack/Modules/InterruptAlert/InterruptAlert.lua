@@ -501,7 +501,7 @@ function IA:Activate()
     if not eventFrame then
         eventFrame = CreateFrame("Frame", "SP_InterruptAlertEvents")
     end
-    eventFrame:SetScript("OnEvent", OnUnitEvent)
+    eventFrame:SetScript("OnEvent", SP.Perf.WrapEvent("InterruptAlert", OnUnitEvent))
     -- SUCCEEDED est filtré à player+pet au niveau C, donc ça ne tourne pas pour
     -- chaque sort du groupe. INTERRUPTED et CHANNEL_STOP ne peuvent pas l'être :
     -- l'unité est celle qui a été kickée.

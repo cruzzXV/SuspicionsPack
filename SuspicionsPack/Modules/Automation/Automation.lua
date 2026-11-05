@@ -1,6 +1,8 @@
 -- Suspicion's Pack — Automation Module
 -- Auto-accepts various dialogs and popups
 local SP = SuspicionsPack
+-- Every hook in this file gets a row in /spack perf (Core\Perf.lua).
+local hooksecurefunc = SP.Perf.HookFunc("Automation")
 
 local function StripRealm(name)
     return name and (name:match("^([^%-]+)")) or name
@@ -94,16 +96,16 @@ end
 local function SetupAutoRoleCheck()
     if LFDRoleCheckPopup and not lfdHooked then
         lfdHooked = true
-        LFDRoleCheckPopup:HookScript("OnShow", function()
+        LFDRoleCheckPopup:HookScript("OnShow", SP.Perf.Wrap("Automation", "LFDRoleCheckPopup OnShow", function()
             if RoleCheckWanted() then HideAndAccept(LFDRoleCheckPopup) end
-        end)
+        end))
     end
 
     if LFGInvitePopup and not lfgHooked then
         lfgHooked = true
-        LFGInvitePopup:HookScript("OnShow", function()
+        LFGInvitePopup:HookScript("OnShow", SP.Perf.Wrap("Automation", "LFGInvitePopup OnShow", function()
             if RoleCheckWanted() then HideAndAccept(LFGInvitePopup) end
-        end)
+        end))
     end
 end
 
@@ -389,12 +391,12 @@ function BagsBar:RegisterCombatWatcher()
     if self.combatFrame then return end
     self.combatFrame = CreateFrame("Frame")
     self.combatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    self.combatFrame:SetScript("OnEvent", function()
+    self.combatFrame:SetScript("OnEvent", SP.Perf.WrapEvent("Automation", function()
         if BagsBar.pending then
             BagsBar.pending = nil
             BagsBar:Update()
         end
-    end)
+    end))
 end
 
 function BagsBar:ScheduleRetry()

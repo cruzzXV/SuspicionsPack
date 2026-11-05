@@ -64,9 +64,9 @@ local _issecretvalue = issecretvalue or function() return false end
 
 -- Frame dédié pour UNIT_AURA — AceEvent-3.0 ne supporte pas RegisterUnitEvent.
 local unitAuraFrame = CreateFrame("Frame")
-unitAuraFrame:SetScript("OnEvent", function(_, event, unit, updateInfo)
+unitAuraFrame:SetScript("OnEvent", SP.Perf.WrapEvent("BloodlustAlert", function(_, event, unit, updateInfo)
     BLAlert:OnUnitAura(event, unit, updateInfo)
-end)
+end))
 
 local BL_FONT = "Interface\\AddOns\\SuspicionsPack\\Media\\Fonts\\Expressway.ttf"
 

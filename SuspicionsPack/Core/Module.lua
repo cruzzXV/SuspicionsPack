@@ -106,6 +106,8 @@ end
 function SP:NewSPModule(name, dbKey, ...)
     local mod = self:NewModule(name, "AceEvent-3.0", ...)
     mod.dbKey = dbKey
+    -- Its AceEvent handlers get their own rows in a /spack perf report.
+    SP.Perf.InstrumentAce(mod, name)
     for k, v in pairs(ModuleMixin) do
         -- Never clobber something the module defined for itself: the module
         -- file loads after this and may already carry its own Activate.

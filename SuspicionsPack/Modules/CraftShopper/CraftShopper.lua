@@ -242,7 +242,7 @@ end
 local function GetAux()
     if CS._aux then return CS._aux end
     local a = CreateFrame("Frame")
-    a:SetScript("OnEvent", function(_, event, arg1, arg2)
+    a:SetScript("OnEvent", SP.Perf.WrapEvent("CraftShopper", function(_, event, arg1, arg2)
         if event == "COMMODITY_PRICE_UPDATED" then
             if pendingBuy and pendingBuy.OnPrice then
                 pendingBuy.OnPrice(arg1, arg2)
@@ -309,7 +309,7 @@ local function GetAux()
             a:UnregisterEvent("AUCTION_HOUSE_SHOW_ERROR")
             if pendingBuy and pendingBuy.OnFail then pendingBuy.OnFail() end
         end
-    end)
+    end))
     CS._aux = a
     return a
 end

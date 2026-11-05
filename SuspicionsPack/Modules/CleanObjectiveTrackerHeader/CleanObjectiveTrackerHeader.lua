@@ -1,6 +1,8 @@
 -- SuspicionsPack — CleanObjectiveTrackerHeader Module
 -- Hides the "Objectives" header at the top of the quest tracker.
 local SP = SuspicionsPack
+-- Every hook in this file gets a row in /spack perf (Core\Perf.lua).
+local hooksecurefunc = SP.Perf.HookFunc("CleanObjectiveTrackerHeader")
 
 local COTH = SP:NewSPModule("CleanObjectiveTrackerHeader", "cleanObjectiveTrackerHeader")
 SP.CleanObjectiveTrackerHeader = COTH
@@ -75,7 +77,7 @@ function COTH:Activate()
                 UpdateMinimizeButton()
             end)
             -- Forever shows the button again when leaving gamepad mode.
-            tracker.Header.MinimizeButton:HookScript("OnShow", UpdateMinimizeButton)
+            tracker.Header.MinimizeButton:HookScript("OnShow", SP.Perf.Wrap("CleanObjectiveTrackerHeader", "MinimizeButton OnShow", UpdateMinimizeButton))
         end
     end)
 end

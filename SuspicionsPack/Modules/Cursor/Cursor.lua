@@ -177,10 +177,15 @@ local trailClock = 0
 local TRAIL_TEXEL = 0.5 / 128
 
 local trailFrame
+local trailShown = false   -- trailFrame's visibility, kept here rather than asked of it every tick
 local trailPts   = {}
 local trailHead  = 0
 local trailLastX, trailLastY = 0, 0
 local trailActive = 0
+
+-- The opacity last pushed onto the frames (ApplyOpacity). nil whenever a frame
+-- has just been created, so the next call reaches it too.
+local appliedAlpha
 
 local function TrailLength(db)
     local n = db.trailLength
@@ -201,6 +206,8 @@ local function EnsureTrail(db)
     trailFrame:SetFrameLevel(198)
     trailFrame:EnableMouse(false)
     trailFrame:Hide()
+    trailShown   = false
+    appliedAlpha = nil
 
     for i = 1, TRAIL_MAX do
         local t = trailFrame:CreateTexture(nil, "BACKGROUND")
@@ -214,7 +221,10 @@ local function EnsureTrail(db)
             t:SetTexelSnappingBias(0)
         end
         t:Hide()
-        trailPts[i] = { tex = t, x = 0, y = 0, time = 0, active = false }
+        -- drawn: anchored and shown at x, y. A dot never moves once laid, so
+        -- it is placed once and after that only its size and colour fade.
+        -- Laying a dot is what resets it, in both places that lay one.
+        trailPts[i] = { tex = t, x = 0, y = 0, time = 0, active = false, drawn = false }
     end
 end
 
@@ -242,14 +252,19 @@ local function ClearTrail()
     end
     trailHead, trailActive = 0, 0
     if trailFrame then trailFrame:Hide() end
+    trailShown = false
 end
 Cursor.ClearTrail = ClearTrail
 
 -- Pushes the current opacity onto every piece. Called from the tick and from
 -- the combat events, so a regen change lands immediately rather than waiting
--- for the next mouse move.
+-- for the next mouse move. Only a CHANGE is pushed: the tick runs every frame,
+-- and setting the same alpha on three frames each time was most of what a
+-- still cursor cost (/spack perf, 2026-10-26).
 local function ApplyOpacity()
     local a = Cursor.CurrentOpacity()
+    if a == appliedAlpha then return end
+    appliedAlpha = a
     if mainFrame  then mainFrame:SetAlpha(a)  end
     if clickFrame then clickFrame:SetAlpha(a) end
     if trailFrame then trailFrame:SetAlpha(a) end
@@ -272,7 +287,10 @@ local function UpdateTrail(db, elapsed)
 
     EnsureTrail(db)
     ApplyTrailTexture(db)
-    trailFrame:Show()
+    if not trailShown then
+        trailFrame:Show()
+        trailShown = true
+    end
 
     local n = TrailLength(db)
     -- Absolute pixels, not a share of the ring: the two are independent, and a
@@ -325,8 +343,8 @@ local function UpdateTrail(db, elapsed)
             trailHead = (trailHead % n) + 1
             local pt = trailPts[trailHead]
             if not pt.active then trailActive = trailActive + 1 end
-            pt.x, pt.y, pt.time, pt.active =
-                math.floor(x + 0.5), math.floor(y + 0.5), now, true
+            pt.x, pt.y, pt.time, pt.active, pt.drawn =
+                math.floor(x + 0.5), math.floor(y + 0.5), now, true, false
         else
             -- More steps than slots would just overwrite the ring several times
             -- over for nothing; the last n are the only ones that survive.
@@ -344,7 +362,7 @@ local function UpdateTrail(db, elapsed)
                 if not pt.active then trailActive = trailActive + 1 end
                 -- Timestamps spread across the step so they expire in the order
                 -- they were laid down rather than all at once.
-                pt.x, pt.y, pt.active = px, py, true
+                pt.x, pt.y, pt.active, pt.drawn = px, py, true, false
                 pt.time = now - (steps - i) * 0.008
             end
             -- The remainder stays for the next tick, which is what keeps the
@@ -383,11 +401,15 @@ local function UpdateTrail(db, elapsed)
                 pt.tex:Hide()
                 trailActive = trailActive - 1
             else
-                pt.tex:ClearAllPoints()
-                pt.tex:SetPoint("CENTER", trailFrame, "BOTTOMLEFT", pt.x, pt.y)
+                if not pt.drawn then
+                    -- A single CENTER anchor, so SetPoint replaces the one a
+                    -- reused dot had; no ClearAllPoints needed.
+                    pt.tex:SetPoint("CENTER", trailFrame, "BOTTOMLEFT", pt.x, pt.y)
+                    pt.tex:Show()
+                    pt.drawn = true
+                end
                 pt.tex:SetSize(size * fade, size * fade)
                 pt.tex:SetVertexColor(r, g, b, a * fade)
-                pt.tex:Show()
             end
         end
     end
@@ -517,11 +539,12 @@ local function CreateCursorFrame()
     cf.texture:SetVertexColor(cr, cg, cb, 0)   -- start transparent
 
     clickFrame = cf
+    appliedAlpha = nil   -- two new frames at alpha 1: the next ApplyOpacity must reach them
 
     local _lastCX, _lastCY = -1, -1
     local mouseHoldTime    = 0
     local updateElapsed    = 0
-    f:SetScript("OnUpdate", function(frame, elapsed)
+    f:SetScript("OnUpdate", SP.Perf.Wrap("Cursor", "OnUpdate", function(frame, elapsed)
         local cdb0 = GetDB()
         if cdb0.limitUpdateRate then
             updateElapsed = updateElapsed + elapsed
@@ -544,12 +567,12 @@ local function CreateCursorFrame()
 
         if x ~= _lastCX or y ~= _lastCY then
             _lastCX, _lastCY = x, y
+            -- Both rings only ever carry a CENTER anchor, so SetPoint replaces
+            -- it in place: no ClearAllPoints on every moved frame.
             local scale = frame:GetEffectiveScale()
-            frame:ClearAllPoints()
             frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
             if clickFrame and clickFrame:IsShown() then
                 local cscale = clickFrame:GetEffectiveScale()
-                clickFrame:ClearAllPoints()
                 clickFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / cscale, y / cscale)
             end
         end
@@ -624,7 +647,7 @@ local function CreateCursorFrame()
                 frame.texture:SetVertexColor(r2, g2, b2, 0.9)
             end
         end
-    end)
+    end))
 
     mainFrame = f
 end

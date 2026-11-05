@@ -9,6 +9,7 @@ if not LDB or not LDBIcon then return end
 
 -- Register as an AceAddon module with AceEvent-3.0 mixin
 local MinimapBtn = SP:NewModule("MinimapButton", "AceEvent-3.0")
+SP.Perf.InstrumentAce(MinimapBtn, "MinimapButton")
 
 local T = SP.Theme
 

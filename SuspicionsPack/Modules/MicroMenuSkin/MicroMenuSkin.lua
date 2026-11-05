@@ -21,7 +21,7 @@ SP.MicroMenuSkin = MMS
 -- Locals
 -- ============================================================
 local _G             = _G
-local hooksecurefunc = hooksecurefunc
+local hooksecurefunc = SP.Perf.HookFunc("MicroMenuSkin")   -- a row per hook in /spack perf
 local C_Timer        = C_Timer
 local ipairs         = ipairs
 local type           = type

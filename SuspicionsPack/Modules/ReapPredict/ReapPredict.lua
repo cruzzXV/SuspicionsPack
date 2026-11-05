@@ -1234,9 +1234,9 @@ function Snap.ApplyAnchor()
         -- had when we first snapped. Hooked once per target frame.
         if furyFrame._sizeHookOn ~= sb then
             furyFrame._sizeHookOn = sb
-            sb:HookScript("OnSizeChanged", function()
+            sb:HookScript("OnSizeChanged", SP.Perf.Wrap("ReapPredict", "fury bar OnSizeChanged", function()
                 if furyFrame and furyFrame._snapped then ApplyFuryLayout() end
-            end)
+            end))
         end
     else
         -- Standalone: chain head follows our own fury fill again.
@@ -1574,7 +1574,7 @@ local function EnsurePollFrame()
     pollFrame = SP.Tick.NewAnimTicker(function()
         UpdateMeter()
         return true   -- keep ticking until Stop() is called
-    end, 0.1)
+    end, 0.1, "ReapPredict", "meter poll")
 end
 
 -- ============================================================
@@ -1688,7 +1688,7 @@ EnsureCDMSyncHook = function()
         and CDM.anchorContainers["EssentialCooldownViewer"]
     if not container then return end
 
-    container:HookScript("OnSizeChanged", function(self)
+    container:HookScript("OnSizeChanged", SP.Perf.Wrap("ReapPredict", "container OnSizeChanged", function(self)
         local db = GetDB()
         local L  = db and db.layout
         if not (L and L.syncToCDM) then return end
@@ -1700,7 +1700,7 @@ EnsureCDMSyncHook = function()
         L.furyWidth = w
         ApplySize()
         ApplyFuryLayout()
-    end)
+    end))
     cdmSyncHooked = true
 end
 
@@ -1778,12 +1778,12 @@ local function FadeBeginOut()
     fadeAnimFrom  = fadeAlpha
     if not fadeAnimating then
         fadeAnimating = true
-        fadeAnimFrame:SetScript("OnUpdate", function()
+        fadeAnimFrame:SetScript("OnUpdate", SP.Perf.Wrap("ReapPredict", "fade OnUpdate", function()
             local t = (GetTime() - fadeAnimStart) / FADE_DURATION
             if t >= 1.0 then t = 1.0; FadeStop() end
             fadeAlpha = fadeAnimFrom + (fadeTarget - fadeAnimFrom) * t
             FadeApply(fadeAlpha)
-        end)
+        end))
     end
 end
 
@@ -1805,7 +1805,7 @@ local function FadeEvaluate()
     if shouldFade then FadeBeginOut() else FadeShowImmediate() end
 end
 
-fadeEventFrame:SetScript("OnEvent", function(self, event)
+fadeEventFrame:SetScript("OnEvent", SP.Perf.WrapEvent("ReapPredict fade", function(self, event)
     if event == "PLAYER_TARGET_CHANGED" then
         FadeEvaluate()
     elseif event == "PLAYER_REGEN_ENABLED" then
@@ -1818,7 +1818,7 @@ fadeEventFrame:SetScript("OnEvent", function(self, event)
             or (DRUID_TRAVEL_IDS[GetShapeshiftFormID()] and true or false)
         FadeEvaluate()
     end
-end)
+end))
 
 local function FadeActivate()
     if fadeActive then return end
@@ -2183,7 +2183,7 @@ function ReapPredict:EnsureUnitEvents()
             [CONSUME_SPELLID]   = true,
         }
 
-        events:SetScript("OnEvent", function(_, event, unit, arg1, arg2)
+        events:SetScript("OnEvent", SP.Perf.WrapEvent("ReapPredict", function(_, event, unit, arg1, arg2)
             if not IsDDH() then return end
 
             if event == "UNIT_POWER_FREQUENT" then
@@ -2268,7 +2268,7 @@ function ReapPredict:EnsureUnitEvents()
             -- inspecting values the client no longer hands out, so there is
             -- nothing left for it to print.
             end
-        end)
+        end))
         ReapPredict._eventsFrame = events
     end
 end

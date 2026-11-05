@@ -1,5 +1,7 @@
 -- collapsible drawer for minimap addon buttons
 local SP = SuspicionsPack
+-- Every hook in this file gets a row in /spack perf (Core\Perf.lua).
+local hooksecurefunc = SP.Perf.HookFunc("Drawer")
 
 -- Register as an AceAddon module on the shared lifecycle mixin (Core/Module.lua)
 local Drawer = SP:NewSPModule("Drawer", "drawer")
@@ -514,15 +516,15 @@ function Drawer.Create()
         -- We register for ADDON_LOADED so we catch it even if DebugTools loads late.
         local hookFrame = CreateFrame("Frame")
         hookFrame:RegisterEvent("ADDON_LOADED")
-        hookFrame:SetScript("OnEvent", function(self, _, name)
+        hookFrame:SetScript("OnEvent", SP.Perf.WrapEvent("Drawer", function(self, _, name)
             if type(_G.ScriptErrors_Display) == "function" then
                 hooksecurefunc("ScriptErrors_Display", OnErrorCaught)
                 self:UnregisterAllEvents()
             elseif _G.ScriptErrorsFrame then
-                _G.ScriptErrorsFrame:HookScript("OnShow", OnErrorCaught)
+                _G.ScriptErrorsFrame:HookScript("OnShow", SP.Perf.Wrap("Drawer", "ScriptErrorsFrame OnShow", OnErrorCaught))
                 self:UnregisterAllEvents()
             end
-        end)
+        end))
     end
 
     -- ── Event-driven late-button capture ─────────────────────────

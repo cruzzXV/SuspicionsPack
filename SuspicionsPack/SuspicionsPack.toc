@@ -21,6 +21,9 @@ Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
 # Core — creates the AceAddon object; must load before any module
+# Perf first: it needs only the addon namespace, and Core.lua wraps its own
+# file-scope handlers with it (/spack perf).
+Core\Perf.lua
 Core.lua
 Core\Skin.lua
 Core\Ticker.lua

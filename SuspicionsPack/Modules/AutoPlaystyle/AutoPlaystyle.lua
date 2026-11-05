@@ -3,6 +3,8 @@
 -- Competitive / Carry Offered) whenever you open the Group Finder listing
 -- creation dialog for a Mythic+ group.
 local SP = SuspicionsPack
+-- Every hook in this file gets a row in /spack perf (Core\Perf.lua).
+local hooksecurefunc = SP.Perf.HookFunc("AutoPlaystyle")
 
 local AutoPlaystyle = SP:NewSPModule("AutoPlaystyle", "autoPlaystyle")
 SP.AutoPlaystyle = AutoPlaystyle

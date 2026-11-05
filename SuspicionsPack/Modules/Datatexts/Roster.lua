@@ -291,7 +291,7 @@ local function Build()
     panel.hint:SetText("Click: whisper    Alt+click: invite")
 
     panel.rows = {}
-    panel:SetScript("OnUpdate", AutoHide)
+    panel:SetScript("OnUpdate", SP.Perf.Wrap("Datatexts", "roster OnUpdate", AutoHide))
 end
 
 local function Fill()

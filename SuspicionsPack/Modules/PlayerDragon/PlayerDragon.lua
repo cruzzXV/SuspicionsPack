@@ -25,6 +25,8 @@
 -- AnimatedPortraits slides its models one strata under the frame, so the
 -- dragon is over them on both.
 local SP = SuspicionsPack
+-- Every hook in this file gets a row in /spack perf (Core\Perf.lua).
+local hooksecurefunc = SP.Perf.HookFunc("PlayerDragon")
 
 local PD = SP:NewSPModule("PlayerDragon", "playerDragon")
 SP.PlayerDragon = PD

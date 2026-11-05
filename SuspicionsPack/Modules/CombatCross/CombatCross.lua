@@ -215,7 +215,7 @@ function CC:UpdateOnUpdateState()
         if not self.onUpdateActive then
             self.onUpdateActive  = true
             rangeUpdateElapsed   = 0
-            self.frame:SetScript("OnUpdate", function(_, elapsed) self:OnUpdate(elapsed) end)
+            self.frame:SetScript("OnUpdate", SP.Perf.Wrap("CombatCross", "OnUpdate", function(_, elapsed) self:OnUpdate(elapsed) end))
         end
     else
         if self.onUpdateActive then

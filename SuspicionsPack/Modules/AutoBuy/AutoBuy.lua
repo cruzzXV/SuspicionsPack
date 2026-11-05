@@ -205,7 +205,7 @@ local ShowIfNeeded
 local function GetAux()
     if AutoBuy._aux then return AutoBuy._aux end
     local a = CreateFrame("Frame")
-    a:SetScript("OnEvent", function(_, event, arg1, arg2)
+    a:SetScript("OnEvent", SP.Perf.WrapEvent("AutoBuy", function(_, event, arg1, arg2)
         if event == "COMMODITY_PRICE_UPDATED" then
             if pendingBuy and pendingBuy.OnPrice then
                 -- Wrap in pcall: a nil-total Lua error here would leave the popup frozen
@@ -261,7 +261,7 @@ local function GetAux()
             a:UnregisterEvent("AUCTION_HOUSE_SHOW_ERROR")
             if pendingBuy and pendingBuy.OnFail then pendingBuy.OnFail() end
         end
-    end)
+    end))
     AutoBuy._aux = a
     return a
 end
@@ -815,7 +815,7 @@ RefreshList = function()
                 local capturedIcon = row.icon
                 local listener = CreateFrame("Frame")
                 listener:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-                listener:SetScript("OnEvent", function(self, _, id)
+                listener:SetScript("OnEvent", SP.Perf.WrapEvent("AutoBuy", function(self, _, id)
                     if id ~= capturedID then return end
                     local _, _, _, _, _, _, _, _, _, tex = GetItemInfo(capturedID)
                     if tex then
@@ -824,7 +824,7 @@ RefreshList = function()
                     end
                     self:UnregisterAllEvents()
                     self:SetScript("OnEvent", nil)
-                end)
+                end))
             end
 
             -- Name with quality colour (icon lives in a separate fixed frame, not inline)
