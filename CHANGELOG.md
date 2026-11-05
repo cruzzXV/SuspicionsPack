@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-11-05 — v2.12.0
+
+Release : Node radar sur Forever, le seul changement depuis la 2.11.0.
+- Versions : `## Version: 2.12.0` dans les trois .toc, `SP.VERSION`.
+- `SP.Changelog["2.12.0"]` : une entrée, validée par Cruzz. `.github/RELEASE_NOTES.md` : la même ligne.
+- Publié à sa demande. La disparition de l'icône et le rendu des couleurs restent à confirmer en jeu.
+
+---
+
 ## 2026-11-05 — Node radar sur Forever
 
 Demande de Cruzz : reprendre la logique de la flèche de NodeSight pour un radar rond centré sur

@@ -11,7 +11,7 @@ local Perf = NS.Perf
 SP.Perf = Perf
 Perf.InstrumentAce(SP, "Core")
 local hooksecurefunc = Perf.HookFunc("Core")
-SP.VERSION = "2.11.0"
+SP.VERSION = "2.12.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1506,6 +1506,9 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.12.0"] = {
+        { type = "new", text = "WoW: Forever: added a compass pointing to the nearest herb or vein. Off by default, in Interface." },
+    },
     ["2.11.0"] = {
         { type = "new", text = "WoW: Forever: added profession icons on the bag items your professions use. Off by default, in Items." },
         { type = "new", text = "Added /spack perf to measure what the pack costs." },
