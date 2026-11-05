@@ -65,7 +65,7 @@ GUI.RegisterPage{
             "Changes made in combat apply when it ends.")
 
         local barRows, slotRows = {}, {}
-        local barDD
+        local barDD, strengthRow, borderRow, edgeRow, colorRow
 
         -- Hides what the selected bar does not use, then re-stacks. `refresh`
         -- re-reads every row too, for a new selection; a slot-count drag only
@@ -74,6 +74,11 @@ GUI.RegisterPage{
             local b = Cur()
             local n = b and math.floor(tonumber(b.numSlots) or 0) or 0
             for _, row in ipairs(barRows) do row._hidden = (b == nil) end
+            local bordered = b and DT.Skins and DT.Skins.bordered[b.skin or "box"]
+            borderRow._hidden = not bordered
+            edgeRow._hidden = not bordered or b.border == false
+            colorRow._hidden = (b == nil) or not b.bgCustom
+            strengthRow._hidden = (b == nil) or (b.bgFade or "none") == "none"
             for i, row in ipairs(slotRows) do row._hidden = (b == nil) or (i > n) end
             if refresh then page:Refresh() end
             page:Restack()
@@ -149,14 +154,28 @@ GUI.RegisterPage{
         BarRow("EditBox", { field = "name", label = "Name", maxLen = 32, fallback = "",
             onChange = function() barDD:Refresh() ; Apply() end })
         BarRow("Dropdown", { field = "skin", label = "Skin", fallback = "box",
-            options = DT.Skins and DT.Skins.List and DT.Skins.List() or {} })
-        BarRow("Dropdown", { field = "openEdge", label = "Open edge", fallback = "none",
-            desc = "Leaves that side of the border off, for a bar set against a frame above or below it. " ..
-                   "Text only has no border.",
+            options = DT.Skins and DT.Skins.List and DT.Skins.List() or {},
+            onChange = function() Apply(); Reshape(false) end })
+        borderRow = BarRow("Toggle", { field = "border", label = "Border", fallback = true,
+            desc = "Off leaves only the background: no rim, no shadow, no corners.",
+            onChange = function() Apply(); Reshape(false) end })
+        edgeRow = BarRow("Dropdown", { field = "openEdge", label = "Open edge", fallback = "none",
+            desc = "Leaves that side of the border off, for a bar set against a frame above or below it.",
             options = DT.Skins and DT.Skins.edges or {} })
+        BarRow("Toggle", { field = "bgCustom", label = "Custom background colour", fallback = false,
+            desc = "A flat colour in place of the skin's background. The border stays.",
+            onChange = function() Apply(); Reshape(false) end })
+        colorRow = BarRow("Color", { field = "bgColor", label = "Background colour", fallback = DT.BG_COLOR })
         BarRow("Slider", { field = "bgOpacity", label = "Background opacity", suffix = "%",
             min = 0, max = 100, step = 1, fallback = 100,
             desc = "100% hides what is behind the bar. The border stays." })
+        BarRow("Dropdown", { field = "bgFade", label = "Background gradient", fallback = "none",
+            desc = "Background opacity is the strong edge. The border stays.",
+            options = DT.Skins and DT.Skins.fades or {},
+            onChange = function() Apply(); Reshape(false) end })
+        strengthRow = BarRow("Slider", { field = "bgFadeStrength", label = "Gradient strength", suffix = "%",
+            min = 0, max = 100, step = 1, fallback = DT.FADE_STRENGTH,
+            desc = "How much the faint edge loses: 0% stays flat, 100% fades out completely." })
         BarRow("Slider", { field = "width", label = "Width", min = 40, max = 1600, step = 1, fallback = 300 })
         BarRow("Slider", { field = "height", label = "Height", min = DT.MIN_HEIGHT or 16, max = 60, step = 1,
             fallback = 22 })

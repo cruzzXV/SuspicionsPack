@@ -39,6 +39,8 @@ local NONE      = "none"
 DT.MAX_SLOTS    = MAX_SLOTS
 DT.NONE         = NONE
 DT.MIN_HEIGHT   = 16   -- below it the Plumber box's 16 px corners turn inside out
+DT.FADE_STRENGTH = 50  -- % a background gradient loses at its faint edge, until a bar sets its own
+DT.BG_COLOR      = { 26 / 255, 26 / 255, 26 / 255 }   -- #1a1a1a, until a bar with a custom colour picks one
 
 -- ============================================================
 -- Registry
@@ -277,8 +279,13 @@ local function MakeBar(src)
         skin         = src.skin or "box",
         numSlots     = src.numSlots or 3,
         hideInCombat = src.hideInCombat or false,
+        border       = src.border ~= false,      -- false: none of the skin's border at all
         openEdge     = src.openEdge or "none",   -- what the border leaves off (Skins.edges)
         bgOpacity    = src.bgOpacity or 100,     -- % of the skin's fill shown
+        bgFade       = src.bgFade or "none",     -- how that fill falls off (Skins.fades)
+        bgFadeStrength = src.bgFadeStrength or DT.FADE_STRENGTH,   -- % it loses at the faint edge
+        bgCustom     = src.bgCustom or false,    -- true: a flat bgColor in place of the skin's fill
+        bgColor      = src.bgColor,              -- { r, g, b }, DT.BG_COLOR until one is picked
         point        = {
             point         = src.point and src.point.point or "CENTER",
             relativePoint = src.point and src.point.relativePoint or "CENTER",
@@ -535,10 +542,18 @@ local function LayoutBar(bar, cfg, db, used)
     if DT.Skins then
         -- An Open edge key (Skins.edges); anything else draws the whole border.
         local open = cfg.openEdge
+        if cfg.border == false then open = "all" end
         -- A bar saved before the setting existed has none: the skin as drawn.
         local opacity = cfg.bgOpacity
         if opacity == nil then opacity = 100 end
-        DT.Skins.Apply(bar, cfg.skin, n, slotW, w, h, open, Clamp(opacity, 0, 100) / 100)
+        local strength = cfg.bgFadeStrength
+        if strength == nil then strength = DT.FADE_STRENGTH end
+        local color
+        if cfg.bgCustom then
+            color = type(cfg.bgColor) == "table" and cfg.bgColor or DT.BG_COLOR
+        end
+        DT.Skins.Apply(bar, cfg.skin, n, slotW, w, h, open, Clamp(opacity, 0, 100) / 100,
+            cfg.bgFade, Clamp(strength, 0, 100) / 100, color)
     end
 
     bar.mover.name:SetText(cfg.name or ("Bar " .. bar.index))

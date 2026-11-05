@@ -26,10 +26,76 @@ local Skins = {
         { key = "topsides",    label = "Top and sides" },
         { key = "bottomsides", label = "Bottom and sides" },
     },
+    -- The skins with a border to leave off.
+    bordered = { box = true, frame = true },
+    -- How the fill falls off across the bar's height.
+    fades = {
+        { key = "none", label = "None" },
+        { key = "up",   label = "Fades upward" },
+        { key = "down", label = "Fades downward" },
+    },
 }
 DT.Skins = Skins
 
 local Build, Fit = {}, {}
+
+-- ---- the fill ---------------------------------------------------------------
+-- The look of Chattynator's Dark chat background (ChatBackground.tga, a straight
+-- fall in alpha, even across its width). Its file is All Rights Reserved, so this
+-- is drawn with SetGradient, as Blizzard's nameplate borders do. Its 88 % fall is
+-- meant for a chat window: on a bar a few pixels high the same fall reads far too
+-- hard (Cruzz's capture, 2026-11-05), so each bar sets its own.
+--
+-- Three textures, one shown: the skin's fill, the same fill as a gradient, and a
+-- white one for a colour of the bar's own. A gradient's vertex alpha wins over
+-- SetAlpha (see GUI.TintGradientH), so the solid fill never carries one: going
+-- back to solid only has to show it again.
+local function BuildFill(h, spec)
+    local fill = h:CreateTexture(nil, "BACKGROUND")
+    fill:SetAllPoints(h)
+    local fade = h:CreateTexture(nil, "BACKGROUND")
+    fade:SetAllPoints(h)
+    local tint = h:CreateTexture(nil, "BACKGROUND")
+    tint:SetAllPoints(h)
+    tint:SetColorTexture(1, 1, 1, 1)
+    if spec.leather then
+        fill:SetTexture(P.BG)
+        fade:SetTexture(P.BG)
+        h.fadeColor = { 1, 1, 1 }
+    else
+        local c = spec.fill
+        fill:SetColorTexture(c[1], c[2], c[3], c[4])
+        fade:SetColorTexture(1, 1, 1, 1)
+        h.fadeColor = c
+    end
+    h.fill, h.fade, h.tint = fill, fade, tint
+end
+
+-- `fade`: a key of Skins.fades, anything else is solid. `opacity` is the strong
+-- edge's alpha and `strength`, 0 to 1, what the faint edge loses of it. Both go
+-- into the gradient's stops, the only place they count there. `color`: { r, g, b }
+-- in place of the skin's fill, nil for the skin's own.
+local function PaintFill(h, fade, opacity, strength, color)
+    local faint = opacity * (1 - strength)
+    local bottom, top
+    if fade == "up" then
+        bottom, top = opacity, faint
+    elseif fade == "down" then
+        bottom, top = faint, opacity
+    end
+    local paint = color and h.tint or (bottom and h.fade) or h.fill
+    h.fill:SetShown(paint == h.fill)
+    h.fade:SetShown(paint == h.fade)
+    h.tint:SetShown(paint == h.tint)
+    if paint == h.fill then
+        h.fill:SetAlpha(opacity)
+    else
+        local c = color or h.fadeColor
+        paint:SetGradient("VERTICAL",
+            CreateColor(c[1], c[2], c[3], bottom or opacity),
+            CreateColor(c[1], c[2], c[3], top or opacity))
+    end
+end
 
 -- ---- the two bordered skins: lines of one physical pixel --------------------
 -- Plumber draws its frames for windows. On a bar 24 high its art either
@@ -97,15 +163,7 @@ local ORNATED = {
 }
 
 local function BuildLines(h, spec)
-    local fill = h:CreateTexture(nil, "BACKGROUND")
-    fill:SetAllPoints(h)
-    if spec.leather then
-        fill:SetTexture(P.BG)
-    else
-        local c = spec.fill
-        fill:SetColorTexture(c[1], c[2], c[3], c[4])
-    end
-    h.fill = fill
+    BuildFill(h, spec)
 
     h.lines, h.halo = {}, {}
     for _, side in ipairs(SIDES) do
@@ -134,11 +192,13 @@ local function BuildLines(h, spec)
 end
 
 -- Which sides each Open edge choice leaves off ("none" and unknown: none).
+-- `all` is not a choice on the page: it is a bar with its Border off.
 local OPEN = {
     top         = { top = true },
     bottom      = { bottom = true },
     topsides    = { top = true, left = true, right = true },
     bottomsides = { bottom = true, left = true, right = true },
+    all         = { top = true, bottom = true, left = true, right = true },
 }
 
 local function FitLines(h, spec, w, hgt, open)
@@ -215,6 +275,7 @@ local function FitLines(h, spec, w, hgt, open)
         -- its width, as the bar is.
         local half = math.min(0.5, hgt / math.max(1, w) / 2)
         h.fill:SetTexCoord(0, 1, 0.5 - half, 0.5 + half)
+        h.fade:SetTexCoord(0, 1, 0.5 - half, 0.5 + half)
     end
 end
 
@@ -226,13 +287,7 @@ function Fit.frame(h, w, hgt, n, slotW, open) FitLines(h, ORNATED, w, hgt, open)
 -- ---- Text only --------------------------------------------------------------
 -- Forever's fill and nothing else: no rim, no shadow, no dividers between the
 -- slots. Nothing to fit, so an open edge changes nothing.
-function Build.text(h)
-    local fill = h:CreateTexture(nil, "BACKGROUND")
-    fill:SetAllPoints(h)
-    local c = FOREVER.fill
-    fill:SetColorTexture(c[1], c[2], c[3], c[4])
-    h.fill = fill
-end
+function Build.text(h) BuildFill(h, FOREVER) end
 
 -- ---- applying -----------------------------------------------------------
 local function Holder(bar, id)
@@ -247,10 +302,13 @@ local function Holder(bar, id)
     return h
 end
 
--- `open`: an Open edge key (Skins.edges), what a bordered skin leaves off.
+-- `open`: an Open edge key (Skins.edges) or "all", what a bordered skin leaves off.
 -- `opacity`: 0 to 1, the alpha of the skin's fill (every fill is drawn
 -- opaque, so 1 hides what is behind the bar); its border stays whole.
-function Skins.Apply(bar, id, n, slotW, w, hgt, open, opacity)
+-- `fade`: a Skins.fades key, how that fill falls off across the bar's height.
+-- `strength`: 0 to 1, how far it falls. `color`: { r, g, b } to replace that fill
+-- with a flat colour, nil for the skin's own.
+function Skins.Apply(bar, id, n, slotW, w, hgt, open, opacity, fade, strength, color)
     if not Build[id] then id = "box" end
     if bar.skins then
         for other, h in pairs(bar.skins) do
@@ -259,7 +317,7 @@ function Skins.Apply(bar, id, n, slotW, w, hgt, open, opacity)
     end
     local h = Holder(bar, id)
     if Fit[id] then Fit[id](h, w, hgt, n, slotW, open) end
-    if h.fill then h.fill:SetAlpha(opacity or 1) end
+    PaintFill(h, fade, opacity or 1, strength, color)
     h:Show()
 end
 
