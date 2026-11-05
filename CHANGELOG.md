@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-11-05 — v2.11.0
+
+Release : Profession marks sur Forever et le travail `/spack perf`.
+- Versions : `## Version: 2.11.0` dans les trois .toc, `SP.VERSION`.
+- `SP.Changelog["2.11.0"]` : cinq entrées, validées par Cruzz.
+- `.github/RELEASE_NOTES.md` : les mêmes lignes.
+- « Do less work » plutôt qu'un gain chiffré : MovementAlert −90 % en M+, curseur dans le
+  bruit, le PotionAlert final jamais mesuré.
+- **Pas vu sur retail** : Cruzz a choisi de publier sans essai, prévenu. Le PotionAlert final
+  n'a jamais tourné en jeu (retail seulement), et ce build n'a pas été chargé sur retail ;
+  une version antérieure des enveloppes a tourné dans ses captures M+. Forever : vu en jeu,
+  mais avant le changement de version.
+
+---
+
 ## 2026-11-05 — Profession marks : glyphes détourés
 
 Essai en jeu : ça marche. Cruzz voulait des icônes plus mignonnes, détourées et pas
