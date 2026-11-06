@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-11-06 — 2.14.0
+
+Release de tout ce qui suit depuis la 2.13.1 : Buff thanks, Macro Action Bar (Forever), infobulles de la barre
+latérale, six bugs, macros de consommables. Version dans les trois .toc et `SP.VERSION`, entrées
+`SP.Changelog["2.14.0"]`, `.github/RELEASE_NOTES.md` réécrit.
+
+---
+
 ## 2026-11-06 — Buff thanks : remercier les joueurs qui nous buff
 
 Demande de Cruzz : notre propre module, inspiré de KINDRED 3.1.2 (All Rights Reserved, lu pour le comportement)

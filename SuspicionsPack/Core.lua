@@ -11,7 +11,7 @@ local Perf = NS.Perf
 SP.Perf = Perf
 Perf.InstrumentAce(SP, "Core")
 local hooksecurefunc = Perf.HookFunc("Core")
-SP.VERSION = "2.13.1"
+SP.VERSION = "2.14.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1545,6 +1545,19 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.14.0"] = {
+        { type = "new", text = "Added Buff thanks: thanks the players who buff you, with an emote or a whisper. Off by default, in Social." },
+        { type = "new", text = "WoW: Forever: added Macro Action Bar's tab of macros in the spellbook. Off by default, in Interface." },
+        { type = "new", text = "WoW: Forever: added a buff food macro to the consumable macros." },
+        { type = "new", text = "Options: hovering a module in the sidebar says what it does." },
+        { type = "change", text = "WoW: Forever: the health macro no longer eats, and the food macro never uses buff food." },
+        { type = "change", text = "Spell effect alpha: a spec you have not set follows Default opacity." },
+        { type = "fix", text = "Auto buy: at a vendor, Buy qty 0 now buys up to the minimum." },
+        { type = "fix", text = "Fast loot: switching it off after a /reload gives your Auto Loot setting back." },
+        { type = "fix", text = "Death alert: the text shows again after switching it off and on." },
+        { type = "fix", text = "Interrupt alert: Devourer demon hunters have Disrupt." },
+        { type = "fix", text = "Group joined reminder: listing your own group no longer shows Joined." },
+    },
     ["2.13.1"] = {
         { type = "new", text = "Details skin on WoW: Forever: added a Forever look, under Customise > Details skin." },
         { type = "fix", text = "WoW: Forever: the node compass icons and arrows now move smoothly." },
