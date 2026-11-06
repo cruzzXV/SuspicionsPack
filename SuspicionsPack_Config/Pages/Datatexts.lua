@@ -25,6 +25,7 @@ GUI.RegisterPage{
     dbKey    = "datatexts",
     keywords = "datatext datatexts data text bar bars panel sdt simple gold durability hearthstone " ..
                "time clock fps latency system volume sound guild friends roster",
+    tip      = "Small bars that show your gold, durability, the time, your guild and friends, and more. Hover one for details. Most open their window when clicked.",
     build = function(parent)
         local DT = SP.Datatexts
         if DT.EnsureSeeded then DT.EnsureSeeded() end

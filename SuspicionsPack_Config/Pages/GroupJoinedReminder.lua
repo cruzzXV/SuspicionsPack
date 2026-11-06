@@ -12,12 +12,13 @@ GUI.RegisterPage{
     category = "mythic",
     dbKey    = "groupJoinedReminder",
     keywords = "group joined reminder mythic keystone group finder lfg chat message",
+    tip      = "Prints the dungeon and the listing's title in your chat when you join a Mythic or Mythic+ group from the group finder. Only you see it.",
     build = function(parent)
         local page = GUI.ModulePage(parent, "groupJoinedReminder", "GroupJoinedReminder",
             "Group joined reminder",
-            "Prints the name of the group in chat when you join a Mythic or " ..
-            "Mythic+ group through the group finder, so you can tell at a glance " ..
-            "which listing you were accepted into.",
+            "Prints the dungeon and the group's listing name in chat when you join a " ..
+            "Mythic or Mythic+ group through the group finder, so you can tell which " ..
+            "listing you were accepted into.",
             "Enable group joined reminder")
         page:Finish()
     end,

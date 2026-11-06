@@ -39,28 +39,35 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "spellEffectAlpha",
     keywords = "spell effect alpha proc glow overlay opacity activation highlight spec",
+    tip      = "Sets the opacity of the game's spell alerts, the proc art around your character, for each specialization. At 0 they are hidden.",
     build = function(parent)
         local page, db = GUI.ModulePage(parent, "spellEffectAlpha", "SpellEffectAlpha",
             "Spell effect alpha",
-            "Controls the opacity of spell activation overlays -- the glow around " ..
-            "an action button when a proc fires. 0 hides them completely, 100 is " ..
-            "the Blizzard default.",
+            "Sets the opacity of the game's spell alerts, the proc art shown around your " ..
+            "character (Spell Alert Opacity in the game's Combat settings), per " ..
+            "specialization. 0 hides them, 100 is fully visible.",
             nil, "Global default")
+
+        -- The spec sliders, repainted when the default moves: a spec with no
+        -- value of its own shows the default.
+        local specRows = {}
 
         local c1 = page.cards[1]
         c1:Slider{
             key    = "globalDefault",
             label  = "Default opacity",
-            desc   = "Used for any specialization without an override below.",
+            desc   = "Used for every specialization you have not set below.",
             suffix = "%", min = 0, max = 100, step = 1,
+            onChange = function()
+                page.apply()
+                for _, row in ipairs(specRows) do row:Refresh() end
+            end,
         }
 
-        -- The per-spec values live in db.specs, so each class card points its DB
-        -- and its default lookup one level deeper.
+        -- The per-spec values live in db.specs, and only for a spec the player
+        -- has set: SP.DEFAULTS ships it empty, and the module falls back to
+        -- globalDefault for any spec without a value.
         db.specs = db.specs or {}
-        local specDefaults = SP.DEFAULTS and SP.DEFAULTS.profile
-                             and SP.DEFAULTS.profile.spellEffectAlpha
-                             and SP.DEFAULTS.profile.spellEffectAlpha.specs
 
         -- Writes always land in the profile; the CVar is only touched when the
         -- slider is for the spec being played right now.
@@ -75,18 +82,30 @@ GUI.RegisterPage{
         local icons = SP.SpellEffectAlpha and SP.SpellEffectAlpha.SpecIcons or {}
 
         for _, group in ipairs(CLASS_GROUPS) do
-            local card = page:Card(group.name, nil, specDefaults)
+            local card = page:Card(group.name)
             for _, specID in ipairs(group.specs) do
                 local name = names[specID] or ("Spec " .. specID)
                 local icon = icons[specID]
-                card:Slider{
-                    db      = db.specs,
-                    key     = specID,
-                    default = specDefaults and specDefaults[specID],
-                    label   = icon and ("|T" .. icon .. ":14:14:0:0|t  " .. name) or name,
+                -- Shows the default until moved; moving it gives the spec a value
+                -- of its own, and resetting the page takes that value away again.
+                local row = card:Slider{
+                    get = function()
+                        local v = db.specs[specID]
+                        if v == nil then return db.globalDefault or 100 end
+                        return v
+                    end,
+                    set   = function(v) db.specs[specID] = v end,
+                    label = icon and ("|T" .. icon .. ":14:14:0:0|t  " .. name) or name,
                     min = 0, max = 100, step = 1, suffix = "%",
                     onChange = function() ApplyIfCurrent(specID) end,
                 }
+                function row:IsModified() return db.specs[specID] ~= nil end
+                function row:ResetDefault()
+                    db.specs[specID] = nil
+                    self:Refresh()
+                    ApplyIfCurrent(specID)
+                end
+                specRows[#specRows + 1] = row
             end
         end
 

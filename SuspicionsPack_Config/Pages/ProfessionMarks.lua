@@ -16,6 +16,7 @@ GUI.RegisterPage{
     dbKey    = "professionMarks",
     keywords = "profession professions logo icon mark bag bags reagent material tool recipe craft " ..
                "crafting keep sell vendor tooltip",
+    tip      = "Puts your professions' icons on the bag items they can use: reagents, tools and recipes you have not learned. It only marks them, and leaves keeping or selling to you.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "professionMarks", "ProfessionMarks",
             "Profession marks",

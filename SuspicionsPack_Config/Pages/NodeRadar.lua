@@ -17,6 +17,7 @@ GUI.RegisterPage{
     dbKey    = "nodeRadar",
     keywords = "node nodes herb herbs herbalism ore mining vein radar compass arrow gather gathering " ..
                "minimap tracking find",
+    tip      = "Shows the nearest herbs and veins as icons around the middle of your screen, each turned toward its node. It needs Find Herbs or Find Minerals on and the minimap shown, and skips nodes above your skill.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "nodeRadar", "NodeRadar",
             "Node radar",

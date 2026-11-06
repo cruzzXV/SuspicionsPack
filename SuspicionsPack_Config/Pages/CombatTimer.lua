@@ -15,6 +15,7 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "combatTimer",
     keywords = "combat timer duration fight length stopwatch clock",
+    tip      = "Counts up while you are in combat and prints the fight's length in chat when it ends. It times your own combat, not the boss encounter.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "combatTimer", "CombatTimer",
             "Combat timer",

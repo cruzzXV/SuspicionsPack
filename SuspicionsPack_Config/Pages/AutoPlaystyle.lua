@@ -28,12 +28,12 @@ GUI.RegisterPage{
     category = "mythic",
     dbKey    = "autoPlaystyle",
     keywords = "playstyle mythic plus group finder listing learning relaxed competitive carry",
+    tip      = "Sets your preferred playstyle in the group finder's listing dialog each time it opens. It never lists the group for you.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "autoPlaystyle", "AutoPlaystyle",
             "M+ auto playstyle",
-            "Pre-selects your preferred playstyle whenever you open the group " ..
-            "finder's listing dialog for a Mythic+ group. Applied every time the " ..
-            "dialog opens, including after switching activity.",
+            "Pre-selects your preferred playstyle whenever the group finder's listing " ..
+            "dialog opens, and again when you switch to a Mythic+ activity in it.",
             "Enable M+ auto playstyle")
 
         c1:Dropdown{

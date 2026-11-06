@@ -31,6 +31,7 @@ GUI.RegisterPage{
     category = "social",
     dbKey    = "autoInvite",
     keywords = "invite invitation group party keyword whisper guild friends role check auto accept leader",
+    tip      = "Invites anyone who whispers you one of your keywords, like inv. It only does so while you lead the group or are alone, and never turns a party into a raid.",
     build = function(parent)
         local db    = SP.GetDB().autoInvite
         local dbAut = SP.GetDB().automation
@@ -93,21 +94,16 @@ GUI.RegisterPage{
 
         local c2 = page:Card("Auto accept",
             "Answers invitation and role popups for you. These belong to the " ..
-            "Automation module and are not affected by the switch above.",
+            "Automation module: they follow the Automation page's switch, not the one above.",
             autoDefaults)
 
         c2:Toggle{
             db = dbAut, key = "autoRoleCheck",
             label = "Auto role check",
             desc  = "Accepts LFD and LFG role check popups the moment they appear.",
-            onChange = function(v)
-                applyAut()
-                -- The accept runs off a permanent hook, so switching it back off
-                -- only takes full effect after a reload.
-                if not v then
-                    SP.CreateReloadPrompt("Disabling Auto Role Check requires a reload to take full effect.")
-                end
-            end,
+            -- No reload prompt when switched off: the hook is permanent, but it
+            -- re-reads this setting on every role check.
+            onChange = applyAut,
         }
         c2:Toggle{
             db = dbAut, key = "autoGuildInvite",

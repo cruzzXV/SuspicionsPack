@@ -30,6 +30,7 @@ GUI.RegisterPage{
     category = "social",
     dbKey    = "whisperAlert",
     keywords = "whisper alert sound battle.net bnet message ping audio channel mute combat preview",
+    tip      = "Plays a sound when someone whispers you, in game or on Battle.net. It can stay quiet during combat.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "whisperAlert", "WhisperAlert",
             "Whisper alert",

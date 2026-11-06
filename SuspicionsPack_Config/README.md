@@ -13,9 +13,15 @@ GUI.RegisterPage{
     dbKey    = "durability",        -- profile section; drives the sidebar on/off dot
     charDB   = true,                -- only if the module stores per-character
     keywords = "durability repair gear threshold",   -- extra search terms
+    tip      = "Shows REPAIR NOW on screen when your most damaged item reaches the threshold you set. It stays hidden in combat.",
     build    = function(parent) ... end,
 }
 ```
+
+`tip` is the tooltip shown when the mouse is on the page's sidebar row. It is
+read before the page is opened, so it says what the module does for the player
+and what they can count on, in one or two short sentences. It is not the
+header blurb again: no setting names, no list of options.
 
 ## The page skeleton
 

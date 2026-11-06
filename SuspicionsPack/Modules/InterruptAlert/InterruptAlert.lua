@@ -126,7 +126,7 @@ local INTERRUPTS = {
     [102]  = Set(SOLAR_BEAM), [103] = Set(SKULL_BASH),
     [104]  = Set(SKULL_BASH), [105] = Set(SKULL_BASH),
     -- Chasseur de démons
-    [577]  = Set(DISRUPT), [581] = Set(DISRUPT),
+    [577]  = Set(DISRUPT), [581] = Set(DISRUPT), [1480] = Set(DISRUPT), -- 1480 Dévoreur
     -- Évocateur
     [1467] = Set(QUELL), [1468] = Set(QUELL), [1473] = Set(QUELL),
 }

@@ -14,6 +14,7 @@ GUI.RegisterPage{
     category = "items",
     dbKey    = "durability",
     keywords = "durability repair broken gear armour armor warning threshold",
+    tip      = "Shows REPAIR NOW on screen when your most damaged item reaches the threshold you set. It stays hidden in combat.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "durability", "Durability",
             "Repair warning",

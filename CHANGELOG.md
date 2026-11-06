@@ -4,6 +4,233 @@
 
 ---
 
+## 2026-11-06 — Buff thanks : remercier les joueurs qui nous buff
+
+Demande de Cruzz : notre propre module, inspiré de KINDRED 3.1.2 (All Rights Reserved, lu pour le comportement)
+et de Thanks for the Buff (Gogo1951, MIT, lu aussi). Aucune ligne copiée de l'un ou de l'autre.
+- **`Modules/BuffThanks/BuffThanks.lua`** (nouveau, retail et Forever) : Forever n'a pas de journal de combat et
+  la charge utile d'`UNIT_AURA` peut être secrète. À chaque `UNIT_AURA` du joueur, le module relit donc ses buffs
+  et compare leurs `auraInstanceID` au dernier relevé lisible : une instance nouvelle est un buff qui vient
+  d'arriver. Il faut une durée, un lanceur `Player-` autre que soi (`sourceUnit`, sinon `GetAuraCasterGUID`),
+  et que l'endroit soit coché (monde, groupe, raid, JcJ). Une remise à neuf garde son instance et n'est pas
+  remerciée. En combat, ou si les auras sont secrètes, le module ne voit rien, et le relevé suivant ne fait que
+  reconstruire la base : un buff reçu en combat est sauté, jamais remercié en retard. Après un écran de
+  chargement, 5 s de relevés à blanc, et une aura posée avant l'entrée ne compte pas.
+- Réaction après un délai réglable, une à la fois (1,5 s d'écart), un même joueur au plus une fois par fenêtre :
+  émote vocale au hasard parmi celles cochées, jamais la même deux fois de suite, ou chuchotement d'un message
+  modifiable où `{buff}` devient le lien du sort. Au moment d'envoyer : pas d'émote en combat, pas de chuchotement
+  pendant le verrou du chat (`InChatMessagingLockdown`), sinon la réaction est abandonnée. L'émote vise le jeton
+  d'unité si on en tient un, sinon le nom lu par GUID (« Prénom Nom » sur Forever), jamais `nil` (Blizzard
+  viserait alors la cible du moment). `PerformEmote` rend `restricted` (lu dans `ChatFrameEditBox.lua`).
+- **`Core.lua`** : défauts `buffThanks` (éteint, émote, 2 s, 60 s, monde et groupe cochés, message par défaut en
+  français sur un client français). **Les deux .toc** : une ligne chacun, sans condition.
+- **`Pages/BuffThanks.lua`** (nouveau, catégorie social) : réaction, délai, fenêtre, bouton Test (émote vers sa
+  cible, ou chuchotement à soi), où, émotes, message. Les émotes et le message se grisent selon la réaction.
+- **Tests** : `test_buff_thanks.lua` (nouveau, 72, sur les deux clients), 35 mutations sur 35 rouges, témoin vert.
+  `test_gui` +6 (la page suit la réaction, 2 mutations rouges) : retail 161, Forever 133. Toutes les autres suites
+  vertes, orphans au même point (les 4 clés Datatexts). `run.py --buffthanks`.
+- Pas vu en jeu. À relever avec `/run SuspicionsPack.DEBUG = true` : un buff d'un inconnu et d'un membre du
+  groupe, le format du nom pour `/w` et pour l'émote sur Forever (bouton Test en mode chuchotement).
+
+---
+
+## 2026-11-06 — Six bugs trouvés pendant la vérification des infobulles
+
+Accord de Cruzz pour corriger ce que la vérification des infobulles (entrée du dessous) avait trouvé dans le code.
+- **`AutoBuy.lua`** : chez un marchand, Buy qty 0 achète le manque, comme la liste de l'hôtel des ventes et comme
+  la page le dit. Il n'achetait rien, et 0 est la valeur livrée. Un minimum à 0 n'achète toujours rien.
+- **`FastLoot.lua`** : le réglage Auto Loot du joueur est gardé dans les données du compte
+  (`global.fastLootAutoLoot`) jusqu'à l'arrêt du module, plus dans une variable locale perdue au `/reload` (après
+  quoi l'arrêt laissait l'Auto Loot forcé). Pour un joueur qui l'a déjà allumé, la valeur gardée est celle du
+  premier login avec cette version.
+- **`DeathAlert.lua`** : `Activate` remontre le cadre ; après un arrêt puis une remise en marche, le texte restait
+  caché jusqu'au `/reload` (le son jouait).
+- **`InterruptAlert.lua`** : le Dévoreur (1480) a Disrupt (183752), comme le montre aussi MiniAuras
+  (`KickData.lua`). La page lui disait qu'il n'avait pas d'interruption.
+- **`GroupJoinedReminder.lua`** : seulement `LFG_LIST_JOINED_GROUP(searchResultID, groupName)`, l'activité lue
+  dans ce résultat de recherche, comme la fenêtre de Blizzard (`LFGListInviteDialog_Show`, branche `live`).
+  `LFG_LIST_ACTIVE_ENTRY_UPDATE` retiré : son argument est vrai quand on CRÉE une annonce, donc lister son
+  propre groupe affichait « Joined ». L'état gardé entre deux événements (`pendingGroupName`) n'a plus d'objet.
+- **Spell effect alpha** : `SP.DEFAULTS` ne donne plus 100 à chaque spé (`specs = {}`), donc une spé non réglée
+  suit « Default opacity » (le repli du module existait, il n'était jamais atteint). Sur la page, une spé non
+  réglée montre la valeur par défaut ; la bouger lui donne la sienne ; « Reset page » la remet à la valeur par
+  défaut. Un joueur qui avait baissé « Default opacity » la verra s'appliquer.
+- **Tests** : `test_bug_fixes.lua` (nouveau, 17) rejoue les cinq modules avec leur vrai code ; contre `HEAD`,
+  8 rouges, dont la vérification principale de chaque bug. `test_gui` retail +5 (Spell effect alpha) : 155,
+  Forever 127. Vertes aussi : cvar 17, interrupt 35, secret 19, style 11, release 21, perf 59, profiler 78,
+  font 14, datatexts 211, macros 169. `wowstub` : `SetScript` sur un groupe d'animation, `SetStartDelay` et
+  `SetOrder` sur une animation.
+- Copié dans `_retail_` et `_forever_`. Core.lua installé = sa version déjà installée + ce seul changement (celle
+  de Forever garde les ajouts de Macro Action Bar, sans le travail en cours sur les consommables). Pas vu en jeu.
+
+---
+
+## 2026-11-06 — Options : une infobulle sur chaque module de la barre latérale
+
+Demande de Cruzz : au survol d'un module dans la barre latérale, une infobulle qui l'explique « avec la
+philosophie de design du pack », sans écriture d'IA, chaque phrase vérifiée.
+- **`Core/Theme.lua`** : `GUI.ShowTip(owner, title, body)`, l'infobulle du pack (titre blanc, texte gris qui
+  revient à la ligne). `GUI.Tooltip` passe par elle.
+- **`Core/Shell.lua`** : une ligne de la barre latérale montre le `tip` de sa page au survol, relu à chaque
+  survol parce que les lignes sont réutilisées. Rien sur la page ouverte (son en-tête dit la même chose) ;
+  l'infobulle part à la sortie et au clic.
+- **41 pages** : un champ `tip` d'une ou deux phrases : ce que le module fait pour le joueur, et ce sur quoi il
+  peut compter (rien n'est acheté sans voir le prix, caché en combat, la confirmation d'une suppression reste au
+  joueur). Home n'en a pas. Movement alert : la seconde phrase dépend du client (quatre classes sur Forever).
+  `README.md` documente le champ.
+- **Méthode** : quatre fiches de faits tirées du code, pas des en-têtes de page (plusieurs sont faux) ; textes
+  écrits ensuite ; relecture contre le code par un agent qui n'avait pas les fiches. Elle a trouvé deux
+  erreurs, corrigées : Charge n'est pas suivi sur retail (Heroic Leap), et chez un marchand Auto buy n'achète
+  rien avec la quantité livrée. Elle a aussi trouvé des formulations trop larges : « drums », « jamais en
+  retard », et Automation qui laissait croire que tout s'active d'un coup.
+- **Tests** : `test_gui` +8 sur chaque client : chaque page a un tip, 220 caractères au plus, sans tiret
+  cadratin ; survol, sortie, ligne réutilisée, page ouverte, clic. 5 mutations rouges, le témoin vert.
+  Retail 149, Forever 126.
+- Copié dans `_forever_` et `_retail_` après comparaison avec `HEAD` : Consumable macros = `HEAD` + la seule
+  ligne du tip, sans le travail en cours d'une autre session. Pas vu en jeu : `/reload`.
+- **Ensuite, accord de Cruzz : les textes de page faux corrigés** (23 pages), chacun revu dans le code :
+  - Copy anything : rien n'est écrit dans le presse-papiers (l'ID s'ouvre sélectionné), seul le tooltip
+    principal est lu, rien en combat ni en Mythique+.
+  - CraftShopper : pas de quantité par recette (une recette suivie = un craft) ; réactifs de base, sacs et
+    banque ; liste refaite au repos.
+  - Enhanced objective text : agrandit et centre le cadre de Blizzard, ne fusionne rien en une ligne.
+  - Fast loot : un passage, un second 0,1 s après, et l'Auto Loot forcé ; « aussi vite que le serveur » retiré.
+  - Minimap drawer : s'ouvre au survol de l'onglet, ne glisse pas.
+  - Auto misdirection : aussi Évocateur et Paladin ; cibles mises à jour hors combat seulement.
+  - Potion alert : revient à chaque pull et après chaque combat ; en raid, seulement en combat.
+  - Spell effect alpha : l'art des procs autour du personnage, l'option « Spell Alert Opacity » du jeu
+    (vérifié dans `SpellActivationOverlay.lua` de Blizzard), pas la lueur des boutons ; « 100 = défaut de
+    Blizzard » retiré, non vérifiable.
+  - Performance : les deux boutons marchent module éteint ; le bouton imprime le journal de quêtes, puis
+    retire les suivis (« Quest watches cleared »).
+  - Gateway alert : Gateway Control Shard utilisable, aucun temps de recharge n'est lu.
+  - Focus target marker : l'ennemi sous la souris ; réécrite à chaque écran de chargement ; annonce en donjon,
+    hors combat, Chaman Restauration compris ; la note « /click sur une macro » remplacée.
+  - Interrupt alert : seul le démon du démoniste compte comme le joueur ; « clignote » retiré.
+  - Micro menu skin : icônes par rangée aussi. Player dragon : véhicule, cadre de Blizzard seulement.
+  - ReapPredict : le plafond passe de 4 à 10 pendant Moment of Craving, l'aperçu MoC le montre le reste du
+    temps ; en Meta seule la projection de Fury disparaît.
+  - M+ auto playstyle, Clean objective header (« à gauche » et « une ligne gagnée » retirés : rien ne remonte),
+    CVars (seul le préchargement est remis au login), Group joined reminder, Combat cross (un sort choisi
+    par spé, aucun pour les soigneurs).
+- **Deux invites de rechargement retirées** : couper Auto fill delete ou Auto role check marche tout de suite,
+  les deux crochets relisent le réglage (`Automation.lua`). Hide screenshot notification dit qu'il dépend du
+  module Performance ; Auto accept dit qu'il suit l'interrupteur d'Automation.
+- **Movement alert** : la carte Time spiral n'est plus montrée sur Forever (pas de Time Spiral, la lueur n'y
+  est pas écoutée), sur `GUI.FOREVER`, le même test que `IS_FOREVER`. `test_gui` le vérifie sur les deux
+  clients (2 mutations rouges). Retail 150, Forever 127. Recopié dans les deux installations.
+- **Encore ouverts, du code et pas des textes** :
+  - Auto buy chez un marchand : la quantité 0 livrée n'achète rien, la page promet le manque (`AutoBuy.lua:115`).
+  - Spell effect alpha : le curseur « Default opacity » ne sert jamais, chaque spé a sa valeur par défaut.
+  - Fast loot : après un `/reload`, l'Auto Loot d'origine n'est plus rendu à l'arrêt (`_origAutoLoot`).
+  - À vérifier : Death alert ne réaffiche plus son texte après off puis on ; Interrupt alert n'a pas le
+    Devourer (1480) ; Group joined reminder s'affiche peut-être aussi quand on liste son propre groupe.
+
+---
+
+## 2026-11-06 — Macro Action Bar : clients français, et le grimoire rouvre sur les sorts
+
+Retours de Cruzz en jeu, sur l'entrée du dessous :
+- « je peux pas le faire sur Vague de soins, alors que je devrais ? » : son client est français. Les
+  fichiers de classe nomment les sorts en anglais (« Healing Wave ») : aucune liste ne trouvait rien, donc
+  pas de Cast On, tout en Unsorted, ni séquences, ni sorts au curseur. L'original a la même limite.
+- « je veux pas que quand je fasse P ça ouvre le truc de macro » : la bibliothèque d'onglets garde la page
+  ouverte après la fermeture du grimoire, donc P la rouvrait.
+
+- **`Spells.lua` + `Locale.lua`** (nouveaux) : chaque nom anglais des fichiers de classe passe par son ID de
+  sort vers le nom du client, au login, avant que la page les lise. `tests/gen_mab_spells.lua` (LuaJIT, non
+  livré) charge les fichiers de classe et tire les ID de la DB2 du build 1.60.1.70790 : 504 noms, tous avec
+  un nom français ; 7 noms des fichiers d'origine n'existent pas dans ce build (Dark Pact, Salvation…), ils ne
+  marchaient pas en anglais non plus. Les jokers (« Conjure * ») deviennent le début commun des noms
+  français de la classe (« Invocation d* »), pour garder leur place dans la section. Aussi traduits : postures,
+  capacités de familier, formes, raciaux, macros toutes faites, et dans `Macros.lua` Auto Shot, Ice Block,
+  « (Rank 1) » (le sous-texte d'un sort de rang 1, ici « Rang 1 »), « Requires » (`SPELL_REQUIRED_FORM`), la
+  famille d'un démon pour `[pet:]` (`C_CreatureInfo`). Client anglais : rien ne change.
+- **P** : fermer le grimoire ferme la page (`LSBT:Close` sur le OnHide du grimoire), donc il rouvre toujours
+  sur les sorts. Le réglage de la roue « Open spellbook to this page », éteint par défaut, reste.
+- **Une fenêtre à part, essayée puis retirée** : `/spack macros` a d'abord ouvert une fenêtre dessinée comme le
+  grimoire (portrait du jeu, deux pages de parchemin), sans onglet. Premier essai de Cruzz : erreur
+  « Couldn't find inherited node 'SpellBookSettingsDropdownTemplate' », un modèle du grimoire, qui se charge
+  à la demande. Puis, à la réflexion, il a préféré l'onglet d'origine : fenêtre retirée,
+  `LibSpellBookTabs` remise telle quelle, `SpellBookTab.lua` refait depuis l'original avec les seules
+  retouches du portage. `/spack macros` ouvre le grimoire sur la page, comme le bouton de minicarte d'origine.
+- **Tests** : `test_macro_action_bar.lua` 141, dont un Chaman en français (Vague de soins en Healing avec
+  Mouseover, Focus et Self, Eclair en Damage, Appel des ancêtres par joker, rien en Unsorted, « Vague de
+  soins(Rang 1) », macro toute faite en français) ; fermer le grimoire quitte la page ; le faux client refuse
+  les modèles du grimoire tant qu'il n'est pas chargé (l'erreur de Cruzz, rejouée). La comparaison avec
+  l'original a trouvé un défaut (rang lu tel quel au lieu de « 1 »), corrigé. 44 mutations, 43 rouges,
+  1 équivalente (le cache de noms) ; toutes les suites vertes.
+- Copié dans `_forever_` (toujours sans le travail en cours sur les consommables). Nouveaux fichiers :
+  **redémarrer le client**. Pas vu en jeu.
+
+---
+
+## 2026-11-06 — Macro Action Bar : fork dans le pack (Forever seulement, pas publié)
+
+Demande de Cruzz : « fork macro action bar », qu'il venait d'installer. Macro Action Bar 1.2.1 (NotStraws)
+est sous licence MIT : choix de Cruzz, son code est copié dans le pack avec ses notices, pas réécrit (c'est
+la première fois que le code d'un autre addon part dans le dépôt public). Module Forever, désactivé par défaut,
+page au style Forever sur le parchemin du grimoire.
+- **`Modules/MacroActionBar/`** : les fichiers de l'original, changés le moins possible pour pouvoir reprendre
+  ses correctifs ; `UPSTREAM.md` liste chaque changement. `LICENSE` et `Data/LICENSE` (MIT) livrés avec.
+  `Minimap.lua` laissé de côté (bouton de minicarte, panneau Options > AddOns).
+- **`MacroActionBar.lua`** (nouveau) : la coquille. Table partagée `SP.MAB` à la place de l'espace de noms de
+  l'addon. Chaque fichier confie sa mise en place (cadres, événements, crochets, onglet du grimoire) à
+  `smb.onInstall`, lancée une fois au login : rien ne tourne module éteint. L'onglet ne peut pas sortir de
+  LibSpellBookTabs, ni les enveloppes sécurisées des boutons d'action : l'allumer ou l'éteindre après le login
+  demande un rechargement (`SP.CreateReloadPrompt`, une seule fois par bascule). Si l'addon d'origine est
+  chargé, le module reste éteint et le dit : les deux éditent les mêmes macros, trouvées par leur nom.
+- **Variables sauvegardées** : `MacroActionBarDB` devient `SP.db.global.macroActionBar`,
+  `MacroActionBarCharDB` `SP.db.char.macroActionBar`. Les migrations de l'original sont gardées. Aucune donnée
+  à reprendre : pas de `MacroActionBar.lua` dans `WTF`. Les macros elles-mêmes gardent leurs noms, donc
+  celles que l'original a créées sont reconnues.
+- **Perf** : événements, `hooksecurefunc` et `HookScript` passent par `SP.Perf` (`test_profiler`).
+- **Style** : en-têtes de section au losange et à la ligne de Plumber (`Skin.PlumberHeader`), à l'encre du
+  parchemin, à la place de `SpellBookHeaderTemplate`. Popup « macros pleines » dans le cadre Plumber. Menus,
+  roue des réglages, recherche, pagination et onglet : ceux de Blizzard et de la bibliothèque, inchangés.
+- **`Libs/LibSpellBookTabs-1.0`** : telle quelle (MINOR 7), avec la notice MIT. Module éteint, elle accroche
+  quand même ses cadres cachés au grimoire quand il se charge ; sans onglet, rien ne s'affiche.
+- **`Core.lua`** : défauts (profil `macroActionBar` : `enabled`, `barMacroText`, `macrosFullPopup` ; `char` et
+  `global` vides), `/spack macros` ouvre la page. **`Pages/MacroActionBar.lua`** : Interface, deux réglages
+  (texte d'une macro sous Alt, avertissement macros pleines), bouton Open, notes.
+- **Tests** : `test_macro_action_bar.lua` 105, dont l'original installé lancé à côté du port sur le même faux
+  grimoire de Mage : mêmes noms, sections et corps de macro, avec et sans réglages, sorts non appris compris.
+  29 mutations rouges, 1 témoin qui survit. `test_gui` Forever 116. Toutes les suites vertes sur les deux
+  clients. Gate orphelins : seuls les 4 réglages Datatexts déjà signalés sur `HEAD`.
+- Copié dans `_forever_` après `diff -rq`, sans le travail en cours d'une autre session sur les macros de
+  consommables (son `Core.lua` gardé à part). **Pas vu en jeu.** Il faut désactiver l'addon Macro Action Bar,
+  allumer le module (Interface > Macro Action Bar), recharger.
+
+---
+
+## 2026-11-05 — Macros de consommables : macro de nourriture à buff, la macro santé ne mange plus
+
+Ensuite, demande de Cruzz : une macro pour la nourriture à buff. Ses choix : la meilleure tout buff
+confondu (niveau requis, puis soin), nourriture seulement.
+- **`SPBuffFood`** (option `buffFood`, active avec le module comme les trois autres) : `/use [nocombat]`
+  de la nourriture à buff au plus haut niveau requis, puis au plus gros soin, puis l'ID le plus bas. Les
+  buffs de stats différentes ne se comparent pas, et un buff grandit avec le niveau de l'objet (presque
+  tous valent 1 point de base, mis à l'échelle). Pas de boissons, ni Fizzy Energy Drink (`both`).
+  `Best` prend la nourriture à buff seulement pour cette macro (`spec.buff`), classée par niveau
+  (`spec.byLevel`). Page : une carte « Buff food ».
+- Tests : macros 169 ; 8 mutations sur ces règles, toutes rouges. Pas vu en jeu.
+
+Avant, dans la même journée :
+
+Demande de Cruzz : la macro potion ne doit jamais manger, la macro nourriture jamais prendre de
+nourriture à buff. Les deux venaient d'EnhanceQoL, reprises telles quelles en 2.10.0.
+- **`SPHealth`** : plus de ligne `/use [nocombat]`, ni d'option « Eat out of combat » (`healthFood`,
+  retirée des défauts). La séquence vaut en et hors combat, comme sans nourriture avant.
+- **Nourriture à buff** : `tests/gen_consumables.js` marque `buff = true` ce qui porte le minuteur de Well
+  Fed (auras 23, 227) ou un buff de stat (29) : 124 objets, dont 14 boissons et Fizzy Energy Drink.
+  `Best` ne les prend jamais. `Data.lua` régénéré sur le même build 1.60.1.70753 : seul ce drapeau change.
+  Restorative Bread (aura 226) n'est pas un buff : c'est la façon dont elle rend 100 %.
+- **Page** : l'option retirée, une note « Buff food is never used ».
+- **Tests** : macros 157 (+10) ; les 3 mutations qui remettent l'ancien comportement sont rouges. Toutes
+  les autres suites vertes. Pas vu en jeu.
+
+---
+
 ## 2026-11-05 — skin Details « Forever » (Forever seulement, publié en 2.13.1)
 
 Demande de Cruzz : un skin Details dans le style Forever du pack, inspiré du skin TWW. Choisi sur six

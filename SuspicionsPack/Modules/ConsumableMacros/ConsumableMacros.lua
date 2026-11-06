@@ -2,8 +2,11 @@
 --
 -- Three account macros kept pointed at the best thing in your bags:
 --   SPFoodDrink  eat and drink out of combat, optionally a mana potion in combat
+--   SPBuffFood   the buff food with the highest required level
 --   SPBandage    the strongest bandage your First Aid allows
---   SPHealth     a /castsequence of healthstone, potion and your own spell
+--   SPHealth     a /castsequence of healthstone, potion and your own spell, never food
+--
+-- Buff food is eaten for its buff: only SPBuffFood picks it, never as plain regen.
 --
 -- Macros can only be written out of combat, so everything frequent is listened
 -- to out of combat only, and the macros catch up the moment combat ends. In
@@ -15,6 +18,7 @@ local CM = SP:NewSPModule("ConsumableMacros", "consumableMacros")
 SP.ConsumableMacros = CM
 
 local FOOD_DRINK_MACRO = "SPFoodDrink"
+local BUFF_FOOD_MACRO  = "SPBuffFood"
 local BANDAGE_MACRO    = "SPBandage"
 local HEALTH_MACRO     = "SPHealth"
 
@@ -26,8 +30,11 @@ local FIRST_AID_LINE = 2942
 
 local _issecretvalue = issecretvalue or function() return false end
 
--- What a pick looks for. `what` names the restore that ranks them.
+-- What a pick looks for. `what` names the restore that ranks them; `buff` picks
+-- buff food instead of leaving it alone, and `byLevel` ranks by required level
+-- first, since a buff grows with it and buffs of different stats do not compare.
 local FOOD          = { kinds = { food = true, both = true },   what = "health" }
+local BUFF_FOOD     = { kinds = { food = true },                what = "health", buff = true, byLevel = true }
 local DRINK         = { kinds = { drink = true, both = true },  what = "mana" }
 local MANA_ITEM     = { kinds = { potion = true, gem = true },  what = "mana" }
 local STONE         = { kinds = { stone = true },               what = "health" }
@@ -110,11 +117,12 @@ local function CanUse(player, entry)
         and (entry.firstAid == nil or entry.firstAid <= player.firstAid)
 end
 
-local function Beats(a, b, preferConjured)
+local function Beats(a, b, spec, preferConjured)
     if a.left ~= b.left then return a.left < b.left end
     if preferConjured and (a.entry.conjured or false) ~= (b.entry.conjured or false) then
         return a.entry.conjured == true
     end
+    if spec.byLevel and a.entry.level ~= b.entry.level then return a.entry.level > b.entry.level end
     if a.amount ~= b.amount then return a.amount > b.amount end
     if a.entry.level ~= b.entry.level then return a.entry.level > b.entry.level end
     return a.id < b.id
@@ -124,13 +132,13 @@ local function Best(player, spec, preferConjured, minimum)
     local best
     for _, id in ipairs(player.items) do
         local entry = SP.ConsumableData[id]
-        if spec.kinds[entry.kind] and CanUse(player, entry) then
+        if spec.kinds[entry.kind] and (entry.buff == true) == (spec.buff == true) and CanUse(player, entry) then
             local amount = Restore(player, entry, spec.what)
             local left = 0
             if not spec.ignoreCooldown then left = ItemCooldownLeft(player, id) end
             if left and amount > 0 and amount >= (minimum or 0) then
                 local candidate = { id = id, entry = entry, amount = amount, left = left }
-                if not best or Beats(candidate, best, preferConjured) then best = candidate end
+                if not best or Beats(candidate, best, spec, preferConjured) then best = candidate end
             end
         end
     end
@@ -186,6 +194,12 @@ local function FoodDrinkBody(db, player)
     return table.concat(lines, "\n")
 end
 
+local function BuffFoodBody(player)
+    local food = Best(player, BUFF_FOOD)
+    if not food then return "#showtooltip" end
+    return "#showtooltip\n/use [nocombat] " .. ItemToken(food)
+end
+
 local function BandageBody(player)
     local bandage = Best(player, BANDAGE)
     if not bandage then return "#showtooltip" end
@@ -217,13 +231,9 @@ end
 local function HealthBody(db, player)
     local lines = { "#showtooltip" }
     if db.stopCasting then lines[#lines + 1] = "/stopcasting" end
-    local food = db.healthFood and Best(player, FOOD, db.preferConjured) or nil
-    if food then lines[#lines + 1] = "/use [nocombat] " .. ItemToken(food) end
     local sequence = HealthSequence(db, player)
     if sequence ~= "" then
-        -- With food on the button, the sequence keeps to combat.
-        lines[#lines + 1] = "/castsequence " .. (food and "[combat] " or "")
-                            .. "reset=" .. tostring(db.reset) .. " " .. sequence
+        lines[#lines + 1] = "/castsequence reset=" .. tostring(db.reset) .. " " .. sequence
     end
     return table.concat(lines, "\n")
 end
@@ -269,6 +279,7 @@ local function Rebuild()
     local db = CM:GetDB()
     local player = ReadPlayer()
     if db.foodDrink then WriteMacro(FOOD_DRINK_MACRO, FoodDrinkBody(db, player)) end
+    if db.buffFood then WriteMacro(BUFF_FOOD_MACRO, BuffFoodBody(player)) end
     if db.bandage then WriteMacro(BANDAGE_MACRO, BandageBody(player)) end
     if db.health then WriteMacro(HEALTH_MACRO, HealthBody(db, player)) end
 

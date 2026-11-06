@@ -13,6 +13,7 @@ GUI.RegisterPage{
     category = "customise",
     dbKey    = "detailsSkin",
     keywords = "details skin damage meter war within tww look theme forever bronze arrow ring",
+    tip      = "Adds two skins to Details!, a port of the War Within skin and a slimmer Forever one. Your windows keep their current skin until you pick one.",
     build = function(parent)
         local page, db, card = GUI.ModulePage(parent, "detailsSkin", "DetailsSkin",
             "Details skin",

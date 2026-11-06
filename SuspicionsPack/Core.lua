@@ -635,9 +635,9 @@ local DEFAULTS = {
             preferConjured     = true,
             manaPotionInCombat = false,
             minManaPercent     = 0,
+            buffFood           = true,
             bandage            = true,
             health             = true,
-            healthFood         = true,
             stopCasting        = false,
             priority1          = "stone",
             priority2          = "potion",
@@ -672,6 +672,14 @@ local DEFAULTS = {
             scale   = 100,
             x       = 0,
             y       = -170,
+        },
+        -- Forever only (see the .toc gate). Macro Action Bar's spellbook tab of macros.
+        -- Its own settings are in char and global below; these are the ones its
+        -- Options > AddOns panel held.
+        macroActionBar = {
+            enabled         = false,
+            barMacroText    = true,   -- Alt over a bar macro shows its text
+            macrosFullPopup = true,   -- warn when no macro slot is free
         },
         -- 3D models in place of the flat portraits. Off by default: models
         -- cost GPU, and it reshapes every unit frame the moment it turns on.
@@ -904,6 +912,20 @@ local DEFAULTS = {
             channel      = "Master",
             muteInCombat = false,
         },
+        buffThanks = {
+            enabled  = false,
+            reaction = "emote",   -- "emote" | "whisper"
+            delay    = 2,         -- seconds between the buff and the thanks
+            cooldown = 60,        -- seconds before the same player is thanked again
+            inWorld  = true,
+            inGroup  = true,
+            inRaid   = false,
+            inPvP    = false,
+            emoteThank = true, emoteCheer = true, emoteApplaud = true, emoteCongratulate = true,
+            emoteNod   = false, emoteKiss = false,
+            -- {buff} becomes a link to the buff.
+            message  = (GetLocale and GetLocale() == "frFR") and "Merci pour {buff} !" or "Thanks for the {buff}!",
+        },
         interruptAlert = {
             enabled     = false,
             text        = "Interrompu",
@@ -1007,21 +1029,11 @@ local DEFAULTS = {
         spellEffectAlpha = {
             enabled       = false,
             globalDefault = 100,
-            specs         = {
-                [250]=100,[251]=100,[252]=100, -- Death Knight
-                [577]=100,[581]=100,[1480]=100, -- Demon Hunter
-                [102]=100,[103]=100,[104]=100,[105]=100, -- Druid
-                [1467]=100,[1468]=100,[1473]=100, -- Evoker
-                [253]=100,[254]=100,[255]=100, -- Hunter
-                [62]=100,[63]=100,[64]=100, -- Mage
-                [268]=100,[269]=100,[270]=100, -- Monk
-                [65]=100,[66]=100,[70]=100, -- Paladin
-                [256]=100,[257]=100,[258]=100, -- Priest
-                [259]=100,[260]=100,[261]=100, -- Rogue
-                [262]=100,[263]=100,[264]=100, -- Shaman
-                [265]=100,[266]=100,[267]=100, -- Warlock
-                [71]=100,[72]=100,[73]=100, -- Warrior
-            },
+            -- [specID] = 0..100, only for a spec the player has set. Empty on
+            -- purpose: a spec with no value follows globalDefault. All 40 used
+            -- to ship at 100, which meant the "Default opacity" slider never
+            -- reached any of them.
+            specs         = {},
         },
     },
     -- ── Per-character data (not shared across alts) ──────────────────────
@@ -1072,6 +1084,9 @@ local DEFAULTS = {
                 [242273] = { enabled = false, quantity = 0, buyQty = 0, quality = 1 }, -- Blooming Feast (no Q2)
             },
         },
+        -- Forever: Macro Action Bar's per-character data (MacroActionBarCharDB in the
+        -- original addon): each macro's settings, variants, recorded macros.
+        macroActionBar = {},
     },
     -- ── Account-wide data (every character, every profile) ───────────────
     global = {
@@ -1079,6 +1094,9 @@ local DEFAULTS = {
             gold = {},   -- [realm][name] = { money = copper, class = "WARRIOR" }
         },
         perfReports = {},   -- the last /spack perf captures, oldest first
+        -- Forever: Macro Action Bar's account data (MacroActionBarDB in the original
+        -- addon): the page's settings, General macros, equipment macro settings.
+        macroActionBar = {},
     },
 }
 
@@ -1508,6 +1526,11 @@ function SP:ToggleGUI(input)
     if arg == "camp status" then
         if not SP.CampWheel then print("SuspicionsPack: the campfire wheel is only on WoW: Forever.")
         else SP.CampWheel.PrintStatus() end
+        return
+    end
+    if arg == "macros" then
+        if not SP.MacroActionBar then print("SuspicionsPack: Macro Action Bar is only on WoW: Forever.")
+        else SP.MacroActionBar.OpenPage() end
         return
     end
     if not SP.EnsureGUI() then return end

@@ -456,14 +456,19 @@ end
 -- Tooltips
 -- ============================================================
 
+-- The pack's tooltip: a white title over a grey body that wraps. ShowTip is
+-- for callers whose text changes with what the frame shows (the sidebar's
+-- pooled rows); Tooltip wires fixed text onto a frame once.
+function GUI.ShowTip(owner, title, body)
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    if title then GameTooltip:AddLine(title, 1, 1, 1) end
+    if body then GameTooltip:AddLine(body, 0.8, 0.8, 0.8, true) end
+    GameTooltip:Show()
+end
+
 function GUI.Tooltip(frame, title, body)
     if not title and not body then return frame end
-    frame:HookScript("OnEnter", function(f)
-        GameTooltip:SetOwner(f, "ANCHOR_RIGHT")
-        if title then GameTooltip:AddLine(title, 1, 1, 1) end
-        if body then GameTooltip:AddLine(body, 0.8, 0.8, 0.8, true) end
-        GameTooltip:Show()
-    end)
+    frame:HookScript("OnEnter", function(f) GUI.ShowTip(f, title, body) end)
     frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
     return frame
 end

@@ -49,11 +49,13 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "potionAlert",
     keywords = "potion cooldown ready alert dungeon raid tts speech voice",
+    tip      = "Shows Potion Ready when your combat potion is ready to drink, in dungeons and during raid fights. Healing potions are not tracked.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "potionAlert", "PotionAlert",
             "Potion alert",
-            "Shows a text alert when your combat potion comes off cooldown. " ..
-            "Works in any dungeon and in raids.",
+            "Shows a text alert when your combat potion is ready, checked again at " ..
+            "each pull and after each fight. Works in dungeons, and in raids while you " ..
+            "are in combat.",
             "Enable potion alert")
 
         c1:Pair(

@@ -16,6 +16,7 @@ GUI.RegisterPage{
     dbKey    = "automation",
     keywords = "automation auto accept delete cinematic cutscene talking head bags bar " ..
                "screenshot junk sell vendor repair guild funds decor flight form druid travel",
+    tip      = "Each switch takes a small chore off your hands: selling grey items, repairing, skipping cutscenes, typing DELETE when you destroy an item. You still confirm the delete yourself.",
     build = function(parent)
         local page = GUI.ModulePage(parent, "automation", "Automation",
             "Automation",
@@ -29,14 +30,8 @@ GUI.RegisterPage{
             key   = "autoFillDelete",
             label = "Auto fill delete",
             desc  = "Types DELETE for you when destroying a good item.",
-            onChange = function(v)
-                page.apply()
-                -- hooksecurefunc cannot be undone, so switching this back off only
-                -- takes full effect after a reload.
-                if not v then
-                    SP.CreateReloadPrompt("Disabling Auto Fill Delete requires a reload to take full effect.")
-                end
-            end,
+            -- No reload prompt when switched off: the delete hook cannot be
+            -- removed, but it re-reads this setting every time it runs.
         }
         c2:Toggle{
             key   = "skipCinematics",
@@ -65,7 +60,8 @@ GUI.RegisterPage{
             default  = perfDef and perfDef.hideScreenshotMsg,
             onChange = GUI.Applier("Performance"),
             label    = "Hide screenshot notification",
-            desc     = "Suppresses the \"Screenshot saved\" message.",
+            desc     = "Suppresses the \"Screenshot saved\" message. It belongs to the " ..
+                       "Performance module, which has to be on too.",
         }
 
         local c3 = page:Card("Merchant")

@@ -30,6 +30,7 @@ GUI.RegisterPage{
     dbKey    = "animatedPortraits",
     keywords = "portrait 3d model animated living face unit frame target party npc " ..
                "quest gossip camera zoom rotation background class",
+    tip      = "Swaps flat portraits for moving 3D models: your unit frames, your party, the NPC you are talking to. Where a model can't be shown, the flat picture stays.",
     build = function(parent)
         local page, db, c1, master = GUI.ModulePage(parent, "animatedPortraits", "AnimatedPortraits",
             "Animated portraits",

@@ -47,6 +47,7 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "bloodlustAlert",
     keywords = "bloodlust heroism time warp lust haste sated exhaustion sound countdown timer",
+    tip      = "Plays a sound and starts a 40-second bar when Bloodlust, Heroism or Time Warp lands on you. It stays quiet through logins and loading screens.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "bloodlustAlert", "BloodlustAlert",
             "Bloodlust alert",

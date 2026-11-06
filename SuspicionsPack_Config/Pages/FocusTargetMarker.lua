@@ -42,20 +42,23 @@ GUI.RegisterPage{
     category = "mythic",
     dbKey    = "focusTargetMarker",
     keywords = "focus marker raid target kick interrupt macro mouseover skull moon",
+    tip      = "Writes a macro that focuses the enemy under your mouse, or your target, and puts your chosen raid marker on it. In dungeons it can tell your party your kick marker at each ready check.",
     build = function(parent)
         local page = GUI.ModulePage(parent, "focusTargetMarker", "FocusTargetMarker",
             "Focus target marker",
-            "Creates a macro named \"FocusTargetMarker\" that focuses your " ..
-            "mouseover, or your target if there is none, and puts the chosen raid " ..
-            "marker on it. The macro is rewritten on login and on every ready check.",
+            "Creates a macro named \"FocusTargetMarker\" that focuses the enemy under " ..
+            "your mouse, or your target if there is none, and puts the chosen raid " ..
+            "marker on it. The macro is rewritten on every loading screen and every " ..
+            "ready check.",
             "Enable focus target marker")
 
         local c2 = page:Card("Options")
         c2:Toggle{
             key   = "announce",
             label = "Announce on ready check",
-            desc  = "Says your kick marker in party chat when a ready check starts. " ..
-                    "Healer specs are skipped.",
+            desc  = "Says your kick marker in party chat when a ready check starts, " ..
+                    "inside a dungeon and out of combat. Healers stay quiet, except " ..
+                    "Restoration Shamans.",
         }
         c2:Dropdown{
             key     = "marker",
@@ -65,9 +68,9 @@ GUI.RegisterPage{
         }
 
         local c3 = page:Card("Macro usage")
-        c3:Note("Bind the macro to a key, or call it from another macro with " ..
-                "/click. The marker index is written into the macro body, so it " ..
-                "works even when you have no focus.")
+        c3:Note("Drag the macro from the General tab of the macro window (/macro) to " ..
+                "a bar and bind it to a key. The marker number is written into the macro " ..
+                "body, so it works even when you have no focus.")
 
         page:Finish()
     end,

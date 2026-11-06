@@ -10,6 +10,7 @@ GUI.RegisterPage{
     category = "interface",
     dbKey    = "silvermoonMapIcon",
     keywords = "silvermoon map icon pin poi waypoint trainer profession auction bank",
+    tip      = "Adds pins for your profession trainers, the bank, the auction house and other services to the Silvermoon City map. Click a pin to set a waypoint.",
     build = function(parent)
         local page = GUI.ModulePage(parent, "silvermoonMapIcon", "SilvermoonMapIcon",
             "Silvermoon map icons",

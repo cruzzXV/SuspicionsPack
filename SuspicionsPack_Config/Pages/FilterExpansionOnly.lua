@@ -9,6 +9,7 @@ GUI.RegisterPage{
     category = "items",
     dbKey    = "filterExpansionOnly",
     keywords = "auction house crafting orders browser filter current expansion legacy hide old items",
+    tip      = "Ticks Current Expansion Only for you when the Auction House or the crafting orders window opens. Untick it by hand and it stays off until the window opens again.",
     build = function(parent)
         local page = GUI.ModulePage(parent, "filterExpansionOnly", "FilterExpansionOnly",
             "Filter expansion only",

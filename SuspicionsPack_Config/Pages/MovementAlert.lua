@@ -39,6 +39,9 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "movementAlert",
     keywords = "movement mobility cooldown dash charge blink time spiral free movement",
+    -- Forever tracks four classes' movement spells, retail every class.
+    tip      = "Shows a countdown while your movement spell, such as Blink or Sprint, is on cooldown. "
+        .. (GUI.FOREVER and "Warriors, Rogues, Mages and Druids only." or "Works for every class."),
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "movementAlert", "MovementAlert",
             "Movement alert",
@@ -177,121 +180,126 @@ GUI.RegisterPage{
                    desc = "Raise it if another addon's frame covers the countdown.",
                    min = 1, max = 200, step = 1 }
 
-        -- ── Time spiral ──────────────────────────────────────
-        local c4 = page:Card("Time spiral",
-            "A free-movement countdown, triggered by the spell's glow overlay.")
-        local tsOn = c4:Toggle{ key = "showTimeSpiral", label = "Enable time spiral" }
-        c4:GateBelow(tsOn)
+        -- Retail only: WoW: Forever has no Time Spiral, and the module does not
+        -- listen for the glow there. GUI.FOREVER is the same test as the
+        -- module's IS_FOREVER (WOW_PROJECT_ID == WOW_PROJECT_CAMELOT).
+        if not GUI.FOREVER then
+            -- ── Time spiral ──────────────────────────────────────
+            local c4 = page:Card("Time spiral",
+                "A free-movement countdown, triggered by the spell's glow overlay.")
+            local tsOn = c4:Toggle{ key = "showTimeSpiral", label = "Enable time spiral" }
+            c4:GateBelow(tsOn)
 
-        c4:EditBox{ key = "timeSpiralText", label = "Display text", maxLen = 64,
-                    desc = "Shown for as long as the proc lasts." }
-        -- The module reads timeSpiralColor directly, with no source key, so this
-        -- is a plain colour rather than a colour-with-source row.
-        c4:Color{ key = "timeSpiralColor", label = "Text colour", alpha = true }
-        c4:Pair(
-            { kind = "slider", key = "timeSpiralTextX", label = "Text X", min = -500, max = 500, step = 1 },
-            { kind = "slider", key = "timeSpiralTextY", label = "Text Y", min = -500, max = 500, step = 1 })
+            c4:EditBox{ key = "timeSpiralText", label = "Display text", maxLen = 64,
+                        desc = "Shown for as long as the proc lasts." }
+            -- The module reads timeSpiralColor directly, with no source key, so this
+            -- is a plain colour rather than a colour-with-source row.
+            c4:Color{ key = "timeSpiralColor", label = "Text colour", alpha = true }
+            c4:Pair(
+                { kind = "slider", key = "timeSpiralTextX", label = "Text X", min = -500, max = 500, step = 1 },
+                { kind = "slider", key = "timeSpiralTextY", label = "Text Y", min = -500, max = 500, step = 1 })
 
-        local tsSoundOn = c4:Toggle{ key = "timeSpiralPlaySound", label = "Play a sound on trigger" }
-        c4:GateBelow(tsSoundOn)
-        c4:Dropdown{
-            label     = "Sound",
-            optionsFn = SoundOptions,
-            default   = "None",
-            get       = function() return db.timeSpiralSound or "None" end,
-            set       = function(v) db.timeSpiralSound = (v ~= "None") and v or nil end,
-        }
+            local tsSoundOn = c4:Toggle{ key = "timeSpiralPlaySound", label = "Play a sound on trigger" }
+            c4:GateBelow(tsSoundOn)
+            c4:Dropdown{
+                label     = "Sound",
+                optionsFn = SoundOptions,
+                default   = "None",
+                get       = function() return db.timeSpiralSound or "None" end,
+                set       = function(v) db.timeSpiralSound = (v ~= "None") and v or nil end,
+            }
 
-        local soundHandle
-        local listenRow
-        local function StopSpiralSound()
-            if soundHandle then
-                StopSound(soundHandle, 200)
-                soundHandle = nil
-            end
-            if listenRow then listenRow.btn:SetText("Listen") end
-        end
-
-        listenRow = c4:ButtonRow{
-            text  = "Listen",
-            width = 80,
-            onClick = function()
-                if soundHandle then StopSpiralSound(); return end
-                local name = db.timeSpiralSound
-                if not name or name == "None" then return end
-                local lsm  = LSM()
-                local file = lsm and lsm:Fetch("sound", name)
-                if not file then return end
-                local ok, handle = PlaySoundFile(file, "Master")
-                if ok then
-                    soundHandle = handle
-                    listenRow.btn:SetText("Stop")
+            local soundHandle
+            local listenRow
+            local function StopSpiralSound()
+                if soundHandle then
+                    StopSound(soundHandle, 200)
+                    soundHandle = nil
                 end
-            end,
-        }
-
-        -- Back to the time-spiral gate for the icon block.
-        c4:GateBelow(tsOn)
-        local showIcon = c4:Toggle{ key = "timeSpiralShowIcon", label = "Show spell icon" }
-        c4:GateBelow(showIcon)
-        c4:Slider{ key = "timeSpiralIconSize", label = "Icon size", min = 20, max = 100, step = 1 }
-        -- The four real key names, in place of the setmetatable proxy the old
-        -- page used to make them look like the widget's hardcoded ones.
-        c4:AnchorRow{
-            fromKey   = "timeSpiralIconAnchorFrom",
-            toKey     = "timeSpiralIconAnchorTo",
-            frameKey  = "timeSpiralIconAnchorFrame",
-            strataKey = "timeSpiralIconFrameStrata",
-        }
-        c4:Pair(
-            { kind = "slider", key = "timeSpiralIconX", label = "Icon X", min = -500, max = 500, step = 1 },
-            { kind = "slider", key = "timeSpiralIconY", label = "Icon Y", min = -500, max = 500, step = 1 })
-
-        c4:GateBelow(tsOn)
-        local previewOn = false
-        local previewRow
-        local function ResetPreviewButton()
-            previewOn = false
-            if previewRow then
-                previewRow.btn:SetText("Preview")
-                previewRow.btn:SetActive(false)
+                if listenRow then listenRow.btn:SetText("Listen") end
             end
-        end
-        local function StopSpiralPreview()
-            local mod = SP.MovementAlert
-            if mod then
-                if previewOn and mod.HideTimeSpiralPreview then mod:HideTimeSpiralPreview() end
-                mod._tsPreviewEndCallback = nil
-            end
-            ResetPreviewButton()
-        end
 
-        previewRow = c4:ButtonRow{
-            text  = "Preview",
-            width = 110,
-            desc  = "Runs the countdown on screen so you can place it.",
-            onClick = function()
+            listenRow = c4:ButtonRow{
+                text  = "Listen",
+                width = 80,
+                onClick = function()
+                    if soundHandle then StopSpiralSound(); return end
+                    local name = db.timeSpiralSound
+                    if not name or name == "None" then return end
+                    local lsm  = LSM()
+                    local file = lsm and lsm:Fetch("sound", name)
+                    if not file then return end
+                    local ok, handle = PlaySoundFile(file, "Master")
+                    if ok then
+                        soundHandle = handle
+                        listenRow.btn:SetText("Stop")
+                    end
+                end,
+            }
+
+            -- Back to the time-spiral gate for the icon block.
+            c4:GateBelow(tsOn)
+            local showIcon = c4:Toggle{ key = "timeSpiralShowIcon", label = "Show spell icon" }
+            c4:GateBelow(showIcon)
+            c4:Slider{ key = "timeSpiralIconSize", label = "Icon size", min = 20, max = 100, step = 1 }
+            -- The four real key names, in place of the setmetatable proxy the old
+            -- page used to make them look like the widget's hardcoded ones.
+            c4:AnchorRow{
+                fromKey   = "timeSpiralIconAnchorFrom",
+                toKey     = "timeSpiralIconAnchorTo",
+                frameKey  = "timeSpiralIconAnchorFrame",
+                strataKey = "timeSpiralIconFrameStrata",
+            }
+            c4:Pair(
+                { kind = "slider", key = "timeSpiralIconX", label = "Icon X", min = -500, max = 500, step = 1 },
+                { kind = "slider", key = "timeSpiralIconY", label = "Icon Y", min = -500, max = 500, step = 1 })
+
+            c4:GateBelow(tsOn)
+            local previewOn = false
+            local previewRow
+            local function ResetPreviewButton()
+                previewOn = false
+                if previewRow then
+                    previewRow.btn:SetText("Preview")
+                    previewRow.btn:SetActive(false)
+                end
+            end
+            local function StopSpiralPreview()
                 local mod = SP.MovementAlert
-                if not mod then return end
-                if previewOn then StopSpiralPreview(); return end
-                previewOn = true
-                previewRow.btn:SetText("Stop preview")
-                previewRow.btn:SetActive(true)
-                -- The module calls this when its own auto-cancel fires. Installed
-                -- per preview and cleared in StopSpiralPreview, so the page never
-                -- leaves a closure hanging off the module -- and, unlike the old
-                -- page, it is still installed on the second and later visits.
-                mod._tsPreviewEndCallback = ResetPreviewButton
-                mod:ShowTimeSpiralPreview()
-            end,
-        }
+                if mod then
+                    if previewOn and mod.HideTimeSpiralPreview then mod:HideTimeSpiralPreview() end
+                    mod._tsPreviewEndCallback = nil
+                end
+                ResetPreviewButton()
+            end
 
-        -- Everything that outlives the page: a playing sound, a running preview,
-        -- and the callback the preview installed on the module.
-        parent:HookScript("OnHide", function()
-            StopSpiralSound()
-            StopSpiralPreview()
-        end)
+            previewRow = c4:ButtonRow{
+                text  = "Preview",
+                width = 110,
+                desc  = "Runs the countdown on screen so you can place it.",
+                onClick = function()
+                    local mod = SP.MovementAlert
+                    if not mod then return end
+                    if previewOn then StopSpiralPreview(); return end
+                    previewOn = true
+                    previewRow.btn:SetText("Stop preview")
+                    previewRow.btn:SetActive(true)
+                    -- The module calls this when its own auto-cancel fires. Installed
+                    -- per preview and cleared in StopSpiralPreview, so the page never
+                    -- leaves a closure hanging off the module -- and, unlike the old
+                    -- page, it is still installed on the second and later visits.
+                    mod._tsPreviewEndCallback = ResetPreviewButton
+                    mod:ShowTimeSpiralPreview()
+                end,
+            }
+
+            -- Everything that outlives the page: a playing sound, a running preview,
+            -- and the callback the preview installed on the module.
+            parent:HookScript("OnHide", function()
+                StopSpiralSound()
+                StopSpiralPreview()
+            end)
+        end
 
         page:Finish()
     end,

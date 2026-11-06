@@ -292,6 +292,10 @@ function DeathAlert:Activate()
 
     EnsureByRole(db)
     EnsureFrame()
+    -- Deactivate hides the frame and EnsureFrame only builds it once, so
+    -- without this the text stayed hidden after an off-on until a /reload,
+    -- while the sound still played.
+    displayFrame:Show()
     RefreshFramePosition()
     RefreshFrameStyle()
     self:RegisterEvent("UNIT_DIED", "OnUnitDied")

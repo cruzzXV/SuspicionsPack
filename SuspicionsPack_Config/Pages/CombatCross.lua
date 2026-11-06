@@ -14,6 +14,7 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "combatCross",
     keywords = "crosshair cross combat centre center range out of range aim reticle",
+    tip      = "Shows a + in the middle of your screen while you are in combat. It can turn red when your target is out of range, except for healers.",
     build = function(parent)
         local page = GUI.ModulePage(parent, "combatCross", "CombatCross",
             "Combat cross",
@@ -40,8 +41,8 @@ GUI.RegisterPage{
         }
 
         local c3 = page:Card("Range colour",
-            "Recolours the cross when your target is beyond the range of your " ..
-            "spec's main ability.")
+            "Recolours the cross when your target is beyond the range of a spell " ..
+            "chosen for your spec. Healer specs have none, so their cross keeps its colour.")
         c3:Toggle{ key = "rangeColorMeleeEnabled",  label = "Enable for melee specs" }
         c3:Toggle{ key = "rangeColorRangedEnabled", label = "Enable for ranged specs" }
         c3:Color{

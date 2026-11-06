@@ -15,11 +15,12 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "interruptAlert",
     keywords = "interrupt kick kicked counterspell pummel mind freeze silence announce",
+    tip      = "When you interrupt a cast, shows the spell you stopped and its icon on screen for a few seconds. It follows your interrupts, and your Warlock pet's, not the group's.",
     build = function(parent)
         local page = GUI.ModulePage(parent, "interruptAlert", "InterruptAlert",
             "Interrupt alert",
-            "Flashes a line on screen when YOU interrupt a cast, naming the " ..
-            "spell you kicked. Your pet's interrupt counts as yours.",
+            "Shows a line on screen when YOU interrupt a cast, naming the " ..
+            "spell you kicked. Your Warlock demon's interrupt counts as yours.",
             "Enable interrupt alert")
 
         local c1 = page.cards[1]

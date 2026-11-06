@@ -86,13 +86,14 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "tankMD",
     keywords = "misdirection tricks of the trade rescue tank macro hunter rogue druid tankmd button",
+    tip      = "Hidden buttons your macros can click to cast Misdirection, Tricks of the Trade and similar spells on your tanks (healers, for Druids). Targets only change out of combat.",
     build = function(parent)
         local page = GUI.ModulePage(parent, "tankMD", "TankMD",
             "Auto misdirection",
-            "Creates hidden macro buttons (TankMDButton1-5) that always target the " ..
-            "current tanks, or the healers for Druids. Click one from any macro and " ..
-            "it fires on the right person without you updating targets. " ..
-            "Hunter, Rogue and Druid.",
+            "Creates hidden macro buttons (TankMDButton1-5) that target the current " ..
+            "tanks, or the healers for Druids. Click one from any macro and it fires on " ..
+            "the right person without you updating targets. Targets are updated out of " ..
+            "combat only. Hunter, Rogue, Druid, Evoker and Paladin.",
             "Enable auto misdirection")
 
         local c2 = page:Card("Options", "Which group members count as a misdirection target.")

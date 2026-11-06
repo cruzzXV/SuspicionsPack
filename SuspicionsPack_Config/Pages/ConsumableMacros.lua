@@ -31,10 +31,11 @@ GUI.RegisterPage{
     dbKey    = "consumableMacros",
     keywords = "macro macros food drink water eat bandage first aid health healthstone potion mana " ..
                "conjured consumable castsequence",
+    tip      = "Four macros that always point at the best of what you carry: drink, buff food, bandage and healing. Only the buff food macro eats food that gives a buff.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "consumableMacros", "ConsumableMacros",
             "Consumable macros",
-            "Keeps three macros on the best item in your bags. Drag them from the General " ..
+            "Keeps four macros on the best item in your bags. Drag them from the General " ..
             "tab of the macro window (/macro). They update out of combat.",
             nil, "Food and drink")
 
@@ -44,13 +45,17 @@ GUI.RegisterPage{
         c1:Toggle{ key = "includeFood", label = "Include food",
                    desc = "Needed for classes without mana. Items that restore both are always used." }
         c1:Toggle{ key = "preferConjured", label = "Prefer conjured food and water",
-                   desc = "Uses them first, even over something stronger. Also applies to the health macro's food." }
+                   desc = "Uses them first, even over something stronger." }
         c1:Toggle{ key = "manaPotionInCombat", label = "Mana potion in combat",
                    desc = "In combat, the macro uses your best mana potion or gem." }
         c1:Slider{ key = "minManaPercent", label = "Minimum mana restored",
                    desc = "Ignores drinks restoring less than this share of your maximum mana.",
                    min = 0, max = 100, step = 1 }
         c1:EndGate()
+
+        local cBuff = page:Card("Buff food")
+        cBuff:Toggle{ key = "buffFood", label = "Buff food macro",
+                      desc = "SPBuffFood: the buff food with the highest required level, then the biggest restore. Food only, no drinks." }
 
         local c2 = page:Card("Bandage")
         c2:Toggle{ key = "bandage", label = "Bandage macro",
@@ -60,8 +65,6 @@ GUI.RegisterPage{
         local healthOn = c3:Toggle{ key = "health", label = "Health macro",
                                     desc = "SPHealth: a sequence of the items below, used in the order you pick." }
         c3:GateBelow(healthOn)
-        c3:Toggle{ key = "healthFood", label = "Eat out of combat",
-                   desc = "Out of combat the macro eats instead, and the sequence keeps to combat." }
         c3:Toggle{ key = "stopCasting", label = "Stop casting first",
                    desc = "Cancels what you are casting, so a heal is never blocked by a cast." }
         c3:Dropdown{ key = "priority1", label = "First",  options = PRIORITIES }
@@ -74,7 +77,8 @@ GUI.RegisterPage{
         c3:EndGate()
 
         local c4 = page:Card("Good to know")
-        c4:Note("Switching a macro off leaves it as it is, so it stays on your action bars until you delete it.")
+        c4:Note("Only the buff food macro eats buff food: the others keep it for its buff. " ..
+                "Switching a macro off leaves it as it is, so it stays on your action bars until you delete it.")
 
         page:Finish()
     end,

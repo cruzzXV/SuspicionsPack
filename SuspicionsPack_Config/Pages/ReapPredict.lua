@@ -37,6 +37,7 @@ GUI.RegisterPage{
     dbKey    = "reapMeter",
     keywords = "reap predict demon hunter devourer soul fragment fury meter " ..
                "void metamorphosis collapsing star ellesmere snap fading",
+    tip      = "Bars for Devourer Demon Hunters showing how close Void Metamorphosis and Collapsing Star are, and the Fury your next casts will give. It asks before touching your Cooldown Manager.",
     build = function(parent)
         local page, db = GUI.ModulePage(parent, "reapMeter", "ReapPredict",
             "ReapPredict",
@@ -100,8 +101,9 @@ GUI.RegisterPage{
         -- ── Soul bar ────────────────────────────────────────────────────
         local c2 = page:Card("Soul bar",
             "Tracks how many souls Reap will get on its next use, so you can see when " ..
-            "it will trigger Void Metamorphosis or Collapsing Star. The MoC preview " ..
-            "extends the cap while Moment of Craving is active.",
+            "it will trigger Void Metamorphosis or Collapsing Star. While Moment of " ..
+            "Craving is active the cap grows from 4 to 10 souls; the MoC preview shows " ..
+            "that extra room the rest of the time.",
             LAYOUT_DEFAULTS)
 
         local soulShow = c2:Toggle{ db = L, key = "showSoulBar", label = "Show soul bar",
@@ -164,9 +166,9 @@ GUI.RegisterPage{
 
         -- ── Fury bar ────────────────────────────────────────────────────
         local c3 = page:Card("Fury bar",
-            "Shows current Fury with a projection of the next Reap's gain. Hidden during " ..
-            "the Meta phase. The MoC preview shows the extra soul fury gain while Moment " ..
-            "of Craving is available.",
+            "Shows current Fury with a projection of the next Reap's gain. The projection " ..
+            "is hidden during the Meta phase. The MoC preview shows the extra soul fury " ..
+            "gain while Moment of Craving is available.",
             LAYOUT_DEFAULTS)
 
         local furyShow = c3:Toggle{ db = L, key = "showFuryBar", label = "Show fury bar",

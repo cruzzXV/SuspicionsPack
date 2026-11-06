@@ -6,39 +6,19 @@ local GroupJoinedReminder = SP:NewSPModule("GroupJoinedReminder", "groupJoinedRe
 SP.GroupJoinedReminder = GroupJoinedReminder
 
 -- ============================================================
--- Internal state
+-- Event handler
+--
+-- LFG_LIST_JOINED_GROUP passes (searchResultID, groupName), and Blizzard's own
+-- join dialog reads the activity from that search result (LFGList.lua,
+-- LFGListInviteDialog_Show). LFG_LIST_ACTIVE_ENTRY_UPDATE is not listened to
+-- any more: its argument is true when you CREATE a listing, so listing your
+-- own Mythic+ group printed "Joined".
 -- ============================================================
-local pendingGroupName = nil
-
--- ============================================================
--- Event handlers
--- ============================================================
-function GroupJoinedReminder:OnGroupLeft()
-    pendingGroupName = nil
-end
-
-function GroupJoinedReminder:OnLFGEvent(event, ...)
+function GroupJoinedReminder:OnJoinedGroup(_, searchResultID, groupName)
     if not self:IsOn() then return end
 
-    -- Cache the group name from the join event
-    if event == "LFG_LIST_JOINED_GROUP" then
-        local _, groupName = ...
-        pendingGroupName = groupName
-    end
-
-    -- Both events pass `created` as their first vararg
-    local created = ...
-    if not created then return end
-
-    local entryData = C_LFGList.GetActiveEntryInfo()
-    if not entryData then return end
-
-    -- Grab first activity ID
-    local activityId = nil
-    for _, id in ipairs(entryData.activityIDs) do
-        activityId = id
-        break
-    end
+    local info       = searchResultID and C_LFGList.GetSearchResultInfo(searchResultID)
+    local activityId = info and info.activityIDs and info.activityIDs[1]
     if not activityId then return end
 
     local activityInfo = C_LFGList.GetActivityInfoTable(activityId)
@@ -48,7 +28,7 @@ function GroupJoinedReminder:OnLFGEvent(event, ...)
     if not (activityInfo.isMythicPlusActivity or activityInfo.isMythicActivity) then return end
 
     local namePart  = activityInfo.fullName or ""
-    local groupPart = pendingGroupName and (" " .. pendingGroupName) or ""
+    local groupPart = groupName and (" " .. groupName) or ""
     local fullName  = namePart .. groupPart
 
     local ac  = (SP.Theme and SP.Theme.accent) or { 1, 0, 0 }
@@ -64,14 +44,9 @@ end
 -- OnEnable / OnDisable / Refresh come from SP.ModuleMixin.
 -- ============================================================
 function GroupJoinedReminder:Activate()
-    self:RegisterEvent("GROUP_LEFT",                   "OnGroupLeft")
-    self:RegisterEvent("LFG_LIST_JOINED_GROUP",        "OnLFGEvent")
-    self:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", "OnLFGEvent")
+    self:RegisterEvent("LFG_LIST_JOINED_GROUP", "OnJoinedGroup")
 end
 
 function GroupJoinedReminder:Deactivate()
-    self:UnregisterEvent("GROUP_LEFT")
     self:UnregisterEvent("LFG_LIST_JOINED_GROUP")
-    self:UnregisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
-    pendingGroupName = nil
 end

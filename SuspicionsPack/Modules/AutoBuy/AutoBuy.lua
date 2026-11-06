@@ -108,11 +108,15 @@ local function ResolveItemID(preset, entry)
 end
 
 -- minQty: trigger threshold — only buy if bags are below this.
--- buyQty: purchase amount — how many to actually buy when triggered.
+-- buyQty: purchase amount — how many to actually buy when triggered; 0 buys
+-- exactly the shortfall, as the auction house list does (BuildBuyList) and as
+-- the page's Buy quantity box says. The vendor path used to buy nothing at 0,
+-- the value every preset ships with.
 local function DoBuy(id, minQty, buyQty)
     local have = GetBagCount(id)
     if have >= minQty then return end
     local need = buyQty
+    if need == 0 then need = minQty - have end
     if need <= 0 then return end
     local numItems = GetMerchantNumItems()
     for i = 1, numItems do

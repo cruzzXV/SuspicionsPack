@@ -1,0 +1,1213 @@
+local smb = SuspicionsPack.MAB
+local addonName = smb.ID -- the spellbook tab's id; the original used its folder name
+local Perf = SuspicionsPack.Perf
+
+-- Adds a "Macro Action Bar" tab to the spellbook. LibSpellBookTabs owns the tab, its placement and
+-- the parchment page; this file only draws smb.macros (built by Macros.lua) onto the page.
+
+local ICON_MACRO = "Interface\\MacroFrame\\MacroFrame-Icon" -- the "M" key shown on Blizzard's macro window
+-- the icon is a round portrait; crop to the square inside its border so the tab shows just the "M"
+local ICON_MACRO_COORDS = {0.15, 0.85, 0.15, 0.85}
+
+local function hideTooltip(owner)
+    if GameTooltip:IsOwned(owner) then GameTooltip:Hide() end
+end
+
+local setMacro, refresh
+
+local MODIFIER_LABELS = {shift = "Shift", ctrl = "Ctrl", alt = "Alt"}
+
+-- A spam option's menu label and button subtext, by the kind of condition it adds (see spamCondition in
+-- Macros.lua).
+local SPAM_LABELS = {
+    nostealth = {"Stay In Stealth On Recast", "Stay stealthed"},
+    noform = {"Stay In Form On Recast", "Stay in form"},
+    nochanneling = {"Don't Recast While Channeling", "No recast"},
+    ["!"] = {"Don't Toggle Off On Recast", "Spammable"},
+}
+
+local function spamLabels(macro)
+    return SPAM_LABELS[macro.spam:match("^[^:]+")]
+end
+
+-- A section's name in the right-click submenus: "Cat Spells" for one named after a form (see smb.formNames),
+-- so it isn't mistaken for the form itself.
+local function sectionLabel(name)
+    return tContains(smb.formNames(), name) and name .. " Spells" or name
+end
+
+-- A submenu's sections ({name = ...} tables, in page order) in the order it lists them: the one named first
+-- (optional) at the top, then the rest in page order, then the menuLast ones (see smb.menuLast).
+local function menuOrder(sections, first)
+    local ordered, last = {}, {}
+    for _, section in ipairs(sections) do
+        if section.name == first then
+            table.insert(ordered, 1, section)
+        elseif smb.menuLast(section.name) then
+            last[#last + 1] = section
+        else
+            ordered[#ordered + 1] = section
+        end
+    end
+    for _, section in ipairs(last) do ordered[#ordered + 1] = section end
+    return ordered
+end
+
+-- Every spell macro has a menu; custom macros don't. An enemy player copy's menu has its own
+-- options, apart from its spell's. Every spell macro's menu on the page ends with Duplicate Macro (a variant's
+-- also with Delete Macro), and every menu but a variant's with Reset To Default. The menu opens at owner (a page button, or an action
+-- button holding the macro), and calls onChange after every change. Opened from an action button, actionSlot
+-- is its action slot: a change there applies to that button alone (see smb.editMacro), and turning a copy on
+-- there puts the copy on that button. plainSpell is true when that button holds the plain spell (placed from
+-- Blizzard's spellbook) whose macro this is.
+local COPY_KEYS = {enemyPlayer = true}
+
+-- The Rank submenu's choices, in order: smb.rank's values (none for Normal) and their labels. Rank 1 Out Of
+-- Combat ("combat") is a checkbox of its own instead.
+local RANKS = {{label = "Normal"}, {rank = "raid", label = "Downrank In Raids"}}
+
+-- The labels of a modifier pick's Cast On modes but Target (see smb.modifierCastOn).
+local CAST_ON_LABELS = {mouseover = "Mouseover", focus = "Focus", cursor = "Cursor", self = "Self"}
+
+function smb.showMacroMenu(owner, macro, onChange, actionSlot, plainSpell)
+    if not smb.hasOptions(macro) then return end
+    -- every change goes through here: apply(m) changes macro m's settings. smb.editMacro may hand the change to
+    -- a new variant or merge the macro into a matching one, so the menu goes on with the macro it returns (the
+    -- getters read macro, so they follow it). False when the change was skipped. A change made everywhere (a
+    -- copy's option, which belongs to its spell) applies to the macro itself, as on the page
+    local function change(apply, everywhere)
+        local slot = not everywhere and actionSlot or nil
+        local survivor = smb.editMacro(macro, slot, slot ~= nil and plainSpell, apply)
+        if not survivor then return false end
+        macro = survivor
+        if slot then plainSpell = false end -- the button holds the macro now
+        return true
+    end
+    local function addOptions(rootDescription)
+        -- an equipment macro's menu is titled by its one section instead
+        if not macro.equipment then rootDescription:CreateTitle(macro.name) end
+        local function addOption(label, key)
+            return rootDescription:CreateCheckbox(label,
+                function() return smb.isOptionOn(macro, key) end,
+                function()
+                    if not change(function(m) smb.toggleOption(m, key) end, COPY_KEYS[key]) then return end
+                    -- adds, removes or rewrites the copy, and rewrites the macros casting this spell with a
+                    -- modifier key
+                    onChange()
+                    local isCopy = macro.enemyPlayer
+                    if actionSlot and COPY_KEYS[key] and not isCopy and smb.isOptionOn(macro, key) then
+                        local copy = smb.copyOf(macro.name, key)
+                        -- the button now holds the copy, so this menu no longer describes it
+                        if copy and smb.placeMacro(copy, actionSlot) then return MenuResponse.Close end
+                    end
+                end)
+        end
+        -- the Cast On radios: Target, then Mouseover, Focus, Cursor, Nearest Player and Self where the macro offers
+        -- them (see smb.offersCastOn), or none when it offers only Target. Greyed out while the macro casts its pet's
+        -- ability, which casts on none of them
+        local function addCastOn()
+            if not smb.offersCastOn(macro, "mouseover") and not smb.offersCastOn(macro, "focus")
+                and not smb.offersCastOn(macro, "cursor") and not smb.offersCastOn(macro, "nearest")
+                and not smb.offersCastOn(macro, "self") then return end
+            rootDescription:CreateTitle("Cast On")
+            local function addMode(label, mode)
+                if not smb.offersCastOn(macro, mode) then return end
+                rootDescription:CreateRadio(label,
+                    function() return smb.castOn(macro) == mode end,
+                    function()
+                        if not change(function(m) smb.setCastOn(m, mode) end) then return end
+                        onChange() -- rewrites the macro, the macros casting it with a modifier key, and its subtext
+                    end):SetEnabled(function() return not smb.isOptionOn(macro, "pet") end)
+            end
+            addMode("Target", nil)
+            addMode("Mouseover", "mouseover")
+            addMode("Focus", "focus")
+            addMode("Cursor", "cursor")
+            addMode("Nearest Player", "nearest")
+            addMode("Self", "self")
+            rootDescription:CreateDivider()
+        end
+        -- the Sequence submenu: the spells cast after the macro's own, ticked in order: the ones
+        -- smb.canSequence allows, under their section's title
+        local function addSequenceMenu()
+            if not smb.offersSequence(macro) then return end
+            local function changed()
+                onChange() -- rewrites the macro and its subtext
+            end
+            local picked = smb.sequenceSpells(macro)
+            local submenu = rootDescription:CreateButton("Sequence: "
+                .. (#picked > 0 and (#picked + 1) .. " spells" or "None"))
+            -- greyed out when it lists no spell to tick (set by the loops below, before the menu shows)
+            local hasPicks = false
+            -- a sequence can't downrank (see castBody in Macros.lua), so it is also greyed out while a rank
+            -- other than Normal is on. Either way it stays enabled while one is set, so it can be cleared.
+            submenu:SetEnabled(function()
+                return smb.hasSequenceOn(macro) or (hasPicks and smb.rank(macro) == nil)
+            end)
+            submenu:CreateTitle("Cast In Sequence (resets after 2 sec)")
+            submenu:CreateButton("Clear", function()
+                if not change(smb.clearSequence) then return end
+                changed()
+            end)
+            local function addPick(name, suffix)
+                hasPicks = true
+                local pos = smb.sequencePosition(macro, name)
+                submenu:CreateCheckbox(name .. (pos and " (" .. pos .. ")" or "") .. (suffix or ""),
+                    function() return smb.sequencePosition(macro, name) ~= nil end,
+                    function()
+                        if not change(function(m) smb.toggleSequenceSpell(m, name) end) then return end
+                        changed()
+                    end)
+            end
+            -- the menuLast sections (see smb.menuLast) go after the rest
+            local listed, section = {}, nil
+            for _, lastPass in ipairs({false, true}) do
+                for _, other in ipairs(smb.macros) do
+                    if smb.macroByName[other.name] == other and smb.canSequence(macro, other)
+                        and smb.menuLast(other.category) == lastPass then
+                        if other.category ~= section then
+                            section = other.category
+                            submenu:CreateTitle(sectionLabel(section))
+                        end
+                        listed[other.name] = true
+                        addPick(other.name)
+                    end
+                end
+            end
+            -- a pick no longer learned (e.g. after a respec) or moved out of a sequence section stays listed,
+            -- so it can be unticked
+            for _, name in ipairs(picked) do
+                if not listed[name] then addPick(name, " (unavailable)") end
+            end
+        end
+        -- the Then Cast submenu of a cooldown spell: the one spell cast right after its own, from the ones
+        -- smb.canFollowUp allows (Unsorted included), under their section's title
+        local function addFollowUpMenu()
+            if not smb.offersFollowUp(macro) then return end
+            local picked = smb.followUpSpell(macro)
+            local submenu = rootDescription:CreateButton("Then Cast: " .. (picked or "None"))
+            submenu:CreateTitle("Cast Right After (same press)")
+            local function addPick(label, name)
+                submenu:CreateRadio(label,
+                    function() return smb.followUpSpell(macro) == name end,
+                    function()
+                        if not change(function(m) smb.setFollowUpSpell(m, name) end) then return end
+                        onChange() -- rewrites the macro and its subtext
+                    end)
+            end
+            addPick("None", nil)
+            -- the menuLast sections (see smb.menuLast) go after the rest
+            local listed, section = false, nil
+            for _, lastPass in ipairs({false, true}) do
+                for _, other in ipairs(smb.macros) do
+                    if smb.macroByName[other.name] == other and smb.canFollowUp(macro, other)
+                        and smb.menuLast(other.category) == lastPass then
+                        if other.category ~= section then
+                            section = other.category
+                            submenu:CreateTitle(sectionLabel(section))
+                        end
+                        if other.name == picked then listed = true end
+                        addPick(other.name, other.name)
+                    end
+                end
+            end
+            -- a pick no longer learned or moved out of its section stays listed, so it can be changed back
+            if picked and not listed then addPick(picked .. " (unavailable)", picked) end
+        end
+        if macro.equipment then
+            rootDescription:CreateTitle("Before Using")
+            addOption("Stop Attacking", "equipStopAttack")
+            addOption("Stop Casting", "equipStopCast")
+            return
+        end
+        -- a copy has its own options (see settingKey in Macros.lua), led by the one that removes it, but
+        -- casts on its fixed target and offers no copies of its own.
+        -- A variant has the options of the macro it came from, but none that add or remove a copy: those are its
+        -- spell's
+        local isCopy = macro.enemyPlayer
+        local removable = not macro.variant
+        if macro.enemyPlayer then
+            if removable then addOption("Cast On Enemy Player", "enemyPlayer") end
+        else
+            addCastOn()
+            if macro.petAbility then addOption("Cast " .. macro.petAbility .. " If Summoned", "pet") end
+        end
+        -- the Rank submenu, for the class config's raidRank1 spells: one radio per rank the macro offers
+        if macro.raidRank1 then
+            local current = "Normal"
+            for _, choice in ipairs(RANKS) do
+                if choice.rank == smb.rank(macro) then current = choice.label end
+            end
+            local submenu = rootDescription:CreateButton("Rank: " .. current)
+            submenu:CreateTitle("Rank")
+            for _, choice in ipairs(RANKS) do
+                if smb.offersRank(macro, choice.rank) then
+                    local radio = submenu:CreateRadio(choice.label,
+                        function() return smb.rank(macro) == choice.rank end,
+                        function()
+                            if not change(function(m) smb.setRank(m, choice.rank) end) then return end
+                            onChange() -- rewrites the macro and its subtext
+                        end)
+                    -- a sequence can't downrank (see castBody in Macros.lua)
+                    if choice.rank ~= nil then
+                        radio:SetEnabled(function() return not smb.hasSequenceOn(macro) end)
+                    end
+                end
+            end
+        end
+        -- Rank 1 Out Of Combat, for the class config's combatRank1 spells: the "combat" rank, ticked, or Normal.
+        -- Greyed out while a sequence is on, which can't downrank (see castBody in Macros.lua)
+        if smb.offersRank(macro, "combat") then
+            rootDescription:CreateCheckbox("Rank 1 Out Of Combat",
+                function() return smb.rank(macro) == "combat" end,
+                function()
+                    local rank = smb.rank(macro) ~= "combat" and "combat" or nil
+                    if not change(function(m) smb.setRank(m, rank) end) then return end
+                    onChange() -- rewrites the macro and its subtext
+                end):SetEnabled(function() return not smb.hasSequenceOn(macro) end)
+        end
+        -- "Don't Toggle Off On Recast" (Auto Shot) sits below Cast On Enemy Player instead
+        local noToggle = macro.spam and macro.spam:match("^[^:]+") == "!"
+        if macro.spam and not noToggle then addOption(spamLabels(macro)[1], "spam") end
+        if not isCopy and not macro.variant then
+            if macro.dispel then addOption("Cast On Enemy Player", "enemyPlayer") end
+        end
+        if noToggle then addOption(spamLabels(macro)[1], "spam") end
+        -- one submenu per side of the cast: /cast !Auto Shot, /startattack, /stopattack, /petattack, /petfollow, the offGcd spells, the race's racials and the equipped
+        -- on-use items, each on either side, both or neither, and /stopcasting, /cancelaura Ice Block, /cleartarget
+        -- [dead] and /targetenemy before only
+        local function addSide(side)
+            -- each line as {label, id, isOn, toggle}, the id naming it for smb.sidePosition, and toggle(m)
+            -- flipping it on macro m (see change)
+            local lines = {}
+            local function addLine(key, label)
+                lines[#lines + 1] = {label, key,
+                    function() return smb.isLineOn(macro, key, side) end,
+                    function(m) smb.toggleLine(m, key, side) end}
+            end
+            if side == "before" and smb.offersRetarget(macro) then
+                addLine("clearDead", "Clear Dead Target")
+                addLine("targetEnemy", "Target Nearest Enemy")
+            end
+            if smb.offersAutoShot(macro) then addLine("autoShot", "Auto Shot") end
+            if smb.offersStartAttack(macro) then
+                addLine("startAttack", "Start Attack")
+                addLine("stopAttack", "Stop Attack")
+            end
+            if smb.offersPetAttack(macro) then addLine("petAttack", "Pet Attack") end
+            if smb.offersPetFollow(macro) then addLine("petFollow", "Pet Follow") end
+            if side == "before" and smb.offersStopCast(macro) then addLine("stopCast", "Stop Casting") end
+            if side == "before" and smb.offersCancelIceBlock(macro) then addLine("cancelIceBlock", "Cancel Ice Block") end
+            if smb.offersUseItems(macro) then
+                -- the offGcd spells share the racials' settings (see castLineSpells in Macros.lua)
+                for _, name in ipairs(smb.offeredOffGcd(macro, side)) do
+                    lines[#lines + 1] = {name, name,
+                        function() return smb.isRacialOn(macro, name, side) end,
+                        function(m) smb.toggleRacial(m, name, side) end,
+                        stance = smb.isStance(name) or nil}
+                end
+                -- the racials go last
+                for _, racial in ipairs(smb.offeredRacials()) do
+                    lines[#lines + 1] = {"Racial: " .. racial, racial,
+                        function() return smb.isRacialOn(macro, racial, side) end,
+                        function(m) smb.toggleRacial(m, racial, side) end}
+                end
+            end
+            -- a ticked line's label ends with its place in the macro, in the order the player ticked them
+            local function placed(label, id)
+                local at = smb.sidePosition(macro, id, side)
+                return label .. (at and " (" .. at .. ")" or "")
+            end
+            -- rewrites the label on every refresh, so its place updates while the menu stays open
+            local function livePlaced(checkbox, label, id)
+                checkbox:AddInitializer(function(frame)
+                    frame.fontString:SetText(placed(label, id))
+                end)
+            end
+            -- the equipped on-use items, plus any slot already ticked so it can be unticked after a gear swap
+            local slots, listed = {}, {}
+            if smb.offersUseItems(macro) then
+                for _, usable in ipairs(smb.usableSlots()) do
+                    slots[#slots + 1], listed[usable.slot] = usable.slot, true
+                end
+                for _, slot in ipairs(smb.useItemSlots(macro, side)) do
+                    if not listed[slot] then slots[#slots + 1] = slot end
+                end
+            end
+            -- with no on-use item equipped, a greyed-out line shows where one would be listed
+            local noItems = smb.offersUseItems(macro) and #slots == 0
+            if #lines == 0 and #slots == 0 and not noItems then return end
+            local title = side == "before" and "Before Casting" or "After Casting"
+            local submenu = rootDescription:CreateButton(title)
+            submenu:CreateTitle(title)
+            for i, line in ipairs(lines) do
+                local label, id, isOn, toggle = line[1], line[2], line[3], line[4]
+                -- a divider sets the Warrior stances apart from the lines around them
+                if i > 1 and line.stance ~= lines[i - 1].stance then submenu:CreateDivider() end
+                livePlaced(submenu:CreateCheckbox(placed(label, id), isOn, function()
+                    if not change(toggle) then return end
+                    onChange() -- rewrites the macro and its subtext
+                    return MenuResponse.Refresh -- renumbers the other labels
+                end), label, id)
+            end
+            if #lines > 0 and (#slots > 0 or noItems) then submenu:CreateDivider() end
+            for _, slot in ipairs(slots) do
+                local label = smb.slotLabel(slot)
+                livePlaced(submenu:CreateCheckbox(placed(label, slot),
+                    function() return smb.isUsingSlot(macro, slot, side) ~= nil end,
+                    function()
+                        if not change(function(m) smb.toggleUseSlot(m, slot, side) end) then return end
+                        onChange() -- rewrites the macro and its subtext
+                        return MenuResponse.Refresh -- renumbers the other labels
+                    end), label, slot)
+            end
+            if noItems then
+                submenu:CreateButton("No On-Use Item Equipped"):SetEnabled(false)
+            end
+        end
+        addSide("before")
+        addSide("after")
+        addSequenceMenu()
+        addFollowUpMenu()
+        if not smb.offersModifiers(macro) then return end
+        -- one submenu per modifier key, picking the spell cast while it is held from the page's other learned
+        -- spells, grouped by section, as lists of names
+        local sections = {}
+        for _, other in ipairs(smb.macros) do
+            if not other.unlearned and smb.macroByName[other.name] == other and other.name ~= macro.name then
+                local section = sections[#sections]
+                if not section or section.name ~= other.category then
+                    section = {name = other.category}
+                    sections[#sections + 1] = section
+                end
+                section[#section + 1] = other.name
+            end
+        end
+        rootDescription:CreateDivider()
+        for _, mod in ipairs(smb.MODIFIERS) do
+            local label = MODIFIER_LABELS[mod]
+            -- picks a spell (nil for None), cast where castOn says (see smb.modifierCastOn)
+            local function pick(name, castOn)
+                if not change(function(m) smb.setModifierSpell(m, mod, name, castOn) end) then return end
+                onChange() -- rewrites the macro and its subtext
+            end
+            local function pickSlot(slot)
+                if not change(function(m) smb.setModifierSlot(m, mod, slot) end) then return end
+                onChange() -- rewrites the macro and its subtext
+            end
+            local current = smb.modifierSpell(macro, mod)
+            local currentSlot = smb.modifierSlot(macro, mod)
+            local currentCastOn = smb.modifierCastOn(macro, mod)
+            local other = current and smb.macroByName[current]
+            if not (other and currentCastOn and smb.offersCastOn(other, currentCastOn)) then currentCastOn = nil end
+            local submenu = rootDescription:CreateButton(label .. ": " .. (currentSlot and smb.slotLabel(currentSlot)
+                or current and current .. (currentCastOn and " (" .. CAST_ON_LABELS[currentCastOn] .. ")" or "")
+                or "None"))
+            submenu:CreateTitle("Cast While " .. label .. " Is Held")
+            submenu:CreateRadio("None", function()
+                return smb.modifierSpell(macro, mod) == nil and smb.modifierSlot(macro, mod) == nil
+            end, function() pick(nil) end)
+            -- a spell that can be cast anywhere but its target gets a Cast On submenu, set for this key alone:
+            -- Target (smb.modifierCastOn's nil), then the modes the spell offers. Clicking the spell itself
+            -- picks it on Target
+            local function addPickCastOn(radio, name)
+                local picked = smb.macroByName[name]
+                if not smb.offersCastOn(picked, "mouseover") and not smb.offersCastOn(picked, "cursor")
+                    and not smb.offersCastOn(picked, "self") then return end
+                radio:CreateTitle("Cast On")
+                local function addMode(modeLabel, mode)
+                    if mode ~= nil and not smb.offersCastOn(picked, mode) then return end
+                    radio:CreateRadio(modeLabel, function()
+                        return smb.modifierSpell(macro, mod) == name and smb.modifierCastOn(macro, mod) == mode
+                    end, function() pick(name, mode) end)
+                end
+                addMode("Target", nil)
+                addMode("Mouseover", "mouseover")
+                addMode("Focus", "focus")
+                addMode("Cursor", "cursor")
+                addMode("Self", "self")
+            end
+            local listed = false
+            for _, section in ipairs(menuOrder(sections)) do
+                local sectionMenu = submenu:CreateButton(sectionLabel(section.name))
+                for _, name in ipairs(section) do
+                    listed = listed or name == current
+                    addPickCastOn(sectionMenu:CreateRadio(name,
+                        function() return smb.modifierSpell(macro, mod) == name end,
+                        function() pick(name) end), name)
+                end
+            end
+            -- a pick no longer learned (e.g. after a respec) stays listed, so the player sees why it does nothing
+            if current and not listed then
+                submenu:CreateRadio(current .. " (not learned)",
+                    function() return smb.modifierSpell(macro, mod) == current end,
+                    function() pick(current) end)
+            end
+            -- the equipped on-use items, greyed out while none is worn
+            local usable = smb.usableSlots()
+            local equipMenu = submenu:CreateButton("Equipment")
+            equipMenu:SetEnabled(usable[1] ~= nil)
+            local slotListed = false
+            for _, entry in ipairs(usable) do
+                local slot = entry.slot
+                slotListed = slotListed or slot == currentSlot
+                equipMenu:CreateRadio(smb.slotLabel(slot), function() return smb.modifierSlot(macro, mod) == slot end,
+                    function() pickSlot(slot) end)
+            end
+            -- a picked slot whose item has no use effect now (e.g. after a gear swap) stays listed, so the player
+            -- sees why it does nothing
+            if currentSlot and not slotListed then
+                submenu:CreateRadio(smb.slotLabel(currentSlot) .. " (no use effect)",
+                    function() return smb.modifierSlot(macro, mod) == currentSlot end,
+                    function() pickSlot(currentSlot) end)
+            end
+        end
+        if not smb.offersForms(macro) then return end
+        -- one submenu per form, picking the spell cast while in it from the same sections, without the
+        -- sections of other forms (see smb.formAllows)
+        rootDescription:CreateDivider()
+        for _, form in ipairs(smb.formNames()) do
+            local function pick(name)
+                if not change(function(m) smb.setFormSpell(m, form, name) end) then return end
+                onChange() -- rewrites the macro and its subtext
+            end
+            local current = smb.formSpell(macro, form)
+            local submenu = rootDescription:CreateButton(form .. ": " .. (current or "None"))
+            submenu:CreateTitle("Cast In " .. form .. " " .. smb.formNoun())
+            submenu:CreateRadio("None", function() return smb.formSpell(macro, form) == nil end,
+                function() pick(nil) end)
+            local listed = false
+            -- the form's own section first (see smb.formSection)
+            for _, section in ipairs(menuOrder(sections, smb.formSection(form))) do
+                local sectionMenu
+                for _, name in ipairs(section) do
+                    if smb.formAllows(form, smb.macroByName[name]) then
+                        listed = listed or name == current
+                        sectionMenu = sectionMenu or submenu:CreateButton(sectionLabel(section.name))
+                        sectionMenu:CreateRadio(name, function() return smb.formSpell(macro, form) == name end,
+                            function() pick(name) end)
+                    end
+                end
+            end
+            -- a pick no longer learned (e.g. after a respec), or from another form's section (or needing another
+            -- stance), stays listed, so the player sees why it does nothing
+            if current and not listed then
+                local other = smb.macroByName[current]
+                local why = other and not other.unlearned and "other " .. smb.formNoun():lower() or "not learned"
+                submenu:CreateRadio(current .. " (" .. why .. ")",
+                    function() return smb.formSpell(macro, form) == current end,
+                    function() pick(current) end)
+            end
+        end
+    end
+    MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
+        addOptions(rootDescription)
+        if not smb.offersReset(macro) then return end
+        rootDescription:CreateDivider()
+        local function outOfCombat() return not InCombatLockdown() end
+        -- Duplicate Macro adds a variant of a spell macro, set up the same, to set up apart. Only on the page:
+        -- a button on an action bar already gets its own copy when changed
+        if not macro.equipment and not actionSlot then
+            rootDescription:CreateButton("Duplicate Macro", function()
+                if smb.duplicateMacro(macro) then onChange() end
+            end):SetEnabled(outOfCombat)
+        end
+        -- Delete Macro deletes a variant and takes it off its buttons
+        if macro.variant then
+            rootDescription:CreateButton("Delete Macro", function()
+                smb.removeVariant(macro)
+                onChange()
+            end):SetEnabled(outOfCombat)
+        end
+        -- at the bottom of every menu but a variant's, greyed out while nothing differs from the defaults
+        if not macro.variant then
+            rootDescription:CreateButton("Reset To Default", function()
+                if not change(smb.resetMacro) then return end
+                onChange() -- removes the copies, and rewrites the subtext
+            end):SetEnabled(function() return smb.hasCustomSettings(macro) end)
+        end
+    end)
+end
+
+-- Native spellbook geometry (Camelot's Blizzard_SpellBookTemplates.xml): each page's spell view is 680
+-- wide, 95 below the book's top, 85 from its left (left page) or 50 from its right (right page). Our page
+-- frame starts 60 below the book's top.
+local VIEW_WIDTH, VIEW_TOP, VIEW_LEFT, VIEW_RIGHT, VIEW_BOTTOM = 680, -35, 85, 50, 75
+local COLUMNS, CELL_HEIGHT, CATEGORY_GAP = 3, 52, 12
+local FOOTER_BOTTOM = 46 -- the footer's bottom edge, roughly level with the paging arrows (40 up)
+-- the book can be narrower than the native views: a minimized book's single page keeps this much off each
+-- edge, and an open book's pages keep this much off the spine
+local MIN_MARGIN, SPINE_GAP = 30, 30
+local ICON_SIZE = 36
+
+-- parchment ink, matching the native spell names and subtext
+local INK_COLOR = {0.18, 0.106, 0.059}
+local MOUSEOVER_COLOR = {0.10, 0.38, 0.05}
+
+-- The native spell item's atlases and layout (Camelot's SpellBookItemTemplate, read in game). The item is
+-- 217x60 with a 40x40 icon button at its left; our button is the item, so the native button's anchors
+-- become offsets from the 36x36 icon, which sits 2 inside it. Each falls back to an old file texture,
+-- sized from the icon, if this build lacks the atlas.
+local ITEM_WIDTH = 217
+local ATLAS_FRAME = "spellbook-item-iconframe"
+local ATLAS_FRAME_INACTIVE = "spellbook-item-iconframe-inactive"
+local ATLAS_FRAME_HOVER = "spellbook-item-iconframe-hover"
+local ATLAS_GLOW = "spellbook-item-unassigned-glow"
+local ATLAS_MASK = "spellbook-item-spellicon-mask"
+
+local function hasAtlas(atlas)
+    return C_Texture.GetAtlasInfo(atlas) ~= nil
+end
+
+-- Stretches texture over the icon, grown by the given insets (left, top, right, bottom).
+local function setAroundIcon(texture, icon, left, top, right, bottom)
+    texture:ClearAllPoints()
+    texture:SetPoint("TOPLEFT", icon, "TOPLEFT", -left, top)
+    texture:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", right, -bottom)
+end
+
+-- Returns true when the atlas was used.
+local function setAtlasOr(texture, atlas, file, scale, icon)
+    if hasAtlas(atlas) then
+        texture:SetAtlas(atlas, false)
+        return true
+    end
+    if file then
+        texture:SetTexture(file)
+        texture:SetSize(ICON_SIZE * scale, ICON_SIZE * scale)
+        texture:SetPoint("CENTER", icon)
+    end
+    return false
+end
+
+local BODY_WRAP = 40 -- characters per tooltip line for a macro body
+
+-- Adds a macro body to GameTooltip, one line per body line. A long line is broken after a space, ")", ";"
+-- or ",", since the tooltip's own wrapping spaces out a long line with few spaces badly.
+function smb.addMacroBodyLines(body)
+    for line in (body .. "\n"):gmatch("(.-)\n") do
+        while #line > BODY_WRAP do
+            local cut = BODY_WRAP
+            for i = BODY_WRAP, 1, -1 do
+                if line:sub(i, i):find("[%s%);,]") then
+                    cut = i
+                    break
+                end
+            end
+            GameTooltip:AddLine(line:sub(1, cut), 1, 1, 1)
+            line = line:sub(cut + 1):gsub("^%s+", "")
+        end
+        GameTooltip:AddLine(line, 1, 1, 1)
+    end
+end
+
+-- Shows a page button's tooltip: while Alt is held, a custom macro's description or else the game's own
+-- tooltip for the spell or item, otherwise the macro's.
+local function showTooltip(button)
+    local macro = button.macro
+    GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
+    if IsAltKeyDown() and macro.description then
+        GameTooltip:SetText(macro.name)
+        GameTooltip:AddLine(macro.description, 1, 1, 1, true)
+        GameTooltip:Show()
+        return
+    end
+    if IsAltKeyDown() and smb.setGameTooltip(macro) then
+        GameTooltip:Show()
+        return
+    end
+    GameTooltip:SetText(macro.name)
+    smb.addMacroBodyLines(macro.body)
+    if macro.tooLong then
+        GameTooltip:AddLine("Too long: " .. #macro.body .. "/255 characters. Turn off some options.",
+            1, 0.1, 0.1, true)
+    end
+    if macro.unlearned then
+        GameTooltip:AddLine("Not learned yet.", 1, 0.1, 0.1, true)
+    elseif button.glow:IsShown() then
+        GameTooltip:AddLine("Not on your action bars.", 0.5, 0.5, 0.5, true)
+    end
+    GameTooltip:AddLine("Click or drag to place on an action bar.", 0.5, 0.5, 0.5, true)
+    if smb.hasOptions(macro) then
+        GameTooltip:AddLine("Right-click for options, here or on your action bars.", 0.5, 0.5, 0.5, true)
+    end
+    local kind = smb.gameTooltipKind(macro)
+    if macro.description then
+        GameTooltip:AddLine("Hold Alt for the description.", 0.5, 0.5, 0.5, true)
+    elseif kind then
+        GameTooltip:AddLine("Hold Alt for the " .. kind .. "'s tooltip.", 0.5, 0.5, 0.5, true)
+    end
+    GameTooltip:Show()
+end
+
+local function leaveButton(button)
+    button:UnregisterEvent("MODIFIER_STATE_CHANGED")
+    hideTooltip(button)
+end
+
+-- Cells are reused across refreshes; setMacro points one at a macro.
+local function createMacroButton(parent)
+    local button = CreateFrame("Button", nil, parent)
+    button:SetSize(ITEM_WIDTH, ICON_SIZE + 4)
+    button.icon = button:CreateTexture(nil, "ARTWORK", nil, -1)
+    button.icon:SetSize(ICON_SIZE, ICON_SIZE)
+    button.icon:SetPoint("LEFT", 2, 0)
+    if hasAtlas(ATLAS_MASK) then
+        local mask = button:CreateMaskTexture()
+        mask:SetAtlas(ATLAS_MASK, false)
+        mask:SetAllPoints(button.icon)
+        button.icon:AddMaskTexture(mask)
+    end
+    -- the frame's curl hangs off the icon's bottom left
+    button.border = button:CreateTexture(nil, "OVERLAY", nil, 1)
+    if setAtlasOr(button.border, ATLAS_FRAME, "Interface\\Buttons\\UI-Quickslot2", 1.6, button.icon) then
+        setAroundIcon(button.border, button.icon, 13, 3, 3, 9)
+    end
+    -- glow on a macro that isn't on the action bars yet, like the native page's unassigned spells
+    button.glow = button:CreateTexture(nil, "OVERLAY", nil, 5)
+    if setAtlasOr(button.glow, ATLAS_GLOW, "Interface\\Buttons\\UI-ActionButton-Border", 1.8, button.icon) then
+        setAroundIcon(button.glow, button.icon, 6, 5, 5, 5)
+    else
+        button.glow:SetBlendMode("ADD")
+        button.glow:SetVertexColor(1, 0.82, 0) -- the texture is white; Blizzard tints it per use
+    end
+    button.glow:Hide()
+    -- fades in and out like the spellbook's glow on new spells; updateGlow starts it
+    button.pulse = button.glow:CreateAnimationGroup()
+    button.pulse:SetLooping("BOUNCE")
+    local fade = button.pulse:CreateAnimation("Alpha")
+    fade:SetFromAlpha(1)
+    fade:SetToAlpha(0.2)
+    fade:SetDuration(0.5)
+    fade:SetSmoothing("IN_OUT")
+    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+    if hasAtlas(ATLAS_FRAME_HOVER) then
+        highlight:SetAtlas(ATLAS_FRAME_HOVER, false)
+    else
+        highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+        highlight:SetBlendMode("ADD")
+    end
+    setAroundIcon(highlight, button.icon, 2, 2, 2, 2)
+
+    local text = CreateFrame("Frame", nil, button)
+    text:SetHeight(29.5)
+    text:SetPoint("LEFT", 50, -1)
+    text:SetPoint("RIGHT", 0, -1)
+    button.name = text:CreateFontString(nil, "ARTWORK", "SystemFont_Large")
+    button.name:SetPoint("TOPLEFT")
+    button.name:SetPoint("TOPRIGHT")
+    button.name:SetJustifyH("LEFT")
+    button.name:SetWordWrap(false)
+    button.name:SetTextColor(unpack(INK_COLOR))
+    button.subText = text:CreateFontString(nil, "ARTWORK", "SystemFont_Med1")
+    button.subText:SetPoint("TOPLEFT", button.name, "BOTTOMLEFT", 0, -2)
+    button.subText:SetPoint("TOPRIGHT", button.name, "BOTTOMRIGHT", 0, -2)
+    button.subText:SetJustifyH("LEFT")
+    button.subText:SetWordWrap(false)
+
+    button:RegisterForDrag("LeftButton")
+    button:SetScript("OnDragStart", function(self) smb.pickupMacro(self.macro) end)
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    button:SetScript("OnClick", function(self, mouseButton)
+        if mouseButton == "RightButton" then
+            local page = self:GetParent()
+            smb.showMacroMenu(self, self.macro, function() refresh(page) end)
+        else
+            smb.pickupMacro(self.macro)
+        end
+    end)
+    button:SetScript("OnEnter", function(self)
+        self:RegisterEvent("MODIFIER_STATE_CHANGED")
+        showTooltip(self)
+    end)
+    -- pressing or releasing Alt while hovering swaps between the macro's tooltip and the game's own
+    button:SetScript("OnEvent", Perf.WrapEvent("MacroActionBar", function(self, _, key)
+        if (key == "LALT" or key == "RALT") and GameTooltip:IsOwned(self) then showTooltip(self) end
+    end))
+    button:SetScript("OnLeave", leaveButton)
+    button:SetScript("OnHide", leaveButton)
+    return button
+end
+
+-- Shows the glow when the button's macro is learned but not on the bars (from smb.scanActionBars).
+-- Custom macros and those in a noGlow category never glow.
+local function updateGlow(button, bars)
+    local macro = button.macro
+    local shown = not macro.custom and not macro.noGlow and not macro.unlearned
+        and not smb.isOnActionBars(macro, bars)
+    button.glow:SetShown(shown)
+    if not shown then
+        button.pulse:Stop()
+    elseif not button.pulse:IsPlaying() then
+        button.pulse:Play()
+    end
+end
+
+-- bars is a smb.scanActionBars() result, scanned here when nil.
+function setMacro(button, macro, bars)
+    button.macro = macro
+    updateGlow(button, bars or smb.scanActionBars())
+    button.icon:SetTexture(macro.icon)
+    button.icon:SetDesaturated(macro.unlearned == true)
+    local frameAtlas = macro.unlearned and ATLAS_FRAME_INACTIVE or ATLAS_FRAME
+    if hasAtlas(frameAtlas) then button.border:SetAtlas(frameAtlas, false) end
+    button.name:SetText(macro.name)
+    if macro.custom then
+        button.subText:SetText("Custom")
+        button.subText:SetTextColor(unpack(INK_COLOR))
+    elseif macro.equipment then
+        button.subText:SetText(macro.slotLabel)
+        button.subText:SetTextColor(unpack(INK_COLOR))
+    elseif macro.enemyPlayer then
+        button.subText:SetText("Enemy")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.isOptionOn(macro, "pet") then
+        button.subText:SetText("Pet")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.castOn(macro) == "cursor" then
+        button.subText:SetText("Cursor")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.castOn(macro) == "mouseover" then
+        button.subText:SetText("Mouseover")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.castOn(macro) == "focus" then
+        button.subText:SetText("Focus")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.castOn(macro) == "nearest" then
+        button.subText:SetText("Nearest")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.castOn(macro) == "self" then
+        button.subText:SetText("Self")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.hasSequenceOn(macro) then
+        button.subText:SetText("Sequence")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.hasFollowUpOn(macro) then
+        button.subText:SetText("Follow-up")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.hasFormOn(macro) then
+        button.subText:SetText(smb.formNoun() .. "s")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.hasModifierOn(macro) then
+        button.subText:SetText("Has Modifiers")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.useItemSlots(macro, "before")[1] or smb.useItemSlots(macro, "after")[1] then
+        button.subText:SetText("Use items")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.hasRacialOn(macro) then
+        button.subText:SetText("Racial")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.hasOffGcdOn(macro) then
+        button.subText:SetText("Cooldown")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.isLineOn(macro, "petAttack", "before") or smb.isLineOn(macro, "petAttack", "after") then
+        button.subText:SetText("Pet attack")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.rank(macro) == "raid" then
+        button.subText:SetText("Raid R1")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.rank(macro) == "combat" then
+        button.subText:SetText("OOC R1")
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    elseif smb.isOptionOn(macro, "spam") then
+        button.subText:SetText(spamLabels(macro)[2])
+        button.subText:SetTextColor(unpack(MOUSEOVER_COLOR))
+    else
+        button.subText:SetText(smb.hasCastOptions(macro) and "Macro" or "Self")
+        button.subText:SetTextColor(unpack(INK_COLOR))
+    end
+    -- a variant (see smb.newVariant) also shows its number
+    if macro.variant then button.subText:SetText(button.subText:GetText() .. " #" .. macro.variant) end
+end
+
+-- A section header in the pack's Forever style (SuspicionsPack, Core\Skin.lua): the name over Plumber's small
+-- diamond and bronze line, in the parchment's ink, where the original used the native page's category bar. As
+-- tall as that bar was, so the rows keep their place. The diamond and line are drawn once, at creation.
+local function createHeader(parent)
+    local header = CreateFrame("Frame", nil, parent)
+    header:SetHeight(30)
+    header.Text = header:CreateFontString(nil, "OVERLAY")
+    SuspicionsPack.SetFontSafe(header.Text, STANDARD_TEXT_FONT, 14, "")
+    header.Text:SetTextColor(unpack(INK_COLOR))
+    SuspicionsPack.Skin.PlumberHeader(header, header.Text, 0, -20, header, 0)
+    return header
+end
+
+local function setHeader(header, text, width)
+    header:SetWidth(width)
+    header.Text:SetText(text)
+end
+
+-- Acquire hands out pooled frames in order; ReleaseAll hides the ones from the last layout.
+local function framePool(create)
+    local pool = {used = 0}
+    function pool:Acquire()
+        self.used = self.used + 1
+        local frame = self[self.used] or create()
+        self[self.used] = frame
+        frame:ClearAllPoints()
+        frame:Show()
+        return frame
+    end
+    function pool:ReleaseAll()
+        for i = 1, #self do self[i]:Hide() end
+        self.used = 0
+    end
+    return pool
+end
+
+-- A macro matches the search when its name or section contains the (lowercased) filter; no filter matches all.
+local function matches(macro, filter)
+    if not filter or filter == "" then return true end
+    return macro.name:lower():find(filter, 1, true) ~= nil
+        or (macro.category or ""):lower():find(filter, 1, true) ~= nil
+end
+
+-- Splits the macros matching filter into page halves of {header = text, y} and {macro, column, y} entries. A
+-- category flows top to bottom and repeats its header when it carries over to the next half. Returns no
+-- halves when nothing matches.
+local function paginate(height, headerHeight, columns, filter)
+    local shown = {}
+    for _, macro in ipairs(smb.macros) do
+        if matches(macro, filter) then shown[#shown + 1] = macro end
+    end
+    if #shown == 0 then return {} end
+    local halves, half, y = {}, nil, 0
+    local function newHalf()
+        half, y = {}, 0
+        halves[#halves + 1] = half
+    end
+    local function addHeader(text)
+        half[#half + 1] = {header = text, y = y}
+        y = y + headerHeight
+    end
+    newHalf()
+    local category, column
+    for _, macro in ipairs(shown) do
+        if macro.category ~= category then
+            category, column = macro.category, 0
+            if y > 0 then
+                y = y + CELL_HEIGHT + CATEGORY_GAP -- close the previous category's last row
+                if y + headerHeight + CELL_HEIGHT > height then newHalf() end
+            end
+            addHeader(category)
+        elseif column == columns then
+            column = 0
+            y = y + CELL_HEIGHT
+            if y + CELL_HEIGHT > height then
+                newHalf()
+                addHeader(category)
+            end
+        end
+        half[#half + 1] = {macro = macro, column = column, y = y}
+        column = column + 1
+    end
+    return halves
+end
+
+-- Draws the current spread: two pages side by side, or one when the book is minimized.
+local function layout(page)
+    page.headers:ReleaseAll()
+    page.buttons:ReleaseAll()
+    local controls = page.pagingControls
+    local width, height = page:GetWidth(), page:GetHeight()
+    -- the book's own minimize/maximize state, so a two-page book narrower than two native views still
+    -- gets both pages; the width check is a fallback for a build without the flag
+    local minimized = PlayerSpellsFrame.SpellBookFrame.isMinimized
+    if minimized == nil then minimized = width < 2 * VIEW_WIDTH end
+    local spread = minimized and 1 or 2
+    -- a minimized book shows one page, centred; an open one uses the native left and right pages. Each is
+    -- narrowed to fit, with fewer columns when it's too narrow for three
+    local viewWidth = spread == 2 and math.min(VIEW_WIDTH, width / 2 - VIEW_LEFT - SPINE_GAP)
+        or math.min(VIEW_WIDTH, width - 2 * MIN_MARGIN)
+    local columns = math.max(1, math.min(COLUMNS, math.floor(viewWidth / ITEM_WIDTH)))
+    local cellWidth = viewWidth / columns
+    local origins = spread == 2 and {VIEW_LEFT, width - VIEW_RIGHT - viewWidth} or {(width - viewWidth) / 2}
+    page.footer:ClearAllPoints()
+    page.footer:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", origins[1] + 8, FOOTER_BOTTOM)
+    -- stops short of the paging arrows, wrapping upward when the page is narrow
+    page.footer:SetWidth(spread == 2 and viewWidth - 16 or viewWidth - 180)
+    local headerHeight = math.max(page.headers:Acquire():GetHeight(), 30) + 8
+    page.headers:ReleaseAll()
+
+    local halves = paginate(height + VIEW_TOP - VIEW_BOTTOM, headerHeight, columns, page.filter)
+    if #halves == 0 then
+        local header = page.headers:Acquire()
+        header:SetPoint("TOPLEFT", page, "TOPLEFT", origins[1], VIEW_TOP)
+        setHeader(header, "Macro Action Bar", viewWidth)
+        page.empty:SetText(#smb.macros == 0 and "No macros found."
+            or "No macros match \"" .. page.search:GetText() .. "\".")
+        page.empty:ClearAllPoints()
+        page.empty:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 8, -12)
+        page.empty:Show()
+        controls:Hide()
+        return
+    end
+    page.empty:Hide()
+    local maxPages = math.ceil(#halves / spread)
+    page.paging = true
+    controls:SetMaxPages(maxPages)
+    page.paging = false
+    controls:SetShown(maxPages > 1)
+    local current = math.min(controls:GetCurrentPage(), maxPages)
+    local bars = smb.scanActionBars()
+    for side = 1, spread do
+        local x = origins[side]
+        for _, entry in ipairs(halves[(current - 1) * spread + side] or {}) do
+            if entry.header then
+                local header = page.headers:Acquire()
+                header:SetPoint("TOPLEFT", page, "TOPLEFT", x, VIEW_TOP - entry.y)
+                setHeader(header, entry.header, viewWidth)
+            else
+                local button = page.buttons:Acquire()
+                button:SetPoint("TOPLEFT", page, "TOPLEFT", x + entry.column * cellWidth + 8, VIEW_TOP - entry.y - 4)
+                setMacro(button, entry.macro, bars)
+            end
+        end
+    end
+end
+
+-- Rebuilds the list from the spellbook and the class config, updates changed macros, then redraws.
+function refresh(page)
+    smb.collectMacros()
+    smb.syncAllMacros()
+    layout(page)
+end
+
+local builtPage -- the page, once LibSpellBookTabs has created it
+
+-- Rebuilds and updates the macros after a change made off the page (an action bar's menu), redrawing the
+-- page if it has been built.
+function smb.refreshPage()
+    if builtPage then
+        refresh(builtPage)
+    else
+        smb.collectMacros()
+        smb.syncAllMacros()
+    end
+end
+
+local function buildPage(page)
+    builtPage = page
+    page.headers = framePool(function() return createHeader(page) end)
+    page.buttons = framePool(function() return createMacroButton(page) end)
+
+    page.empty = page:CreateFontString(nil, "OVERLAY", "SystemFont_Med3")
+    page.empty:SetTextColor(unpack(INK_COLOR))
+
+    -- usage hint along the bottom of the left page, level with the paging arrows; layout places it
+    page.footer = page:CreateFontString(nil, "OVERLAY", "SystemFont_Med1")
+    page.footer:SetTextColor(unpack(INK_COLOR))
+    page.footer:SetJustifyH("LEFT")
+    page.footer:SetText("Right click macro to edit; Change global settings via dropdown next to the search;")
+
+    -- the native settings cog, laid over the native one in the toolbar; its menu
+    -- holds the page-wide settings
+    local options = CreateFrame("DropdownButton", nil, page.header, "SpellBookSettingsDropdownTemplate")
+    page.options = options
+    options:ClearAllPoints()
+    -- pinned to the native cog so it follows the native toolbar's layout; the offset is a fallback
+    local native = PlayerSpellsFrame.SpellBookFrame.SettingsDropdown
+    if native then
+        options:SetAllPoints(native)
+    else
+        options:SetPoint("TOPRIGHT", page.header, "TOPRIGHT", -30, -27)
+    end
+    options:SetupMenu(function(_, rootDescription)
+        rootDescription:CreateTitle("Settings")
+        rootDescription:CreateCheckbox("Open spellbook to this page", smb.opensOnSpellbook, function()
+            smb.setOpensOnSpellbook(not smb.opensOnSpellbook())
+        end)
+        rootDescription:CreateCheckbox("Show unlearned spells", smb.showsUnlearned, function()
+            smb.setShowUnlearned(not smb.showsUnlearned())
+            if page.pagingControls.SetCurrentPage then
+                page.paging = true
+                page.pagingControls:SetCurrentPage(1)
+                page.paging = false
+            end
+            refresh(page)
+        end)
+        rootDescription:CreateCheckbox("Count spells on bars as placed", smb.countsSpellsOnBars, function()
+            smb.setCountSpellsOnBars(not smb.countsSpellsOnBars())
+            layout(page)
+        end)
+        rootDescription:CreateDivider()
+        rootDescription:CreateTitle("Global Macro Settings")
+        rootDescription:CreateCheckbox("Clear dead target before spell cast", smb.clearsDeadByDefault, function()
+            smb.setClearsDeadByDefault(not smb.clearsDeadByDefault())
+            refresh(page) -- rewrites the macros that follow the default
+        end)
+        rootDescription:CreateCheckbox("Target nearest enemy before spell cast", smb.targetsEnemyByDefault, function()
+            smb.setTargetsEnemyByDefault(not smb.targetsEnemyByDefault())
+            refresh(page) -- rewrites the macros that follow the default
+        end)
+        rootDescription:CreateCheckbox("Friendly spells fall back to yourself", smb.fallsBackToSelf, function()
+            smb.setFallsBackToSelf(not smb.fallsBackToSelf())
+            refresh(page) -- rewrites the friendly spell macros
+        end)
+        if smb.classOffersPetAttack() then
+            rootDescription:CreateCheckbox("Enable Pet attacks before spell cast", smb.petAttacksByDefault, function()
+                smb.setPetAttacksByDefault(not smb.petAttacksByDefault())
+                refresh(page) -- rewrites the macros that follow the default
+            end)
+        end
+        if smb.classOffersStopCast() then
+            rootDescription:CreateCheckbox("Stop casting before spell cast", smb.stopsCastingByDefault, function()
+                smb.setStopsCastingByDefault(not smb.stopsCastingByDefault())
+                refresh(page) -- rewrites the macros that follow the default
+            end)
+        end
+        if smb.classOffersStartAttack() then
+            rootDescription:CreateCheckbox("Start attack after spell cast", smb.startsAttackByDefault, function()
+                smb.setStartsAttackByDefault(not smb.startsAttackByDefault())
+                refresh(page) -- rewrites the macros that follow the default
+            end)
+        end
+        if smb.classOffersAutoShot() then
+            rootDescription:CreateCheckbox("Auto Shot after spell cast", smb.autoShotsByDefault, function()
+                smb.setAutoShotsByDefault(not smb.autoShotsByDefault())
+                refresh(page) -- rewrites the macros that follow the default
+            end)
+        end
+    end)
+
+    -- a search box laid over the native one, which only searches spells; it filters the page by macro or
+    -- section name. Covering the native box also keeps it from taking focus, which would close the page
+    local search = CreateFrame("EditBox", nil, page.header, "SearchBoxTemplate")
+    page.search = search
+    search:SetAutoFocus(false)
+    local nativeSearch = PlayerSpellsFrame.SpellBookFrame.SearchBox
+    if nativeSearch then
+        search:SetAllPoints(nativeSearch)
+        -- the native box's text and art show through ours, so fade it out while the page is open; its text
+        -- and search are left alone for when the player goes back to a native tab
+        page:HookScript("OnShow", Perf.Wrap("MacroActionBar", "page OnShow", function()
+            page.nativeSearchAlpha = page.nativeSearchAlpha or nativeSearch:GetAlpha()
+            nativeSearch:SetAlpha(0)
+        end))
+        page:HookScript("OnHide", Perf.Wrap("MacroActionBar", "page OnHide", function()
+            nativeSearch:SetAlpha(page.nativeSearchAlpha or 1)
+            page.nativeSearchAlpha = nil
+        end))
+    else
+        search:SetSize(200, 20)
+        search:SetPoint("RIGHT", options, "LEFT", -10, 0)
+    end
+    search:HookScript("OnHide", Perf.Wrap("MacroActionBar", "search OnHide", function(self) self:ClearFocus() end))
+    search:HookScript("OnTextChanged", Perf.Wrap("MacroActionBar", "search OnTextChanged", function(self)
+        local filter = self:GetText():lower():match("^%s*(.-)%s*$")
+        if filter == (page.filter or "") then return end
+        page.filter = filter
+        if page.pagingControls.SetCurrentPage then
+            page.paging = true
+            page.pagingControls:SetCurrentPage(1)
+            page.paging = false
+        end
+        layout(page)
+    end))
+
+    -- the native page's "Page 1/2" arrows, bottom right of the book
+    local controls = CreateFrame("Frame", nil, page, "PagingControlsHorizontalTemplate")
+    page.pagingControls = controls
+    controls:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -75, 40)
+    controls.PageText:SetFontObject("SystemFont_Med3")
+    controls.PageText:SetTextColor(unpack(INK_COLOR))
+    controls.spacing = 8
+    controls.prevPageSound, controls.nextPageSound = SOUNDKIT.IG_ABILITY_PAGE_TURN, SOUNDKIT.IG_ABILITY_PAGE_TURN
+    function page:OnPageChanged()
+        if not self.paging then layout(self) end
+    end
+    page:EnableMouseWheel(true)
+    page:SetScript("OnMouseWheel", function(_, delta)
+        if controls:IsShown() then controls:OnMouseWheel(delta) end
+    end)
+
+    -- the minimize button resizes the book; lay out a frame later, once the book's isMinimized has caught up
+    page:SetScript("OnSizeChanged", function(self)
+        if self.resizePending then return end
+        self.resizePending = true
+        C_Timer.After(0, function()
+            self.resizePending = false
+            if self:IsVisible() then layout(self) end
+        end)
+    end)
+    page:RegisterEvent("SPELLS_CHANGED")
+    page:RegisterEvent("PLAYER_EQUIPMENT_CHANGED") -- the Equipment section follows the gear worn
+    -- unlearned spells whose names weren't loaded were skipped; redraw once a burst of them arrives
+    page:RegisterEvent("SPELL_DATA_LOAD_RESULT")
+    -- placing or removing an action only changes the glows; redraw them once per burst
+    page:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
+    page:RegisterEvent("UPDATE_MACROS")
+    page:SetScript("OnEvent", Perf.WrapEvent("MacroActionBar", function(self, event)
+        if not self:IsVisible() then return end
+        if event == "ACTIONBAR_SLOT_CHANGED" or event == "UPDATE_MACROS" then
+            if self.glowsPending then return end
+            self.glowsPending = true
+            C_Timer.After(0, function()
+                self.glowsPending = false
+                if not self:IsVisible() then return end
+                local bars = smb.scanActionBars()
+                for i = 1, self.buttons.used do updateGlow(self.buttons[i], bars) end
+            end)
+        elseif event ~= "SPELL_DATA_LOAD_RESULT" then
+            refresh(self)
+        elseif smb.showsUnlearned() and not self.refreshPending then
+            self.refreshPending = true
+            C_Timer.After(0, function()
+                self.refreshPending = false
+                if self:IsVisible() then refresh(self) end
+            end)
+        end
+    end))
+end
+
+local LSBT = LibStub("LibSpellBookTabs-1.0")
+smb.onInstall(function()
+    LSBT:RegisterTab(addonName, {
+        name = "Macro Action Bar",
+        icon = ICON_MACRO,
+        iconTexCoords = ICON_MACRO_COORDS,
+        side = true,
+        onCreate = buildPage,
+        onShow = refresh,
+    })
+
+    -- with the setting on, the spellbook opens on this page; a native tab still switches away until it reopens
+    EventUtil.ContinueOnAddOnLoaded("Blizzard_PlayerSpells", function()
+        PlayerSpellsFrame.SpellBookFrame:HookScript("OnShow", Perf.Wrap("MacroActionBar", "spellbook OnShow", function()
+            if smb.opensOnSpellbook() then LSBT:Open(addonName) end
+        end))
+        -- The pack's: closing the spellbook closes the page too. LibSpellBookTabs keeps it open until a native
+        -- tab is picked, so the spellbook's key reopened the macros instead of the spells.
+        PlayerSpellsFrame.SpellBookFrame:HookScript("OnHide", Perf.Wrap("MacroActionBar", "spellbook OnHide", function()
+            if LSBT:IsOpen(addonName) then LSBT:Close() end
+        end))
+    end)
+end)
+
+smb.ICON_MACRO, smb.ICON_MACRO_COORDS = ICON_MACRO, ICON_MACRO_COORDS
+
+-- Opens the spellbook on this page, or closes the spellbook if the page is already showing (the minimap
+-- button's click). The spellbook is protected, so not in combat.
+function smb.openPage()
+    if InCombatLockdown() then
+        UIErrorsFrame:AddMessage(ERR_NOT_IN_COMBAT, 1, 0.1, 0.1)
+        return
+    end
+    local book = PlayerSpellsFrame and PlayerSpellsFrame.SpellBookFrame
+    local bookShown = book ~= nil and book:IsVisible()
+    if bookShown and LSBT:IsOpen(addonName) then
+        HideUIPanel(PlayerSpellsFrame)
+        return
+    end
+    if not bookShown then
+        -- both load Blizzard_PlayerSpells on demand
+        if PlayerSpellsUtil and PlayerSpellsUtil.OpenToSpellBookTab then
+            PlayerSpellsUtil.OpenToSpellBookTab()
+        else
+            ToggleSpellBook(BOOKTYPE_SPELL)
+        end
+    end
+    LSBT:Open(addonName)
+end
+

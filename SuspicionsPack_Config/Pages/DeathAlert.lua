@@ -49,6 +49,7 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "deathAlert",
     keywords = "death died dead alert announce raid party sound tts speech role",
+    tip      = "Puts a large message on screen when you or someone in your party or raid dies, with the name in class colour. Feign Death doesn't count.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "deathAlert", "DeathAlert",
             "Death alert",

@@ -19,6 +19,8 @@ Libs\Ace3\AceSerializer-3.0\AceSerializer-3.0.lua
 Libs\LibDeflate\LibDeflate.lua
 Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+# Forever only: the spellbook tab library Macro Action Bar uses (MIT, see its LICENSE).
+Libs\LibSpellBookTabs-1.0\LibSpellBookTabs-1.0.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 
 # Core — creates the AceAddon object; must load before any module
 # Perf first: it needs only the addon namespace, and Core.lua wraps its own
@@ -54,6 +56,7 @@ Modules\FocusTargetMarker\FocusTargetMarker.lua [AllowLoadGameType standard]
 Modules\DeathAlert\DeathAlert.lua
 Modules\CraftShopper\CraftShopper.lua
 Modules\WhisperAlert\WhisperAlert.lua
+Modules\BuffThanks\BuffThanks.lua
 Modules\SilvermoonMapIcon\SilvermoonMapIcon.lua [AllowLoadGameType standard]
 Modules\GroupJoinedReminder\GroupJoinedReminder.lua [AllowLoadGameType standard]
 Modules\MovementAlert\MovementAlert.lua
@@ -88,6 +91,37 @@ Modules\NodeRadar\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType stand
 Modules\NodeRadar\NodeRadar.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 # Forever only, same gate: a wheel of camp items near a campfire.
 Modules\CampWheel\CampWheel.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+# Forever only, same gate: Macro Action Bar's spellbook tab of macros, a fork of NotStraws'
+# Macro Action Bar 1.2.1 (MIT). The shell first, then the original's own load order with
+# the pack's Spells/Locale (clients in other languages) before Macros.lua.
+Modules\MacroActionBar\MacroActionBar.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Config\Config.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Config\Druid.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Config\Hunter.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Config\Mage.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Config\Paladin.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Config\Priest.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Config\Rogue.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Config\Shaman.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Config\Warlock.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Config\Warrior.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Data\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Data\Druid.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Data\Hunter.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Data\Mage.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Data\Paladin.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Data\Priest.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Data\Rogue.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Data\Shaman.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Data\Warlock.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Data\Warrior.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Spells.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Locale.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Trainer.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Macros.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\Cleanup.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\SpellBookTab.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Modules\MacroActionBar\ActionBars.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\InterruptAlert\InterruptAlert.lua
 Modules\GatewayAlert\GatewayAlert.lua [AllowLoadGameType standard]
 Modules\CombatCross\CombatCross.lua [AllowLoadGameType standard]

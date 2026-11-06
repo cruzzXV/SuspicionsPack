@@ -20,11 +20,12 @@ GUI.RegisterPage{
     category = "interface",
     dbKey    = "performance",
     keywords = "performance fps quest watch combat log sound channels stutter lag",
+    tip      = "Clears the combat log at login, sets how many sound channels the game uses, and untracks every quest in one go. Each part is its own switch or button.",
     build = function(parent)
         local page, db, c0 = GUI.ModulePage(parent, "performance", "Performance",
             "Performance",
-            "Quest watch cleaner, automatic combat-log clearing and audio channel control. " ..
-            "Enable the module to activate its sub-features.",
+            "Quest watch cleaner, combat log clearing at login and audio channel control. " ..
+            "The module's switch covers the settings; the two buttons work even with it off.",
             "Enable performance module")
 
         -- row -> pending revert timer, so OnHide can cancel every one of them.
@@ -71,8 +72,8 @@ GUI.RegisterPage{
             "frame and can noticeably hurt FPS.")
         FlashButton(c1, {
             text     = "Print and clear quest watches",
-            doneText = "Quest log cleaned",
-            desc     = "Prints every tracked entry to chat, then removes all watches.",
+            doneText = "Quest watches cleared",
+            desc     = "Prints your quest log to chat, then removes every quest watch.",
             run      = function()
                 if SP.Performance then SP.Performance.ClearQuestWatches() end
             end,

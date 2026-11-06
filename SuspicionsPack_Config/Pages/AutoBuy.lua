@@ -708,6 +708,7 @@ GUI.RegisterPage{
     keywords = "auto buy vendor merchant auction house consumable restock stock " ..
                "flask potion food feast rune oil augment quality reagent quantity " ..
                "shopping list per character",
+    tip      = "Restocks the consumables you set a minimum for, per character. Nothing is bought until you set one, and auction house purchases wait for you to confirm the price.",
     build = function(parent)
         -- `or {}` rather than creating the section: a page that has to write to
         -- SavedVariables before it can draw itself is the bug this migration is

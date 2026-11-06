@@ -58,10 +58,12 @@ Pages\ConsumableMacros.lua [AllowLoadGameType camelot][ExcludeLoadGameType stand
 Pages\ProfessionMarks.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\NodeRadar.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\CampWheel.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Pages\MacroActionBar.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\FastLoot.lua
 Pages\Durability.lua
 Pages\GroupInvitations.lua
 Pages\WhisperAlert.lua
+Pages\BuffThanks.lua
 Pages\CleanObjectiveHeader.lua
 Pages\CopyTooltip.lua
 Pages\EnhancedObjectiveText.lua

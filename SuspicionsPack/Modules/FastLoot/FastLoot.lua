@@ -16,7 +16,6 @@ local C_Timer = C_Timer
 
 local _retryPending  = false  -- prevents stacking 0.1s retries
 local _suppressCVar  = false  -- suppresses CVAR_UPDATE echo from our own SetCVar
-local _origAutoLoot  = nil    -- player's own autoLootDefault, snapshotted before we touch it
 
 -- ============================================================
 -- CVar management
@@ -26,6 +25,11 @@ local _origAutoLoot  = nil    -- player's own autoLootDefault, snapshotted befor
 -- on disable, which silently turned off auto-loot for players who had it on
 -- before ever enabling FastLoot. Snapshot on the first activation, put it back
 -- on deactivation.
+--
+-- The snapshot lives in the account-wide saved data (fastLootAutoLoot), not in
+-- a file local: a local is gone after a /reload, and the next Activate then
+-- snapshotted the "1" this module had forced, so switching it off never gave
+-- the player's own setting back.
 -- ============================================================
 local function SetAutoLoot(value)
     _suppressCVar = true
@@ -88,9 +92,11 @@ end
 -- permanently dead until a /reload. They live in Activate now.
 -- ============================================================
 function FastLoot:Activate()
-    -- Snapshot before the first write so Deactivate can restore it.
-    if _origAutoLoot == nil then
-        _origAutoLoot = C_CVar.GetCVar("autoLootDefault") or "0"
+    -- Snapshot before the first write so Deactivate can restore it. Kept
+    -- until then, across reloads and logins.
+    local saved = SP.GetGlobalDB()
+    if saved.fastLootAutoLoot == nil then
+        saved.fastLootAutoLoot = C_CVar.GetCVar("autoLootDefault") or "0"
     end
 
     self:RegisterEvent("LOOT_READY",  "OnLootReady")
@@ -110,8 +116,9 @@ function FastLoot:Deactivate()
     self:UnregisterEvent("CVAR_UPDATE")
     _retryPending = false
 
-    if _origAutoLoot ~= nil then
-        SetAutoLoot(_origAutoLoot)
-        _origAutoLoot = nil
+    local saved = SP.GetGlobalDB()
+    if saved.fastLootAutoLoot ~= nil then
+        SetAutoLoot(saved.fastLootAutoLoot)
+        saved.fastLootAutoLoot = nil
     end
 end

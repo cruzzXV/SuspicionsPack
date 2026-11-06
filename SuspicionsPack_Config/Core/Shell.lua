@@ -84,7 +84,8 @@ local function FindCategory(id)
     end
 end
 
--- spec: id, name, category, dbKey (optional), charDB (optional), keywords, build
+-- spec: id, name, category, dbKey (optional), charDB (optional), keywords,
+-- tip (the sidebar tooltip, optional), build
 function GUI.RegisterPage(spec)
     GUI.Pages[spec.id] = spec
     GUI.PageOrder[#GUI.PageOrder + 1] = spec.id
@@ -306,20 +307,30 @@ local function GetItemRow(parent)
 
     -- Lit under the mouse and on the open page: white on Forever (Plumber's
     -- list), the primary text colour on retail.
+    --
+    -- The page's `tip` shows beside a row the mouse is on, read from the page
+    -- each time because rows are pooled. Not on the open page: its header
+    -- already says the same thing, right where you are reading.
     it:SetScript("OnEnter", function(s)
         if s.id ~= selectedItem then
             s.hover:Show()
             local c = T.textHover or T.textPrimary
             s.label:SetTextColor(c[1], c[2], c[3], 1)
+            local spec = GUI.Pages[s.id]
+            if spec and spec.tip then GUI.ShowTip(s, spec.name, spec.tip) end
         end
     end)
     it:SetScript("OnLeave", function(s)
         s.hover:Hide()
+        GameTooltip:Hide()
         if s.id ~= selectedItem then
             s.label:SetTextColor(T.textSecondary[1], T.textSecondary[2], T.textSecondary[3], 1)
         end
     end)
-    it:SetScript("OnClick", function(s) OpenPage(s.id) end)
+    it:SetScript("OnClick", function(s)
+        GameTooltip:Hide()
+        OpenPage(s.id)
+    end)
 
     it._inUse = true
     sidebarPool[#sidebarPool + 1] = it

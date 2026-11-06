@@ -26,14 +26,15 @@ GUI.RegisterPage{
     category = "interface",
     dbKey    = "microMenuSkin",
     keywords = "micro menu skin button backdrop border icon zoom flat elvui reskin",
+    tip      = "Gives the micro menu buttons a flat, dark look with a thin border. Edit Mode still decides where the menu sits.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "microMenuSkin", "MicroMenuSkin",
             "Micro menu skin",
             "Reskins the micro menu buttons (character, spellbook, talents, collections and " ..
             "the rest) in a flat style: dark backdrop, thin border, accent border on hover, " ..
             "and Blizzard's button frame art stripped away so only the icon shows. Placement " ..
-            "stays under Edit Mode; only size and spacing can be overridden below. Switching " ..
-            "the skin off needs a /reload to fully restore Blizzard's original art.",
+            "stays under Edit Mode; size, spacing and icons per row can be overridden below. " ..
+            "Switching the skin off needs a /reload to fully restore Blizzard's original art.",
             "Enable micro menu skin")
 
         local D = SP.DEFAULTS and SP.DEFAULTS.profile and SP.DEFAULTS.profile.microMenuSkin

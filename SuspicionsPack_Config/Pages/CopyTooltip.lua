@@ -17,11 +17,14 @@ GUI.RegisterPage{
     category = "interface",
     dbKey    = "copyTooltip",
     keywords = "copy tooltip id spell item npc aura macro clipboard ctrl",
+    tip      = "Press the shortcut, Ctrl+C by default, over a spell, item or NPC tooltip and its ID opens in a box, selected and ready to copy. It does nothing in combat or during a Mythic+ run.",
     build = function(parent)
         local page, db = GUI.ModulePage(parent, "copyTooltip", "CopyTooltip",
             "Copy anything",
-            "Hover any tooltip and press the shortcut to copy its ID into a dialog, ready " ..
-            "to paste.",
+            "Hover a tooltip and press the shortcut: its ID opens in a box, already " ..
+            "selected, so Ctrl+C copies it. For a player, it gives their name. Only " ..
+            "Blizzard's main tooltip is read, and nothing happens in combat or during " ..
+            "a Mythic+ run.",
             "Enable copy anything")
 
         local c1 = page:Card("Shortcut",

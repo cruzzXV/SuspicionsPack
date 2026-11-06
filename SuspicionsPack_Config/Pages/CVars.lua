@@ -19,13 +19,15 @@ GUI.RegisterPage{
     -- The sidebar dot reads exactly that field, so declaring the key here would
     -- paint a permanent "off" dot on a page that is always live.
     keywords = "cvar console variable sharpen nameplate class colour preload graphics",
+    tip      = "Four console variables as switches: image sharpening, class-coloured friendly names, name-only friendly nameplates and world preloading.",
     build = function(parent)
         local db   = SP.GetDB().cvars
         local mod  = SP.CVars
         local page = GUI.NewPage(parent, db, nil, "cvars")
 
         local c = page:Card("CVars",
-            "Game console variables, applied immediately and re-applied on login.")
+            "Game console variables, written when you click a switch. World preloading " ..
+            "is also put back 5 seconds after each login.")
 
         for _, def in ipairs(mod and mod.DEFS or {}) do
             local key = def.key

@@ -16,6 +16,7 @@ GUI.RegisterPage{
     category = "interface",
     dbKey    = "campWheel",
     keywords = "camp campfire camping fire wheel chair tent toy dust pouch adventurer profession object objects",
+    tip      = "Near a campfire, opens a ring of the camp items you can use right now. Click an icon to use it. The ring stays hidden in combat, on a mount and while you are dead.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "campWheel", "CampWheel",
             "Campfire wheel",

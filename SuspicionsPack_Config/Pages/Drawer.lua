@@ -34,10 +34,12 @@ GUI.RegisterPage{
     category = "interface",
     dbKey    = "drawer",
     keywords = "drawer minimap button addon icon tab collect hide tray",
+    tip      = "Gathers your addons' minimap buttons behind a small tab on the edge of the minimap. Hover the tab to reach them. Blizzard's own buttons stay where they are.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "drawer", "Drawer",
             "Minimap drawer",
-            "Collects addon minimap buttons into a sliding drawer.",
+            "Collects addon minimap buttons into a drawer that opens when you hover its " ..
+            "tab on the edge of the minimap.",
             "Enable drawer")
 
         local defaults = SP.DEFAULTS and SP.DEFAULTS.profile and SP.DEFAULTS.profile.drawer

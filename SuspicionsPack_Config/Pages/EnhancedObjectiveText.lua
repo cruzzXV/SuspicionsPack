@@ -16,12 +16,14 @@ GUI.RegisterPage{
     category = "interface",
     dbKey    = "enhancedObjectiveText",
     keywords = "objective error text ui errors frame message size quest complete",
+    tip      = "Makes the game's error and objective messages larger and moves them to the middle of the screen. Turning it off puts them back as they were.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "enhancedObjectiveText", "EnhancedObjectiveText",
             "Enhanced objective text",
-            "Replaces WoW's small stacked error and objective messages with a single large " ..
-            "centred line, so spell errors, objective completions and system notices are " ..
-            "readable at a glance during combat.",
+            "Makes the game's error and objective messages larger and centres them on screen, " ..
+            "so spell errors, objective completions and system notices are easier to read " ..
+            "during combat. It restyles Blizzard's own message frame, and switching it off " ..
+            "puts the frame back as it was.",
             "Enable enhanced objective text")
 
         c1:ButtonRow{

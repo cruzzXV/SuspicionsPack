@@ -147,6 +147,7 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "cursor",
     keywords = "cursor mouse pointer circle ring click highlight centre dot texture update rate fps",
+    tip      = "Puts a ring around your mouse pointer so it is easy to find in a crowded fight. Clicks go straight through it.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "cursor", "Cursor",
             "Cursor circle",

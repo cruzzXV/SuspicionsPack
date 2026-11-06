@@ -14,11 +14,12 @@ GUI.RegisterPage{
     category = "combat",
     dbKey    = "gatewayAlert",
     keywords = "gateway demonic warlock portal ready alert 188152",
+    tip      = "Shows GATE USABLE on screen whenever your Gateway Control Shard can be used. Without the shard in your bags, nothing shows.",
     build = function(parent)
         local page = GUI.ModulePage(parent, "gatewayAlert", "GatewayAlert",
             "Gateway alert",
-            "Flashes a text alert on screen when your Demonic Gateway item " ..
-            "(188152) is off cooldown and ready to use.",
+            "Shows a pulsing GATE USABLE text on screen while your Gateway Control " ..
+            "Shard (188152) can be used.",
             "Enable gateway alert")
 
         local c2 = page:Card("Appearance", "The font, size and colour of the alert text.")

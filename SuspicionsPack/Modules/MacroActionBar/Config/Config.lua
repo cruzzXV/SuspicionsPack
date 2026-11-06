@@ -1,0 +1,190 @@
+local smb = SuspicionsPack.MAB
+
+-- Each class has its own file in this folder that decides how its Macro Action Bar page is organised.
+-- Edit your class's file, then /reload. Every list is optional.
+--
+-- Use spell names exactly as the spellbook shows them. A name ending in * matches every spell that starts
+-- with that text, e.g. "Create *" covers Create Healthstone (Minor), Create Soulstone (Major), ...
+--
+-- categories: the page's sections, top to bottom, each under its own header, as
+--   { name = "Damage", spells = { "Shadow Bolt", ... } }. Move a section or a spell up or down to change
+--   the order. A spell that matches more than one section goes in the first, so "Curse of Agony" listed
+--   in Damage wins over a later section's "Curse of *". A section with no spells marks where custom
+--   macros with that category go. Learned spells in no section go in an "Unsorted" section at the end,
+--   in alphabetical order. Add noGlow = true to a section, e.g. { name = "Auras", noGlow = true, spells =
+--   { ... } }, to stop its spells glowing when they aren't on your action bars. Add sequence = true to a
+--   section to let its spells cast in sequence (see Cast sequences below). Add cooldownSteps = true to a
+--   section, e.g. Damage or Healing, to offer its spells in cooldown spells' "Then Cast" menus. Add
+--   menuLast = true to a section to list it last in the right-click submenus, e.g. Druids' Forms.
+--
+-- mouseoverEnemy / mouseoverFriend: spells that offer Cast On "Mouseover" (right-click a macro), cast on a
+--   hostile / friendly mouseover target. A spell in both lists casts on either. Every harmful spell with a
+--   range (melee included) counts as a mouseoverEnemy spell without being listed, except cursor spells, so
+--   mouseoverEnemy only needs the ones the game doesn't flag. Other spells in neither list never offer
+--   it. The same spells offer Cast On "Focus", cast on your focus target (or your target when you have no
+--   hostile / friendly focus). mouseoverFriend spells (and buffs) also offer Cast On "Self", always cast
+--   on you whatever you have targeted.
+--
+-- dispels: spells that offer "Cast On Enemy Player" (right-click a macro): the page then also lists a second
+--   macro for the spell, right after it, that targets the nearest enemy player, casts
+--   the spell on them, then switches back to your previous target. With no enemy
+--   player near it casts nothing, so it never lands on an NPC you had targeted.
+--
+--   The enemy player macro has its own right-click options, separate from the spell's: Before Casting,
+--   After Casting, Sequence (see Cast sequences below), and the rest.
+--
+-- buffs: spells that offer Cast On "Nearest Player" (right-click a macro): the spell's macro targets the
+--   nearest friendly player and casts the spell on them (or on you when no friendly player is near), leaving
+--   them as your target. It never casts on an NPC. A macro that casts a Nearest Player spell with a modifier
+--   key, in a form or as a follow-up casts it on your target instead.
+--
+--   A spell's macro (or its enemy player macro) can be on several action buttons: they share it, and a
+--   change on the page applies to all of them. A change from one button's right-click menu applies to that
+--   button alone: when other buttons hold the macro too, that button gets a numbered variant, e.g. "Fireball
+--   #2", with the change, and the others keep the macro as it was. "Duplicate Macro" (right-click on the page) makes a
+--   variant too, to set up on its own. Variants are this character's and last until "Delete Macro" (which takes it
+--   off its buttons too), or until a change makes one the same as another macro of the
+--   spell: then they merge, the spell's own macro (or the lower number) taking the other's buttons.
+--   Turning on an enemy player macro from an action button's right-click menu puts it on that button; turning one
+--   off puts the spell's own macro back on its buttons. Right-clicking a plain spell placed from Blizzard's
+--   spellbook opens its macro's menu too: the first change puts the macro (or, when it is on other buttons
+--   already or set up already, a variant) on that button in the spell's place.
+--
+-- cursor: ground-targeted spells that offer Cast On "Cursor" (right-click a macro): the spell lands where
+--   the cursor points, with no targeting circle to click.
+--
+-- raidRank1: spells that offer "Downrank In Raids" (right-click a macro): the macro casts the spell's rank 1
+--   while you are in a raid group and its highest rank otherwise.
+--
+-- combatRank1: spells that offer "Rank 1 Out Of Combat" (right-click a macro): the macro casts the
+--   spell's rank 1 while you are out of combat and its highest rank in combat, e.g. a cheap Arcane Explosion
+--   to pull a group.
+--
+-- channeled: channelled spells that offer "Don't Recast While Channeling" (right-click a macro): the cast
+--   gets a [nochanneling:<spell>] condition, so pressing the macro again while the spell is channelling does
+--   nothing and you can spam the button.
+--
+-- stealth: stealth spells that offer "Stay In Stealth On Recast" (right-click a macro): the cast gets a [nostealth]
+--   condition, so pressing the macro again while stealthed doesn't take you out of stealth.
+--
+-- toggle: spells that turn off when cast again, such as Auto Shot and aspects, that offer "Don't Toggle Off
+--   On Recast" (right-click a macro): the macro casts "!<spell>", so pressing it again while the spell is on
+--   doesn't turn it off and you can spam the button. Picked for a modifier key on another macro, the
+--   spell is always cast as "!<spell>".
+--
+-- cooldowns: spells such as Combustion that offer the "Then Cast" menu (right-click a macro) in whatever
+--   section they are, instead of a sequence. Pick one learned spell from a sequence = true or cooldownSteps =
+--   true section or from Unsorted, e.g. Fireball: the macro casts it on the same press, right after the cooldown, the way that
+--   spell's own macro targets: at the mouseover, the focus or the cursor when its Cast On is set there. The second cast only goes off when the cooldown
+--   doesn't trigger the global cooldown. To use a trinket with it, tick the trinket in the macro's Before
+--   Casting menu.
+--
+-- offGcd: spells that don't trigger the global cooldown, such as Presence of Mind, offered in every other
+--   spell macro's Before Casting and After Casting menus (right-click a macro) once learned: ticked, the
+--   macro casts it on that side of the cast, on the same press, e.g. Presence of Mind then Pyroblast.
+--   Warriors list their stances here, e.g. Charge then Berserker Stance; a stance line is skipped while
+--   you're already in that stance.
+--
+-- stances: the stances each spell can be cast in, as
+--   { ["Hamstring"] = { "Battle Stance", "Berserker Stance" }, ... }, so a stance pick (see forms below)
+--   only offers the spell in a stance it can be cast in, and its Before Casting menu only offers those
+--   stances (After Casting offers them all). A spell whose tooltip says "Requires ... Stance"
+--   uses the stances the tooltip names instead, so the macros follow the game's rules. Only Warriors use it.
+--
+-- petAbilities: summon spells that offer "Cast <ability> If Summoned" (right-click a macro), as
+--   { ["Summon Imp"] = "Fire Shield", ... }. With it on, the macro casts the ability while that pet is out
+--   and summons the pet otherwise. The pet is matched by its creature family: the name after "Summon ".
+--   Only Hunters and Warlocks use it.
+--
+-- forms: the forms a spell macro can cast another spell in, as { { name = "Cat", spells = { "Cat Form" } },
+--   ... }. Each one offers a "<name>" submenu (right-click a macro) where you pick another learned spell, by
+--   section, that the macro casts while you are in that form, e.g. Shred in Cat and Maul in Bear on the
+--   Wrath macro. spells are the shapeshift spells that count as the form; the first one learned is used, so
+--   list Dire Bear Form before Bear Form. A form with no spells is caster form (no shapeshift). The picked
+--   spell is cast the way its own macro targets, like a follow-up (see cooldowns above), and a held modifier key
+--   wins over the form. A section named after a form only offers its spells in that form, so Cat offers no
+--   Bear spells, Bear no Cat spells, and Caster neither. The submenu lists the form's section first, or the
+--   one named by section, e.g. { name = "Caster", section = "Damage" }. Druids use it for forms and
+--   Warriors for stances, e.g. { name = "Defensive", spells = { "Defensive Stance" } }: a spell that needs
+--   a stance (see stances above) is only offered in a stance it can be cast in, so Battle offers no
+--   Whirlwind. For Druids, every shapeshift spell on your stance bar (Moonkin Form too) also offers "Stay In
+--   Form On Recast" (right-click a macro): the cast gets a [noform:n] condition, so pressing it again while
+--   in that form does nothing instead of shifting you out, and you can spam the button.
+--
+-- Pet attack is not set here: Hunters and Warlocks get it automatically. Every mouseoverEnemy spell then
+--   offers "Pet Attack" in its Before Casting and After Casting menus (right-click a macro): the macro
+--   adds /petattack on that side of the cast, sending your pet at your target. The settings cog's
+--   "Enable Pet attacks before spell cast" turns on the before line for every such macro you haven't
+--   switched yourself. Every spell macro's Before Casting and After Casting menus also
+--   offer "Pet Follow", for /petfollow, calling your pet back to you.
+--
+-- Stop casting, starting attack and using items aren't set here either: right-click a macro for its
+--   "Before Casting" and "After Casting" menus, where you tick what the macro does on that side of the cast.
+--   "Stop Casting", in the Before Casting menu only, adds /stopcasting to cancel your current cast. The settings cog's
+--   "Stop casting before spell cast" turns on the before line for every spell macro you haven't switched
+--   yourself. Warriors, Hunters and Rogues get "Start Attack" and "Start attack after spell cast" instead,
+--   for /startattack (the cog's default is the after line), plus "Stop Attack" on either side for /stopattack. Druids, Paladins and Shamans, being hybrids,
+--   get both. Mages who have learned Ice Block also get "Cancel Ice Block", in the Before Casting menu only,
+--   for /cancelaura Ice Block, so the spell isn't blocked while Ice Block is on. Every mouseoverEnemy spell
+--   (damaging spells) also offers, in the Before Casting menu only, "Clear Dead Target" for /cleartarget [dead],
+--   dropping a dead target, and "Target Nearest Enemy" for /targetenemy [noharm][dead], targeting the nearest
+--   enemy when you have no live hostile target. Its enemy player macro offers neither. The settings
+--   dropdown's Global Macro Settings turn either line on for every such spell at once; ticking it in a macro's
+--   menu overrides that for the macro.
+--
+--   Both menus also list your equipped items with a "Use:" effect, e.g. engineering gloves and trinkets.
+--   Tick several to stack them: the macro uses each one, in the order you ticked them, on that side of the
+--   cast. The macro uses the slot, not the item, so it keeps working when you swap a trinket.
+--
+--   Both menus also list your race's racials from smb.racials below, once learned, e.g. Blood Fury for
+--   Orcs: ticked, the macro casts it on that side of the cast. The offGcd spells above are listed the same way.
+--
+--   An Equipment section macro's right-click menu lists "Stop Attacking" and "Stop Casting" under a
+--   "Before Using" heading: ticked, the macro starts with /stopattack or /stopcasting before using the item. They are per slot and
+--   shared by every character, like the equipment macros themselves.
+--
+-- Modifier keys aren't set here either: right-click a spell macro for its "Shift", "Ctrl" and "Alt" menus,
+--   where you pick another learned spell, by section, that the macro casts while that key is held. With
+--   several keys held, Shift wins over Ctrl and Ctrl over Alt. Hover a spell there for its Cast On
+--   submenu: "Target" (what clicking the spell picks), or "Mouseover", "Focus" or "Cursor" where the spell
+--   offers them, set for that key alone. The "Equipment" submenu instead picks an
+--   equipped item with a "Use:" effect (greyed out while you wear none): the macro uses whatever is in that
+--   slot, so it keeps working after you swap the item.
+--   Alt is the game's self-cast key by default, so a helpful Alt spell with no mouseover target may land on
+--   you. Enemy player macros don't use modifiers. A macro can be at most 255 characters: one that grows past it
+--   says so in its tooltip and can't be placed until you turn something off.
+--
+-- Cast sequences: right-click a spell macro in a section with sequence = true (but not a cooldowns spell) for
+--   its "Sequence" menu, where you tick other learned spells from sequence = true sections in the order the
+--   macro should cast them after its own spell: each press casts the next one (/castsequence). The sequence starts over from its first spell
+--   after 2 seconds without a press. Every step is cast the way the macro's own spell is, e.g. on the
+--   mouseover target with Cast On set to "Mouseover". "Downrank In Raids" and "Rank 1 Out Of Combat" are off while a sequence is set, and a
+--   macro that casts its pet's ability has no sequence.
+--
+-- extraSpells: spell IDs to list with "Show Unlearned" on until learned, for spells that neither the
+--   bundled trainer data (Data/) nor your class trainer offers, e.g. quest or book spells. Use the rank 1 ID
+--   (the number in the spell's Wowhead URL).
+--
+-- custom: your own macros, as { name = "...", body = "...", icon = ..., category = "..." }, shown under
+--   their category (default "Custom"). A category named in categories puts the macro in that section,
+--   after its spells; any other category gets its own section after them.
+--   name: up to 16 characters (WoW's macro name limit). body: the macro text, up to 255 characters; use \n
+--   between lines. icon (optional): an icon file ID or texture path; without one, a body that starts with
+--   "#showtooltip <spell>" shows that spell's icon. description (optional): text the page's tooltip shows
+--   instead of the body while Alt is held. first (optional): true lists the macro before its
+--   section's spells instead of after them.
+--   Editing a body updates the WoW macro the next time the page opens. Removing an entry does not delete
+--   the WoW macro: delete it in /macro.
+
+-- Keyed by class file token (the second value of UnitClass), e.g. smb.classConfigs.WARLOCK.
+smb.classConfigs = {}
+
+-- Racials offered in every spell macro's Before Casting and After Casting menus, keyed by race file token
+-- (the second value of UnitRace, e.g. NightElf, Scourge for Undead). Each is listed only once you've
+-- learned it, so a class-specific racial only shows for that class. Add or remove names, then /reload.
+smb.racials = {
+    Orc = { "Blood Fury" },
+    Troll = { "Berserking" },
+    NightElf = { "Elune's Light" },
+    Gnome = { "Eureka!" }
+}

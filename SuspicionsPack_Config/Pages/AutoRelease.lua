@@ -67,6 +67,7 @@ GUI.RegisterPage{
     dbKey    = "autoRelease",
     keywords = "auto release resurrection rez accept corpse spirit graveyard run back death died pvp battleground " ..
                "arena raid boss zone subzone instance id tindral",
+    tip      = "Releases your spirit in battlegrounds, arenas and the spots you save, and can accept resurrections once the fight is over. It never releases while a resurrection is on offer.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "autoRelease", "AutoRelease",
             "Release and rez",
