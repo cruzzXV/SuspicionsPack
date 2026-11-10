@@ -650,6 +650,11 @@ local DEFAULTS = {
             enabled = false,
             tooltip = true,
         },
+        -- Forever only (see the .toc gate). Item bonus lines in short: "+12 Spell Power".
+        simpleStats = {
+            enabled = false,
+            merge   = true,   -- one Spell Power line when damage and healing share a figure
+        },
         -- Forever only (see the .toc gate). The nearest herbs and veins, around your character.
         nodeRadar = {
             enabled      = false,

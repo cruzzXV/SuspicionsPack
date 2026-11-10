@@ -86,6 +86,8 @@ Modules\ConsumableMacros\ConsumableMacros.lua [AllowLoadGameType camelot][Exclud
 # Forever only, same gate: a profession's icon on the bag items it wants.
 Modules\ProfessionMarks\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\ProfessionMarks\ProfessionMarks.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+# Forever only, same gate: item bonus lines in short, from the client's own stat strings.
+Modules\SimpleStats\SimpleStats.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 # Forever only, same gate: the nearest herb or vein around your character.
 Modules\NodeRadar\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Modules\NodeRadar\NodeRadar.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]

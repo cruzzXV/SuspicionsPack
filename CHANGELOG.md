@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-11-10 — Simple item stats : les lignes de bonus en court, Forever
+
+Demande de Cruzz : un module qui simplifie les stats des objets, la puissance des sorts d'abord. Écrit d'après
+« Simplified Stats » d'EllesmereUI Forever Essentials (All Rights Reserved : lu pour le comportement, rien copié).
+EZstats (lu) compare des phrases anglaises en dur ; EasyGreenStats est ARR ; mdlui_Tooltips (MIT) n'est que sur
+CurseForge, qui refuse curl.
+- Pourquoi un module à nous alors qu'EllesmereUI l'a, et activé chez Cruzz : il ne prend une ligne que si elle
+  commence par `ITEM_SPELL_TRIGGER_ONEQUIP`, `Equipé :` en français, alors que les 75 formats de stats commencent
+  par `Équipé :` ou `Équiper :`. Sur un client français, il ne raccourcit rien.
+- **`Modules/SimpleStats/SimpleStats.lua`** (nouveau, Forever seulement) : sur Forever, les bonus « Équipé » sont
+  devenus des stats d'objet (ItemSparse 1.60.1.70888 : stat 45 = puissance des sorts sur 1 027 objets), écrites
+  par le client avec `TOOLTIP_ITEM_STAT_*`. Les motifs viennent de ces formats, les libellés de
+  `ITEM_MOD_*_SHORT` (critique : `STAT_CRITICAL_STRIKE`, « Score de crit. » ne va pas pour un pourcentage) :
+  toutes les langues marchent. Gérés : jeton de pluriel `$lpoint:points;`, `1.0%` → `1%`, arguments dans un
+  autre ordre, compétences à deux mains (`SKILL_TWO-HANDED_*`, nom avec un tiret). La ligne est remplacée dans un
+  line pre-call de `TooltipDataProcessor` avant que le jeu ne l'ajoute (couleur, retour à la ligne et retrait
+  repris de la ligne), sans écrire dans les données de Blizzard. Seulement les infobulles que le joueur lit :
+  les infobulles cachées des autres addons gardent le texte du jeu. Réponses gardées par texte (500 au plus).
+  Réglage « One Spell Power line », activé : un seul chiffre pour dégâts et soins → `+12 Puissance des sorts`.
+  Bonus d'ensemble : raccourcis en anglais ; en français ce sont des descriptions de sorts, formulées autrement,
+  laissées telles quelles. Lignes « contre les morts-vivants » et dégâts d'arme laissés aussi.
+- **`SuspicionsPack_Config/Pages/SimpleStats.lua`** (nouveau) : page « Simple item stats » (Items), avec un
+  exemple fait en direct par le module sur la ligne de puissance des sorts du client.
+- **`Core.lua`** : défauts `simpleStats` ; **.toc** (les deux) : lignes Forever seulement.
+- **Tests** : `tests/test_simple_stats.lua` (local, 77 verts) sur les vraies chaînes enUS et frFR
+  (`tests/gen_simple_stats_strings.js` → `tests/simple_stats_strings.lua`), dont chaque format de stat du client
+  raccourci ; `--simplestats` dans `run.py`. 27 mutations sur 27 rouges, témoin vert. `test_gui` vert sur les
+  deux clients (la page se construit sur Forever). Essayé en jeu par Cruzz (client français) : « ça marche ».
+
+---
+
 ## 2026-11-10 — Menu de téléportation à côté du menu Échap (Forever)
 
 Demande de Cruzz : « comme le teleport menu de retail, pour classic », avec les deux pierres de foyer du chaman, les
