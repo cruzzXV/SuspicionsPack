@@ -673,6 +673,13 @@ local DEFAULTS = {
             x       = 0,
             y       = -170,
         },
+        -- Forever only (see the .toc gate). Teleport buttons beside the game menu.
+        teleportMenu = {
+            enabled   = false,
+            size      = 36,     -- pixels per button
+            closeMenu = true,   -- the game menu closes once a teleport is cast
+            portals   = true,   -- the mage's portals, in a second row
+        },
         -- Forever only (see the .toc gate). Macro Action Bar's spellbook tab of macros.
         -- Its own settings are in char and global below; these are the ones its
         -- Options > AddOns panel held.
@@ -1526,6 +1533,11 @@ function SP:ToggleGUI(input)
     if arg == "camp status" then
         if not SP.CampWheel then print("SuspicionsPack: the campfire wheel is only on WoW: Forever.")
         else SP.CampWheel.PrintStatus() end
+        return
+    end
+    if arg == "teleport status" then
+        if not SP.TeleportMenu then print("SuspicionsPack: the teleport menu is only on WoW: Forever.")
+        else SP.TeleportMenu.PrintStatus() end
         return
     end
     if arg == "macros" then

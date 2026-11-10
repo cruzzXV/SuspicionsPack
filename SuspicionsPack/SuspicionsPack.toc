@@ -91,6 +91,8 @@ Modules\NodeRadar\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType stand
 Modules\NodeRadar\NodeRadar.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 # Forever only, same gate: a wheel of camp items near a campfire.
 Modules\CampWheel\CampWheel.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+# Forever only, same gate: teleport buttons beside the game menu.
+Modules\TeleportMenu\TeleportMenu.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 # Forever only, same gate: Macro Action Bar's spellbook tab of macros, a fork of NotStraws'
 # Macro Action Bar 1.2.1 (MIT). The shell first, then the original's own load order with
 # the pack's Spells/Locale (clients in other languages) before Macros.lua.

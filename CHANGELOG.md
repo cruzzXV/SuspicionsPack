@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-11-10 — Menu de téléportation à côté du menu Échap (Forever)
+
+Demande de Cruzz : « comme le teleport menu de retail, pour classic », avec les deux pierres de foyer du chaman, les
+portails du mage, etc. TeleportMenu v13.1 (Justwait, sans licence) lu pour le comportement, rien copié.
+- **`Modules/TeleportMenu/TeleportMenu.lua`** (nouveau, Forever seulement) : à l'ouverture du menu Échap, une
+  colonne collée à sa gauche avec ce que le personnage connaît ou porte : Pierre de foyer, Rappel astral,
+  Téléportation : Reflet-de-Lune, transporteurs d'ingénieur (Long-guet, Gadgetzan, Mont Hyjal, bijoux compris) et
+  Atiesh. Les téléportations du mage en rangée vers la gauche, ses portails dessous (choix de Cruzz : rangées
+  toujours visibles, pas de volets). IDs relevés dans la DB2 du build 1.60.1.70888 (effet 252, ligne de mage 237) ;
+  aucun nom comparé, le client est en français.
+- Clic gauche : lance, puis ferme le menu (`HideUIPanel`, qui passe par le délégué interdit de Blizzard), sans quoi
+  Échap annulerait l'incantation. Le menu reste ouvert si la téléportation est en recharge ou si le clic équipe un
+  bijou non porté. Recharge en balayage, bordure verte sur un bijou porté, infobulle par ID.
+- Boutons sécurisés sur `UIParent`, ni enfants ni ancrés au menu (un cadre protégé protège son parent et son
+  ancre ; Blizzard et EllesmereUI redimensionnent le menu) : placés en coordonnées absolues, hors combat, à
+  l'ouverture et quand la taille du menu change. Sur `GameMenuFrame`, seulement `HookScript`. Pilote d'état
+  `[combat] hide; show` tant que le menu est ouvert ; menu fermé en combat → rangé à `PLAYER_REGEN_ENABLED`, ouvert
+  en combat → rempli à la fin du combat. Au repos : aucun événement, sauf la fin d'un combat.
+- **`Pages/TeleportMenu.lua`** (nouveau, Interface) : taille des boutons, fermeture du menu, portails.
+  **`Core.lua`** : défauts `teleportMenu` (éteint par défaut) et `/spack teleport status`. Lignes dans les deux .toc,
+  même porte Forever que CampWheel.
+- **Tests** : `tests/test_teleport_menu.lua` (169), `--teleport`, page dans `test_gui` (Forever : 138). 51 mutations
+  sur 51 rouges, témoin vert. Toutes les suites comme sans le changement (`--profiler` et `--orphans` rouges avant
+  comme après, sur `NodeRadar/Scan.lua` en pause et les Datatexts). Copié dans `_forever_` : fichiers neufs, il faut
+  relancer le client. Essai en jeu de Cruzz : « ça marche » (mage, combat et bijoux pas confirmés un à un).
+
+---
+
 ## 2026-11-06 — 2.14.0
 
 Release de tout ce qui suit depuis la 2.13.1 : Buff thanks, Macro Action Bar (Forever), infobulles de la barre

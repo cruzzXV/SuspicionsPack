@@ -58,6 +58,7 @@ Pages\ConsumableMacros.lua [AllowLoadGameType camelot][ExcludeLoadGameType stand
 Pages\ProfessionMarks.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\NodeRadar.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\CampWheel.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
+Pages\TeleportMenu.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\MacroActionBar.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 Pages\FastLoot.lua
 Pages\Durability.lua
