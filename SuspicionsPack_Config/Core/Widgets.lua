@@ -439,6 +439,9 @@ function W.Toggle(parent, spec)
     -- card's edge instead of being truncated at COL_MAX.
     row.label:SetPoint("RIGHT", row, "RIGHT", -PAD_R, 0)
     row.labelCol = PAD
+    -- Where the label starts, for text hung under it from outside (the setup
+    -- popup's sentences).
+    row.textX = PAD + ctrlW + TOGGLE_LABEL_GAP
 
     local state = row.binding:Get() and true or false
     local Show, Repaint = (GUI.FOREVER and BuildCheck or BuildSwitch)(row, state)

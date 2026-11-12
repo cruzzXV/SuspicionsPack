@@ -196,6 +196,13 @@ local function ShowMarks(slot, marks)
     end
 end
 
+-- A slot's two glyphs on `host`, empty. Public with ShowMarks: the setup tour's
+-- example bag draws with them, so it shows the marks exactly as the bags do.
+function PM.NewMarks(host)
+    return { MakeMark(host, "TOPRIGHT", "BOTTOMLEFT"), MakeMark(host, "TOPLEFT", "BOTTOMRIGHT") }
+end
+PM.ShowMarks = ShowMarks
+
 local function PaintSlot(button, host, itemID)
     -- Before the truthiness test: `itemID and` already branches on the value.
     if _issecretvalue(itemID) then itemID = nil end
@@ -203,10 +210,7 @@ local function PaintSlot(button, host, itemID)
     local slot = slots[button]
     if not slot then
         if not marks then return end
-        slot = {
-            MakeMark(host, "TOPRIGHT", "BOTTOMLEFT"),
-            MakeMark(host, "TOPLEFT", "BOTTOMRIGHT"),
-        }
+        slot = PM.NewMarks(host)
         slots[button] = slot
     end
     ShowMarks(slot, marks)

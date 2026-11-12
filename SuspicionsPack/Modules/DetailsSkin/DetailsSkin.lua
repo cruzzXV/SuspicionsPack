@@ -376,6 +376,12 @@ local function BuildTitleArt(titleBar)
     return art
 end
 
+-- For the setup tour's example window: the real skin's values and its title art.
+DS.FOREVER_SKIN  = foreverSkin
+DS.BuildTitleArt = BuildTitleArt
+DS.LOOK = { ICON_LEFT = ICON_LEFT, ICON_SIZE = ICON_SIZE, RING_ATLAS = RING_ATLAS,
+            RING_SIZE = RING_SIZE, RING_SUBLEVEL = RING_SUBLEVEL }
+
 local function SetRing(row, on)
     local ring = rings[row]
     if not ring then

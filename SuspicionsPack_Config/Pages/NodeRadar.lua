@@ -44,6 +44,16 @@ GUI.RegisterPage{
                        page:Restack()
                    end }
 
+        local cs = page:Card("Scanning")
+        cs:Slider{ key = "scanYards", label = "Scan every",
+                   desc = "Yards walked between two scans. Standing still, it does not scan.",
+                   suffix = " yd", min = 10, max = 100, step = 5 }
+        cs:Slider{ key = "scanSeconds", label = "At most every",
+                   desc = "Seconds between two scans, at the least.",
+                   suffix = " s", min = 3, max = 60, step = 1 }
+        cs:Toggle{ key = "scanCombat", label = "Scan in combat",
+                   desc = "Off: no scan in a fight, the icons keep following the nodes already found." }
+
         local c2 = page:Card("Size and position")
         c2:Slider{ key = "orbit", label = "Circle size",
                    desc = "How far from your character the icons sit as they turn.",
@@ -83,7 +93,11 @@ GUI.RegisterPage{
 
         local c3 = page:Card("Good to know")
         c3:Note("It reads your minimap's tracking dots, so the minimap has to be on screen.")
+        c3:Note("To read them, a scan moves the minimap under your mouse for a few tenths of a second, unseen: a copy of it stays in its place, its buttons, frame and texts included, without its other dots. A scan reads a little of the minimap at a time, and gives the mouse back as soon as you press a button or bring it onto the minimap or its buttons.")
+        c3:Note("A scan waits while your mouse is over a window. None while you aim a spell, cast, loot or have a mob under the mouse, nor in cities and inns, indoors, in instances, flying, or with a rotating minimap. One after each fight.")
+        c3:Note("With NodeSight on, the radar takes NodeSight's nodes and does not scan itself.")
         c3:Note("Up is the way your character faces. If you turn the camera alone, the icons follow your character.")
+        c3:Note("Right-click an icon to take its node off the radar, as with WaypointUI. A left-click goes on to the world.")
 
         page:Finish()
     end,

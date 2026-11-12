@@ -402,13 +402,38 @@ local function Disc(parent, sublevel, inset, r, g, b, a)
     return Smooth(t)
 end
 
--- A texture from our folder, centred on the wheel.
-local function Part(file, layer, size)
-    local t = visual:CreateTexture(nil, layer)
+-- A texture from our folder, centred on `parent`: the wheel's own frame unless given.
+local function Part(file, layer, size, parent)
+    parent = parent or visual
+    local t = parent:CreateTexture(nil, layer)
     t:SetTexture(MEDIA .. file)
     t:SetSize(size, size)
-    t:SetPoint("CENTER", visual, "CENTER", 0, 0)
+    t:SetPoint("CENTER", parent, "CENTER", 0, 0)
     return Smooth(t)
+end
+
+-- The wheel's middle on `parent`: the glow, the turning ring, the pointer and the fire.
+local function NewMiddle(parent)
+    local m = {}
+    m.glow = Part("glow.png", "BACKGROUND", GLOW_SIZE, parent)
+    m.glow:SetBlendMode("ADD")
+    Tint(m.glow, FLAME)
+
+    m.ring = Part("ring.png", "BORDER", RING_SIZE, parent)
+    Tint(m.ring, GOLD)
+    m.ringSpin = m.ring:CreateAnimationGroup()
+    m.ringSpin:SetLooping("REPEAT")
+    local turn = m.ringSpin:CreateAnimation("Rotation")
+    turn:SetDegrees(-360)
+    turn:SetDuration(RING_PERIOD)
+    turn:SetOrigin("CENTER", 0, 0)
+
+    m.pointer = Part("pointer.png", "BORDER", POINTER_SIZE, parent)
+    Tint(m.pointer, GOLD_HOVER)
+
+    m.fire = Part("campfire.png", "ARTWORK", CAMPFIRE_SIZE, parent)
+    Tint(m.fire, FLAME)
+    return m
 end
 
 local function EnsureFrames()
@@ -423,24 +448,9 @@ local function EnsureFrames()
     visual:SetPoint("CENTER", anchor, "CENTER", 0, 0)
     visual:Hide()
 
-    glow = Part("glow.png", "BACKGROUND", GLOW_SIZE)
-    glow:SetBlendMode("ADD")
-    Tint(glow, FLAME)
-
-    ring = Part("ring.png", "BORDER", RING_SIZE)
-    Tint(ring, GOLD)
-    ringSpin = ring:CreateAnimationGroup()
-    ringSpin:SetLooping("REPEAT")
-    local turn = ringSpin:CreateAnimation("Rotation")
-    turn:SetDegrees(-360)
-    turn:SetDuration(RING_PERIOD)
-    turn:SetOrigin("CENTER", 0, 0)
-
-    pointer = Part("pointer.png", "BORDER", POINTER_SIZE)
-    Tint(pointer, GOLD_HOVER)
-
-    fire = Part("campfire.png", "ARTWORK", CAMPFIRE_SIZE)
-    Tint(fire, FLAME)
+    local middle = NewMiddle(visual)
+    glow, ring, ringSpin = middle.glow, middle.ring, middle.ringSpin
+    pointer, fire = middle.pointer, middle.fire
 
     holder = CreateFrame("Frame", "SP_CampWheel", UIParent)
     holder:SetSize(1, 1)
@@ -465,9 +475,10 @@ local function EnsureFrames()
     hub:SetScript("PostClick", HubPostClick)
 end
 
--- What an item looks like. Grown and moved freely, it takes no mouse.
-local function NewImage()
-    local image = CreateFrame("Frame", nil, visual)
+-- What an item looks like, on `parent` (the wheel's frame unless given). Grown and moved
+-- freely, it takes no mouse.
+local function NewImage(parent)
+    local image = CreateFrame("Frame", nil, parent or visual)
     image:SetSize(ICON_SIZE, ICON_SIZE)
 
     Disc(image, 0, -3, 0, 0, 0, 1)
@@ -491,6 +502,13 @@ local function NewImage()
     image.count:SetPoint("BOTTOMRIGHT", image, "BOTTOMRIGHT", -1, 1)
     return image
 end
+
+-- For the setup tour's example wheel: the wheel's own parts, colours and sizes.
+CW.NewMiddle, CW.NewImage = NewMiddle, NewImage
+CW.SAMPLE = SAMPLE
+CW.LOOK = { GOLD = GOLD, GOLD_HOVER = GOLD_HOVER, FLAME = FLAME, FLAME_HOVER = FLAME_HOVER,
+            GLOW_ALPHA = GLOW_ALPHA, ICON_SIZE = ICON_SIZE, MIN_RADIUS = MIN_RADIUS,
+            ICON_SPACE = ICON_SPACE, POP = 0.10 }
 
 -- What an item does when clicked. Invisible, and it stays put.
 local function NewButton(index)

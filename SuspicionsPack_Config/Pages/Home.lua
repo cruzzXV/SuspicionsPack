@@ -476,6 +476,8 @@ GUI.RegisterPage{
             return GUI.AccentHex() .. "\226\128\186|r  " ..
                    "Navigate the sidebar on the left to find each module's settings."
         end)
+        c1:ButtonRow{ text = "Open setup", width = 150, onClick = GUI.ShowSetup,
+                      desc = "The main features in one list, with a switch each." }
 
         page:Card("Support",
             "If any issue, or LUA error please dm me with the error and a good explanation.")

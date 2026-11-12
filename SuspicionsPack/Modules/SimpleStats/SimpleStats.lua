@@ -262,9 +262,11 @@ local function Hook()
         SP.Perf.Wrap("SimpleStats", "tooltip line", OnLine))
 end
 
--- For the options page: the client's own spell power line, and what it becomes.
-function SS.Example(value)
-    local fmt = TOOLTIP_ITEM_STAT_SPELL_POWER_INCREASE
+-- For the options page and the setup tour: the client's own line for a stat, and what
+-- it becomes. The spell power line (damage and healing) unless `key` names another
+-- TOOLTIP_ITEM_STAT_<key>, as "SPELL_HEALING_INCREASE" for healing only.
+function SS.Example(value, key)
+    local fmt = _G["TOOLTIP_ITEM_STAT_" .. (key or "SPELL_POWER_INCREASE")]
     if type(fmt) ~= "string" then return end
     local ok, before = pcall(string.format, fmt:gsub("%%(%d)%$", "%%"), value or 12)
     if not ok then return end

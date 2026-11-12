@@ -11,7 +11,7 @@ local Perf = NS.Perf
 SP.Perf = Perf
 Perf.InstrumentAce(SP, "Core")
 local hooksecurefunc = Perf.HookFunc("Core")
-SP.VERSION = "2.14.0"
+SP.VERSION = "2.15.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -670,6 +670,9 @@ local DEFAULTS = {
             arrowScale   = 100,
             x            = 0,
             y            = 0,
+            scanYards    = 30,     -- yards walked between scans
+            scanSeconds  = 10,     -- seconds between scans, at the least
+            scanCombat   = false,  -- scan in combat too
         },
         -- Forever only (see the .toc gate). A wheel of camp items near a campfire.
         campWheel = {
@@ -1235,6 +1238,9 @@ function SP:OnInitialize()
     -- Migrations run against the RAW saved table, before AceDB copies defaults
     -- on top of it. Doing it after would mean pruning keys that AceDB has just
     -- rawset back in, and the prune would silently do nothing.
+    -- No saved table yet: the pack's first run on this account, which opens the
+    -- setup popup at login instead of "What's new" (SP.CheckChangelog).
+    SP.freshInstall = _G.SuspicionsPackDB == nil
     if SP.RunMigrations then
         SP.RunMigrations(_G.SuspicionsPackDB)
     end
@@ -1529,9 +1535,10 @@ function SP:ToggleGUI(input)
         else print("SuspicionsPack: the cursor module is not loaded.") end
         return
     end
-    if arg == "radar names" or arg == "radar status" then
+    if arg == "radar names" or arg == "radar status" or arg == "radar compare" then
         if not SP.NodeRadar then print("SuspicionsPack: the node radar is only on WoW: Forever.")
         elseif arg == "radar names" then SP.NodeRadar.PrintUnknown()
+        elseif arg == "radar compare" then SP.NodeRadar.Compare()
         else SP.NodeRadar.PrintStatus() end
         return
     end
@@ -1550,6 +1557,10 @@ function SP:ToggleGUI(input)
         else SP.MacroActionBar.OpenPage() end
         return
     end
+    if arg == "setup" then
+        SP.OpenSetup()
+        return
+    end
     if not SP.EnsureGUI() then return end
     SP.GUI.Toggle()
 end
@@ -1562,6 +1573,13 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.15.0"] = {
+        { type = "new", text = "Added a setup tour, opened at the first login: each feature shown in action, with a switch. /spack setup brings it back." },
+        { type = "new", text = "WoW: Forever: added a teleport menu beside the game menu: Hearthstone, Astral Recall, Moonglade, mage teleports and portals. Off by default, in Interface." },
+        { type = "new", text = "WoW: Forever: added Simple item stats: item bonus lines in short, in every client language. Off by default, in Items." },
+        { type = "fix", text = "WoW: Forever: the node radar finds herbs and veins again on the current client." },
+        { type = "fix", text = "Datatexts: hovering Guild no longer causes a blocked action error, and the guild and friends panels fit their contents." },
+    },
     ["2.14.0"] = {
         { type = "new", text = "Added Buff thanks: thanks the players who buff you, with an emote or a whisper. Off by default, in Social." },
         { type = "new", text = "WoW: Forever: added Macro Action Bar's tab of macros in the spellbook. Off by default, in Interface." },
@@ -2260,8 +2278,26 @@ function SP.CheckChangelog()
 
     db.settings.lastSeenVersion = SP.VERSION
 
-    -- Small delay so the UI is fully loaded before we show the popup
+    -- Small delay so the UI is fully loaded before we show the popup. A fresh
+    -- install gets the setup popup instead: 35 releases of history mean nothing
+    -- to a new player, and every feature starts switched off.
     C_Timer.After(3, function()
-        SP.ShowChangelogPopup()
+        if SP.freshInstall then SP.OpenSetup(true) else SP.ShowChangelogPopup() end
     end)
+end
+
+-- Opens the setup popup (SuspicionsPack_Config, Core\Setup.lua). `afterCombat`
+-- is the login path's: a window of switches is no welcome in the middle of a
+-- fight, so it waits for the fight to end. /spack setup opens it at once.
+function SP.OpenSetup(afterCombat)
+    if afterCombat and InCombatLockdown() then
+        local f = CreateFrame("Frame")
+        f:RegisterEvent("PLAYER_REGEN_ENABLED")
+        f:SetScript("OnEvent", Perf.WrapEvent("Core", function(self)
+            self:UnregisterAllEvents()
+            SP.OpenSetup()
+        end))
+        return
+    end
+    if SP.EnsureGUI() then SP.GUI.ShowSetup() end
 end

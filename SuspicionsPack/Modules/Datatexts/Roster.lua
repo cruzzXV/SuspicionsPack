@@ -27,7 +27,8 @@ local MAX_ROWS = 20
 local HEAD_H   = 22
 local FONT     = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 
--- Columns per kind: key in the row record, width, justification.
+-- Columns per kind: key in the row record, the most room it takes, justification.
+-- A column is as wide as its widest text up to that, and takes no room when empty.
 local COLUMNS = {
     guild = {
         { key = "display", w = 150, justify = "LEFT"   },
@@ -43,13 +44,8 @@ local COLUMNS = {
         { key = "note",    w = 140, justify = "LEFT"   },
     },
 }
-local GAP = 8
-
-local function ColumnsWidth(cols)
-    local w = 0
-    for _, c in ipairs(cols) do w = w + c.w end
-    return w + GAP * (#cols - 1)
-end
+local GAP    = 8
+local MOTD_W = 360   -- a long message of the day wraps at this width
 
 -- ---- data -----------------------------------------------------------------
 local classByName
@@ -79,6 +75,29 @@ local function StatusTag(afk, dnd)
 end
 
 local function ByName(a, b) return (a.sort or "") < (b.sort or "") end
+
+-- A value we may look at: not secret, and a table we may index.
+local function Readable(v)
+    if issecretvalue and issecretvalue(v) then return false end
+    if type(v) == "table" and canaccesstable and not canaccesstable(v) then return false end
+    return true
+end
+
+-- The guild's message of the day. C_GuildInfo.GetMOTD carries HasRestrictions:
+-- an addon calling it is blocked (ADDON_ACTION_BLOCKED, "UNKNOWN()"), and
+-- GetGuildRosterMOTD is the same function under its old name. The guild is
+-- also a club, and the club's broadcast is that message: Blizzard's
+-- Communities chat prints it as the message of the day. It turns secret while
+-- chat is locked down; there is nothing to show then. Before the clubs load,
+-- both calls return nothing.
+function Roster.GuildMOTD()
+    local clubId = C_Club and C_Club.GetGuildClubId and C_Club.GetGuildClubId()
+    if not clubId then return "" end
+    local info = C_Club.GetClubInfo(clubId)
+    if not Readable(info) or not info then return "" end
+    local motd = info.broadcast
+    return Readable(motd) and motd or ""
+end
 
 function Roster.GuildRows()
     local rows = {}
@@ -216,7 +235,7 @@ local function GetRow(i)
     return row
 end
 
-local function LayoutCells(row, cols)
+local function LayoutCells(row, cols, widths)
     local x = 0
     for c, col in ipairs(cols) do
         local fs = row.cells[c]
@@ -224,15 +243,43 @@ local function LayoutCells(row, cols)
             fs = Text(row, 11, col.key == "note" and FT.readable or FT.cream)
             row.cells[c] = fs
         end
-        fs:ClearAllPoints()
-        fs:SetPoint("LEFT", row, "LEFT", x, 0)
-        fs:SetWidth(col.w)
-        fs:SetJustifyH(col.justify)
-        fs:SetTextColor(unpack(col.key == "note" and FT.readable or FT.cream))
-        fs:Show()
-        x = x + col.w + GAP
+        local w = widths[c]
+        if w > 0 then
+            fs:ClearAllPoints()
+            fs:SetPoint("LEFT", row, "LEFT", x, 0)
+            fs:SetWidth(w)
+            fs:SetJustifyH(col.justify)
+            fs:SetTextColor(unpack(col.key == "note" and FT.readable or FT.cream))
+            fs:Show()
+            x = x + w + GAP
+        else
+            fs:Hide()
+        end
     end
     for c = #cols + 1, #row.cells do row.cells[c]:Hide() end
+end
+
+-- How wide a text draws in the cells' font, measured on a string with no
+-- width of its own so nothing truncates it. A width we may not read counts
+-- as too wide: the column then takes all its room.
+local function Measure(text)
+    if text == nil or text == "" then return 0 end
+    panel.measure:SetText(text)
+    local w = panel.measure:GetStringWidth()
+    if not Readable(w) then return math.huge end
+    return math.ceil(w or 0) + 1
+end
+
+-- Each column's width for these rows, and the room they take side by side.
+local function ColumnWidths(cols, rows)
+    local widths, total = {}, 0
+    for c, col in ipairs(cols) do
+        local w = 0
+        for _, data in ipairs(rows) do w = math.max(w, Measure(data[col.key])) end
+        widths[c] = math.min(w, col.w)
+        if widths[c] > 0 then total = total + (total > 0 and GAP or 0) + widths[c] end
+    end
+    return widths, total
 end
 
 -- Closes once the cursor has been off both the slot and the panel for a
@@ -286,6 +333,8 @@ local function Build()
     sf:EnableMouseWheel(true)
 
     panel.empty = Text(panel, 11, FT.readable)
+    panel.measure = Text(panel, 11, FT.cream)
+    panel.measure:Hide()
     panel.hint = Text(panel, 10, FT.readable)
     panel.hint:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", PAD, PAD - 2)
     panel.hint:SetText("Click: whisper    Alt+click: invite")
@@ -298,24 +347,32 @@ local function Fill()
     local kind = panel.kind
     local cols = COLUMNS[kind]
     local rows = kind == "guild" and Roster.GuildRows() or Roster.FriendRows()
-    local inner = ColumnsWidth(cols)
-    local width = inner + PAD * 2 + 12   -- room for the scroll bar
 
+    local motd = ""
     if kind == "guild" then
         local name = IsInGuild() and GetGuildInfo("player") or "Guild"
         panel.title:SetText(name or "Guild")
         local total = GetNumGuildMembers() or 0
         panel.count:SetText(#rows .. " / " .. total .. " online")
-        local motd = (C_GuildInfo and C_GuildInfo.GetMOTD and C_GuildInfo.GetMOTD())
-            or (GetGuildRosterMOTD and GetGuildRosterMOTD()) or ""
-        panel.motd:SetText(motd)
-        panel.motd:SetShown(motd ~= "")
+        motd = Roster.GuildMOTD()
     else
         panel.title:SetText("Friends")
         panel.count:SetText(#rows .. " online")
-        panel.motd:SetText("")
-        panel.motd:Hide()
     end
+    panel.motd:SetText(motd)
+    panel.motd:SetShown(motd ~= "")
+    panel.empty:SetText(kind == "guild" and not IsInGuild() and "Not in a guild." or "Nobody online.")
+    panel.empty:SetShown(#rows == 0)
+
+    -- As wide as what it shows: the columns, the title and count side by side,
+    -- the hint, the empty line, and the message of the day up to MOTD_W.
+    local widths, inner = ColumnWidths(cols, rows)
+    inner = math.ceil(math.max(inner,
+        panel.title:GetStringWidth() + 16 + panel.count:GetStringWidth(),
+        panel.hint:GetStringWidth(),
+        #rows == 0 and panel.empty:GetStringWidth() or 0,
+        math.min(Measure(motd), MOTD_W)))
+    local width = inner + PAD * 2 + (#rows > MAX_ROWS and 12 or 0)   -- room for the scroll bar
     panel.motd:SetWidth(inner)
 
     local top = PAD + HEAD_H
@@ -328,7 +385,7 @@ local function Fill()
     for i, data in ipairs(rows) do
         local row = GetRow(i)
         row.data = data
-        LayoutCells(row, cols)
+        LayoutCells(row, cols, widths)
         for c, col in ipairs(cols) do row.cells[c]:SetText(data[col.key] or "") end
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", panel.content, "TOPLEFT", 0, -(i - 1) * ROW_H)
@@ -351,8 +408,6 @@ local function Fill()
 
     panel.empty:ClearAllPoints()
     panel.empty:SetPoint("TOPLEFT", panel.sf, "TOPLEFT", 0, 0)
-    panel.empty:SetText(kind == "guild" and not IsInGuild() and "Not in a guild." or "Nobody online.")
-    panel.empty:SetShown(#rows == 0)
 
     panel:SetSize(width, top + listH + 8 + 14 + PAD)
 end

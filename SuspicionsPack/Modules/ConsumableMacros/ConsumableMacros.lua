@@ -25,6 +25,9 @@ local HEALTH_MACRO     = "SPHealth"
 -- The icon #showtooltip replaces with the item's own.
 local MACRO_ICON = "INV_Misc_QuestionMark"
 
+-- For the setup tour's example bar: the macros' names, in their order.
+CM.MACROS = { FOOD_DRINK_MACRO, BUFF_FOOD_MACRO, BANDAGE_MACRO, HEALTH_MACRO }
+
 -- The skill line every bandage asks for in the game data (its parent line is 129).
 local FIRST_AID_LINE = 2942
 

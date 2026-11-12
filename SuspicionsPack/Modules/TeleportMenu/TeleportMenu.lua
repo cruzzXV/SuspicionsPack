@@ -69,6 +69,10 @@ local GAP = 6               -- pixels between the menu and the column
 local SPACING = 4           -- pixels between two buttons
 local ICON_CROP = 0.08
 local GLOBAL_COOLDOWN = 1.5 -- seconds: a cooldown this short is not the teleport's own
+
+-- For the setup tour's example menu, drawn with the same lists and spacing.
+TM.COLUMN, TM.TELEPORTS, TM.PORTALS = COLUMN, TELEPORTS, PORTALS
+TM.LOOK = { GAP = GAP, SPACING = SPACING, ICON_CROP = ICON_CROP }
 local OPEN_EVENTS = {
     "SPELL_UPDATE_COOLDOWN", "BAG_UPDATE_COOLDOWN",                     -- the swipes
     "BAG_UPDATE_DELAYED", "SPELLS_CHANGED", "PLAYER_EQUIPMENT_CHANGED", -- what is on it

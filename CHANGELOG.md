@@ -4,6 +4,114 @@
 
 ---
 
+## 2026-11-12 — 2.15.0
+
+Release de ce qui suit depuis la 2.14.0 : visite guidée au premier install, Menu de téléportation et Simple item
+stats (Forever), node radar refait pour le build 70862, correctif Guilde des Datatexts. Version dans les trois .toc
+et `SP.VERSION`, entrées `SP.Changelog["2.15.0"]` validées par Cruzz, `.github/RELEASE_NOTES.md` réécrit.
+- La visite : Finish recharge l'interface (dans le clic, `C_UI.Reload`) ; les icônes d'All set ont un fond noir
+  (l'art du feu de camp est une flamme sans fond). Tests +2 par client, 3 mutations rouges, témoin vert.
+
+---
+
+## 2026-11-12 — Node radar : scan par la vraie souris, minimap copiée pendant le scan (Forever)
+
+Travail du 2026-11-09 au 11, mis en pause par Cruzz puis livré avec la 2.15.0 à sa demande. Le build 70862 de
+Forever a tué la fausse souris : le radar ne trouvait plus rien. Le scan passe maintenant la vraie minimap sous le
+curseur, avec à sa place une copie identique pendant le scan (`Modules/NodeRadar/{Scan,Copy,Tiles}.lua`,
+`Media/NodeRadar/EmptyMask.tga`), arrêté par un clic, un mouvement de souris vers la minimap, une visée, un sort, le
+butin ou la mort ; seuls les points qui laissent la minimap dans l'écran sont placés (EllesmereUI la fige au
+bord). Réglages `scanYards`, `scanSeconds`, `scanCombat`, commande `/spack radar compare`. Détail et état dans
+`tasks/todo.md`. Au moment de livrer : les crochets de `Scan.lua` passent par `SP.Perf` (`--profiler` vert). Points
+ouverts : couleur de la copie à Tirisfal, clics après un mouvement de souris, clic droit sur l'icône.
+
+---
+
+## 2026-11-12 — Visite guidée au premier install
+
+Demande de Cruzz : un menu au premier install qui explique les fonctions principales en bref, et toutes celles de
+Forever. Tous les modules sont livrés éteints (sauf Details skin) : un joueur qui vient d'installer ne voit rien se
+passer. Une première version (une liste d'interrupteurs) a été refusée : « a cool step by step menu, with image
+… elvui has a good one ». Lus pour la forme, rien copié : l'installateur d'ElvUI et le premier lancement
+d'EllesmereUI. Maquette cliquable validée par Cruzz avant le code (`tests/previews/setup-wizard.html`).
+- **`SuspicionsPack_Config/Core/Setup.lua`** (nouveau) : la visite, 880×560, Plumber sur Forever. À gauche la liste
+  des étapes, cliquable (losange vide, plein une fois vue, doré pour l'étape en cours, « ON » quand une fonction de
+  l'étape est allumée) ; en bas « Skip the tour », barre « n / N » qui se remplit, Back, Next (Finish à la fin).
+  Forever, 11 étapes : Welcome ; Datatexts, Node radar, Teleport menu, Campfire wheel, Macro Action Bar (une
+  grande scène chacune) ; Bags and macros, Tooltips and meters, Alerts, Fewer clicks (une petite scène par
+  fonction) ; All set (une icône par fonction, allumée ou grise, cliquable ; Open the options). Retail, 5 étapes :
+  Welcome, Alerts, Fewer clicks, Group play (Potion, Bloodlust, Release and rez, Auto buy), All set. Une seule
+  liste pour les deux clients : une fonction sans page sur ce client disparaît, et une étape vide avec elle.
+  Chaque fonction : « Turn on X », le même effet que l'interrupteur de sa page (`enabled`, `Refresh` du module,
+  point de la barre latérale, toast, page ouverte derrière relue), et toutes les vues de la fonction suivent.
+  Réglages par personnage suivis (Auto buy). Chaque ouverture repart de la première étape.
+- **`SuspicionsPack_Config/Core/SetupScenes.lua`** (nouveau) : une scène animée par fonction, faite d'icônes du
+  jeu et de l'art du pack (flèche du radar, anneau et pointeur du feu de camp, barres Details). Noms tirés du
+  client quand il les a (sorts, objets, menu du jeu, ligne de puissance des sorts de Simple item stats) : en
+  français sur un client français. L'or et l'heure de la barre de datatexts sont les vrais. Animées par l'OnUpdate
+  de la visite, donc seulement l'étape à l'écran, fenêtre ouverte.
+- **Retours de Cruzz après un premier essai en jeu** :
+  - Node radar dessiné comme le module : symboles de la minimap (`SP.NodeRadarData`), gris puis teintés de la
+    couleur du nœud, flèches teintées à mi-chemin, distance seule sous le plus proche (« m » en français), tailles,
+    orbite, flèches et distance selon les réglages du joueur, échantillons de l'aperçu de la page. Votre portrait
+    au centre, le vrai sort de Découverte des herbes sur la minimap.
+  - Profession marks : les glyphes et le placement du module. **`ProfessionMarks.lua`** rend publics `NewMarks` et
+    `ShowMarks` (ses sacs passent par le même `NewMarks`) ; la scène choisit les marques dans ses données, pour les
+    métiers du personnage, ou Alchimie, Herboristerie et Cuisine s'il n'en a pas.
+  - Simple item stats : les deux lignes de Classic, dégâts et soins puis soins seuls, et ce que le module en fait
+    (« +12 Puissance des sorts », « +22 Soins des sorts » en français). **`SimpleStats.lua`** : `SS.Example(value,
+    key)` prend la stat à montrer.
+  - All set : la phrase du haut se mesurait vide, les icônes passaient dessus. Barre de progression plus sombre,
+    le « n / N » se lit.
+- **Toutes les autres scènes refaites avec les vraies pièces de leur module** (demande de Cruzz : « do the
+  others ») :
+  - Datatexts : une vraie barre, peinte par le skin du module (`DT.Skins.Apply`), première barre du joueur ou
+    celle par défaut, textes lus chez les fournisseurs (durabilité, or, heure du personnage), libellé et valeur
+    aux couleurs et à la police des réglages.
+  - Teleport menu : listes, espacement et taille de bouton du module, boutons noirs et icône rognée comme les
+    siens, téléportations sous la colonne. Campfire wheel : le vrai milieu et les vraies images du module, ses
+    objets d'exemple, sa règle de rayon et son survol. Macro Action Bar : l'icône de l'onglet et la liste de sorts
+    de la classe du module, les pièces du grimoire (cadre, masque, lueur, encre), le menu Cast On. Consumable
+    macros : les noms des quatre macros et des objets de ses données. Details skin : la table du skin Forever,
+    son titre, ses rangées, ses icônes de classe et leurs anneaux.
+  - Alertes : textes, police, taille, contour et couleur des réglages du joueur. Movement alert écrit « No
+    <sort> » et les secondes, sans icône ; Interrupt alert compose sa ligne (« Interrompu », icône, sort) ; Death
+    alert, son nom et « died », fondu 0,3 s / 4 s / 1 s ; Repair warning en orange, pulsation de 0,6 s. Potion et
+    Bloodlust (retail) à l'identique. Automation et Auto release n'écrivent rien : la scène montre ce qui se passe
+    (gris vendus, or, réparation ; la fenêtre de mort). Copy anything : la vraie boîte de dialogue du jeu et son
+    titre. Minimap drawer : l'onglet Forever du module, son panneau et sa grille. Auto buy : son panneau.
+  - Phrases de la visite corrigées : Automation ne fait rien tant qu'on n'a pas coché ses tâches ; Movement
+    alert affiche « No Blink ».
+  - Modules : exports sans changement de comportement. **`TeleportMenu.lua`** : `COLUMN`, `TELEPORTS`,
+    `PORTALS`, `LOOK`. **`ConsumableMacros.lua`** : `MACROS`. **`DetailsSkin.lua`** : `FOREVER_SKIN`,
+    `BuildTitleArt`, `LOOK`. **`CampWheel.lua`** : `NewMiddle`, `NewImage` (un parent en argument), `SAMPLE`,
+    `LOOK`. **`Drawer.lua`** : `DrawForeverTab` (les fonctions de l'onglet prennent un cadre). Leurs suites :
+    mêmes résultats qu'avant.
+- **Captures de Cruzz en jeu** : le menu de téléportation et ses boutons (à sa taille de bouton) sortaient de
+  l'image : le tout est réduit pour tenir. Plus de portrait au milieu du radar. Le pointeur passait sous la barre
+  de datatexts (l'art d'un cadre enfant passe devant celui du parent) : il a son cadre au-dessus de la scène. Les
+  minimaps (tiroir et radar) prennent la forme de la vraie, avec le test du radar (EllesmereUI puis
+  `GetMinimapShape`) : carrée chez Cruzz. Tests +4 sur chaque client ; 4 mutations rouges, témoin vert. Une des
+  nouvelles assertions était toujours vraie (`FOREVER_PASS and false or true`) : la mutation l'a montré.
+- **`Core.lua`** : `SP.freshInstall` = pas de `SuspicionsPackDB` à `OnInitialize` (avant les migrations). Au login,
+  `SP.CheckChangelog` ouvre la fenêtre de démarrage au lieu du « What's new » sur un premier install, et attend la
+  fin d'un combat (`SP.OpenSetup(true)`, `PLAYER_REGEN_ENABLED` par `Perf.WrapEvent`). `/spack setup` la rouvre.
+- **`Pages/Home.lua`** : bouton « Open setup » dans Getting started. **`Core/Widgets.lua`** : `row.textX` sur un
+  Toggle, où commence son libellé. **.toc** des options : `Core\SetupScenes.lua` puis `Core\Setup.lua` après
+  `Shell.lua`.
+- **Tests** : `test_gui` +40 sur retail (201), +41 sur Forever (179) : premier install et install existant, attente
+  du combat, étapes de chaque client, chaque page Forever du .toc dans la visite et en premier, nom de module de
+  chaque fonction comparé à celui de sa page, chaque étape construite et ses scènes jouées 60 images, rien sous le
+  pied de fenêtre (texte coupé en lignes comme en jeu), Back/Next/Skip/Finish/Start, barre, liste, interrupteur,
+  page derrière, All set, réglages par personnage, bouton Home. Faux client : `SetPoint` court et remplacement
+  d'un point déjà posé, `date`, `SetDesaturated`, `SetBlendMode`, or, cadence, faction, noms et icônes par ID,
+  hauteur de texte coupé en lignes (à la demande). 31 mutations sur 31 rouges, témoin vert. Pas couvert : la garde
+  de la barre contre deux animations à la fois (l'`Animate` du faux client est instantané). Toutes les suites comme
+  sans le changement (`--profiler` et `--orphans` rouges avant comme après). Copié dans `_forever_` : fichiers neufs,
+  relancer le client. Pas vu en jeu.
+
+---
+
 ## 2026-11-10 — Simple item stats : les lignes de bonus en court, Forever
 
 Demande de Cruzz : un module qui simplifie les stats des objets, la puissance des sorts d'abord. Écrit d'après
@@ -60,6 +168,35 @@ portails du mage, etc. TeleportMenu v13.1 (Justwait, sans licence) lu pour le co
   sur 51 rouges, témoin vert. Toutes les suites comme sans le changement (`--profiler` et `--orphans` rouges avant
   comme après, sur `NodeRadar/Scan.lua` en pause et les Datatexts). Copié dans `_forever_` : fichiers neufs, il faut
   relancer le client. Essai en jeu de Cruzz : « ça marche » (mage, combat et bijoux pas confirmés un à un).
+
+---
+
+## 2026-11-09 — Datatexts : message du jour sans appel bloqué, panneau Guilde/Amis à sa taille
+
+Rapport BugGrabber de Cruzz : survoler Guilde levait `ADDON_ACTION_BLOCKED`, « UNKNOWN() », à `Roster.lua:309`.
+- **`Modules/Datatexts/Roster.lua`** : le panneau lisait le message du jour par `C_GuildInfo.GetMOTD()`, qui porte
+  `HasRestrictions` sur `forever` comme sur `live` : le jeu bloque l'appel d'un addon. Le repli
+  `GetGuildRosterMOTD` ne sauvait rien, Blizzard en fait un alias de la même fonction
+  (`Deprecated_GuildScript.lua`). Le message vient maintenant du club de la guilde,
+  `C_Club.GetClubInfo(C_Club.GetGuildClubId()).broadcast`, sans restriction : c'est ce que le chat des
+  Communautés affiche comme message du jour (`CommunitiesChatFrame.lua`, branche `forever`). Pendant le verrou
+  du chat, la valeur devient secrète : la ligne se cache. Avant le chargement des clubs, les deux appels ne
+  rendent rien (`FailureMode = ReturnNothing`), et la ligne se cache aussi.
+- **Tests** : `test_datatexts` +9 (220) : l'appel restreint est compté, l'ancien code sort rouge sur 4 cas,
+  message affiché, valeur secrète, table secrète, message vide. 2 mutations sur 2 rouges, témoin vert.
+- En jeu (Forever, personnage sans guilde) : clubs actifs (`IsEnabled` vrai, `IsRestricted` 0), deux
+  communautés Battle.net (type 0), `GetGuildClubId()` nil comme prévu hors guilde. L'ancien code appelait
+  `GetMOTD` même sans guilde, d'où le rapport. Le `/dump` d'essai plantait sur ce nil, pas l'addon, qui teste
+  l'identifiant. Le message affiché reste à voir sur un personnage en guilde.
+- **`Roster.lua`, taille du panneau** (remarque de Cruzz, capture en jeu : « Not in a guild. » dans une boîte
+  de 620 px) : la largeur venait de la somme des colonnes à pleine largeur (580 px en Guilde, 552 en Amis),
+  quoi qu'elles contiennent. Chaque colonne prend maintenant la largeur de son texte le plus large, mesurée sur
+  une chaîne cachée sans largeur propre, au plus sa largeur d'avant. Une colonne vide ne prend aucune place. Le
+  panneau fait au moins le titre et le compte côte à côte, l'aide, la ligne vide, et le message du jour jusqu'à
+  360 px. La place de la barre de défilement n'est ajoutée qu'au-delà de 20 lignes.
+- **Tests** : `test_datatexts` +7 (227), l'ancien code sort rouge sur 3. 4 mutations sur 4 rouges, témoin vert.
+  Le faux `GetStringWidth` compte les codes couleur comme des lettres : le test tolère une cellule à la limite de
+  sa colonne. Pas vu en jeu.
 
 ---
 

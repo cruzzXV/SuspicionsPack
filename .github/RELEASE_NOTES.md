@@ -1,19 +1,10 @@
 ## New
 
-- Added Buff thanks: thanks the players who buff you, with an emote or a whisper. Off by default, in Social.
-- WoW: Forever: added Macro Action Bar's tab of macros in the spellbook. Off by default, in Interface.
-- WoW: Forever: added a buff food macro to the consumable macros.
-- Options: hovering a module in the sidebar says what it does.
-
-## Changes
-
-- WoW: Forever: the health macro no longer eats, and the food macro never uses buff food.
-- Spell effect alpha: a spec you have not set follows Default opacity.
+- Added a setup tour, opened at the first login: each feature shown in action, with a switch. /spack setup brings it back.
+- WoW: Forever: added a teleport menu beside the game menu: Hearthstone, Astral Recall, Moonglade, mage teleports and portals. Off by default, in Interface.
+- WoW: Forever: added Simple item stats: item bonus lines in short, in every client language. Off by default, in Items.
 
 ## Fixes
 
-- Auto buy: at a vendor, Buy qty 0 now buys up to the minimum.
-- Fast loot: switching it off after a /reload gives your Auto Loot setting back.
-- Death alert: the text shows again after switching it off and on.
-- Interrupt alert: Devourer demon hunters have Disrupt.
-- Group joined reminder: listing your own group no longer shows Joined.
+- WoW: Forever: the node radar finds herbs and veins again on the current client.
+- Datatexts: hovering Guild no longer causes a blocked action error, and the guild and friends panels fit their contents.

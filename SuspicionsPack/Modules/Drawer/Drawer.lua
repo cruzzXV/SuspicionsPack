@@ -171,30 +171,33 @@ local RED_X   = { 768, 800, 972, 1004 }
 local RED_TOP = 576
 local RED_GLOW = 0.35
 
-local function NewRedSlice(layer, sublevel)
-    local tex = tab:CreateTexture(nil, layer, nil, sublevel)
+local function NewRedSlice(owner, layer, sublevel)
+    local tex = owner:CreateTexture(nil, layer, nil, sublevel)
     tex:SetTexture(Skin.PLUMBER.FRAME)
     tex:SetTexelSnappingBias(0)
     tex:SetSnapToPixelGrid(false)
     return tex
 end
 
-local function BuildForeverTab()
+-- On `owner`: the drawer's tab unless given.
+local function BuildForeverTab(owner)
+    owner = owner or tab
     local t, glow = {}, {}
     for i = 1, 3 do
-        t[i] = NewRedSlice("BACKGROUND", 0)
-        glow[i] = NewRedSlice("BACKGROUND", 1)
+        t[i] = NewRedSlice(owner, "BACKGROUND", 0)
+        glow[i] = NewRedSlice(owner, "BACKGROUND", 1)
         glow[i]:SetBlendMode("ADD")
         glow[i]:SetAlpha(RED_GLOW)
         glow[i]:SetAllPoints(t[i])
     end
-    tab._red, tab._redGlow = t, glow
+    owner._red, owner._redGlow = t, glow
 end
 
 -- Upright, slice 1 is the top cap and shows the art's right end: a quarter
 -- turn, so down the tab runs right to left along the art, and across it runs
 -- from the art's top edge to its bottom.
-local function PaintForeverTab(isHover, isError)
+local function PaintForeverTab(isHover, isError, owner)
+    local tab = owner or tab
     local t = tab and tab._red
     if not t then return end
     tab._redHover, tab._redError = isHover, isError
@@ -215,10 +218,12 @@ local function PaintForeverTab(isHover, isError)
 end
 
 -- Lays the slices out for the tab's size and the side it is on.
-local function FitForeverTab()
+-- `upright` for another frame than the drawer's tab (which follows its side).
+local function FitForeverTab(owner, upright)
+    local tab = owner or tab
     local t = tab and tab._red
     if not t then return end
-    local upright = not IsVertical()
+    if upright == nil then upright = not IsVertical() end
     local w, h = tab:GetSize()
     local k = (upright and w or h) / 24
     local cap, art, over = 16 * k, 32 * k, 2.5 * k
@@ -235,7 +240,13 @@ local function FitForeverTab()
         t[2]:SetPoint("BOTTOMRIGHT", t[3], "BOTTOMLEFT")
     end
     tab._redUpright = upright
-    PaintForeverTab(tab._redHover, tab._redError)
+    PaintForeverTab(tab._redHover, tab._redError, tab)
+end
+
+-- For the setup tour's example drawer: the Forever tab's own art on `frame`, upright.
+function Drawer.DrawForeverTab(frame)
+    BuildForeverTab(frame)
+    FitForeverTab(frame, true)
 end
 
 local function UpdateTabSize()

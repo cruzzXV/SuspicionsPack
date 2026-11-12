@@ -1,1 +1,2 @@
 arrow.png: drawn for this addon.
+EmptyMask.tga: an 8 x 8 fully transparent image, made for this addon (the minimap's mask during a scan).

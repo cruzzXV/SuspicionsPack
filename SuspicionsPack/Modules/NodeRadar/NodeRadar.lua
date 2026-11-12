@@ -6,10 +6,13 @@
 -- size and with its distance; the others are smaller.
 --
 -- The game gives addons no list of nodes, but the minimap's tracking dots can be read.
--- A pretend mouse (Minimap:UpdateMouseoverAtPoint) visits a grid of points, a few per
--- frame, and the minimap tooltip names the dots under it. Points that hit the same name
--- and touch each other are one node. Its place is kept in map coordinates, so it can be
--- followed between scans.
+-- Since build 70862 only under the real mouse: Scan.lua moves the minimap under it one
+-- point a frame, with Copy.lua's picture in its place, and hands each answer here. Answers
+-- of one name close together are one node. Its place is kept in map coordinates, so it
+-- can be followed between scans. A scan runs as you walk (every few yards, at most every
+-- few seconds), never standing still unless something asks for one (a zoom, a finder
+-- switched, a loading screen). With NodeSight loaded, its scan is used instead: two
+-- scans would fight over the minimap.
 --
 -- So the radar sees what the minimap shows: it needs the minimap on screen and Find
 -- Herbs or Find Minerals on, and the minimap's zoom sets how far it reaches. Up is the
@@ -30,25 +33,35 @@ SP.NodeRadar = NR
 
 local Data = SP.NodeRadarData
 local NODES, Key = Data.nodes, Data.Key
+local Scan = SP.NodeRadarScan
+local Copy = SP.NodeRadarCopy
 
 local _issecretvalue = issecretvalue or function() return false end
 local sin, cos, atan2, sqrt, exp, pi = math.sin, math.cos, math.atan2, math.sqrt, math.exp, math.pi
 local floor, min, max = math.floor, math.min, math.max
 
 -- The scan.
-local STEP      = 10    -- grid spacing, minimap units
-local PER_FRAME = 40    -- points probed per frame
-local SCAN_WAIT = 1     -- seconds between scans while moving
-local IDLE_WAIT = 2     -- and while standing still with something found
-local MAX_WAIT  = 8     -- longest wait after empty scans
-local RETRY     = 5     -- minimap hidden or no position: no event says when that ends
+local CHECK     = 1     -- seconds between looks at whether a scan is due, while one could be
+local RETRY     = 5     -- somewhere no scan can run (indoors, flying...): looked at again after
+local ASKED     = 2     -- seconds after a scan before one asked for (zoom, finder) may run
+local GROUP     = 20    -- yards: answers of one name closer than this are one node
+local PICKED    = 8     -- yards: after loot, a node this close was the one gathered
 local SQUARE_REACH = 1.42 -- a square minimap's corner, per its radius
 local MAX_LINES = 300   -- tooltip lines remembered
 local MAX_UNKNOWN = 200 -- unknown names remembered
-local KEY_SCAN  = "NodeRadarScan"
 local KEY_DRAW  = "NodeRadarDraw"
--- Grid points are keyed x * 1000 + y; these are the 8 neighbours.
-local AROUND = { -1001, -1000, -999, -1, 1, 999, 1000, 1001 }
+-- Why a scan did not start, when it is worth looking again soon (else after RETRY).
+local SOON = {
+    ["mouse button held"] = true, ["mouse over a window"] = true, ["NPC window open"] = true,
+    ["in combat"] = true, ["flying"] = true, ["already scanning"] = true, ["no map position"] = true,
+    ["aiming a spell"] = true, ["casting"] = true, ["looting"] = true, ["unit under the mouse"] = true,
+}
+-- A scan you cut short (a click, the cursor on the move, a window): none asked for after it,
+-- it would take the mouse from you again. What it did not read, the next one reads.
+local YOURS = {
+    ["mouse button held"] = true, ["mouse over a window"] = true, ["NPC window open"] = true,
+    ["mouse on the minimap"] = true, ["aiming a spell"] = true, ["mouse near the screen's edge"] = true,
+}
 
 -- The nodes.
 local MERGE     = 15    -- yards: a node seen again within this keeps its place, averaged
@@ -76,7 +89,6 @@ local SAMPLES = {
 -- State
 -- ============================================================
 local active   = false
-local failed   = false   -- a probe threw: no more scans until a /reload
 local inCombat = false
 local moving   = false
 local previewing = false
@@ -91,18 +103,24 @@ local finderOn = nil     -- nil until asked
 local skills = {}        -- [kind] = skill level, false if the game will not say
 local unknown, unknownCount = {}, 0   -- names seen on the minimap that are not nodes
 
-local scan    = nil      -- the scan in progress
+local hits     = {}      -- the running scan's answers: { key, map, mx, my, gray }
 local lastScan = nil     -- what the last one found, for /spack radar status
-local empties = 0        -- empty scans in a row
+local lastStart = nil    -- when and where the last scan started: { time, map, x, y }
+local pending  = false   -- something asks for a scan even standing still
+local unread   = false   -- places on the minimap never read: the next scan at the clock, even standing still
+local comparing = nil    -- /spack radar compare: when the copy beside the minimap goes; no scan till then
+local refusal  = nil     -- why the last try did not start
+local phase    = 0       -- the honeycomb's shift, turned each scan
 local scheduled = 0      -- the live timer's number: an older one does nothing
 local scanDue = nil      -- when it fires
-local grid, gridWidth, gridRound
+local useNodeSight = false -- NodeSight scans; its symbols are read instead
 
 local frame, ticker
 local frameOn = false
 local slots = {}         -- one per node on screen, the nearest first; each remembers
                          -- what it shows, so only changes reach the client
 local StartScan
+local Dismiss
 
 -- ============================================================
 -- The game
@@ -112,6 +130,28 @@ local function Facing()
     local facing = GetPlayerFacing()
     if _issecretvalue(facing) then return nil end
     return facing
+end
+
+-- A node seen on another map (you crossed into the next zone, or into a place with a map of
+-- its own): its place on this map, through the world's coordinates, so it still counts. False
+-- when the game cannot say (another continent); not asked again until the map changes.
+local function Rebase(node, map)
+    if node.map == map then return true end
+    if node.stuck == map then return false end
+    local toWorld, toMap, x, y = C_Map.GetWorldPosFromMapPos, C_Map.GetMapPosFromWorldPos, nil, nil
+    if toWorld and toMap and CreateVector2D then
+        local ok, continent, world = pcall(toWorld, node.map, CreateVector2D(node.mx, node.my))
+        if ok and continent and world and not _issecretvalue(continent) and not _issecretvalue(world) then
+            local okMap, _, place = pcall(toMap, continent, world, map)
+            if okMap and place and not _issecretvalue(place) then x, y = place:GetXY() end
+        end
+    end
+    if _issecretvalue(x) or _issecretvalue(y) or type(x) ~= "number" or type(y) ~= "number" then
+        node.stuck = map
+        return false
+    end
+    node.map, node.mx, node.my, node.stuck = map, x, y, nil
+    return true
 end
 
 -- Map, your place on it (0 to 1) and its size in yards; nil if unknown.
@@ -143,6 +183,23 @@ local function ReadFinders()
     end
     return false
 end
+
+-- Which finders are on, as text: a tracking change that is not about them (the scan turning
+-- the quest areas off and on) asks for no scan. "?" if the game will not say.
+local function FinderKinds()
+    local kinds = ""
+    for index = 1, C_Minimap.GetNumTrackingTypes() do
+        local info = C_Minimap.GetTrackingInfo(index)
+        if _issecretvalue(info) then return "?" end
+        if info then
+            local spell, on = info.spellID, info.active
+            if _issecretvalue(spell) or _issecretvalue(on) then return "?" end
+            if on and Data.finders[spell] then kinds = kinds .. Data.finders[spell] end
+        end
+    end
+    return kinds
+end
+local trackedKinds = nil
 
 -- Your skill for a kind of node, false if the game will not say.
 local function Skill(kind)
@@ -220,14 +277,9 @@ local function NoteUnknown(name)
     unknownCount = unknownCount + 1
 end
 
--- Moves the pretend mouse and records the nodes the tooltip names.
-local function Probe(left, bottom, scale, point, hits)
-    local x, y = floor(point / 1000) * STEP, point % 1000 * STEP
-    Minimap:UpdateMouseoverAtPoint((left + x) * scale, (bottom + y) * scale)
-    local data = C_TooltipInfo.GetMinimapMouseover()
-    if _issecretvalue(data) or not data then return end
+-- One minimap answer from the scan, and the map place it was read at: the nodes it names.
+local function Collect(data, map, mx, my)
     local rows = data.lines
-    if _issecretvalue(rows) or not rows then return end
     for i = 1, #rows do
         local row = rows[i]
         local text = row.leftText
@@ -238,14 +290,9 @@ local function Probe(left, bottom, scale, point, hits)
             for n = 1, #list do
                 local entry = list[n]
                 if NODES[entry.key] then
-                    local set = hits[entry.key]
-                    if not set then
-                        set = {}
-                        hits[entry.key] = set
-                    end
                     local gray = entry.gray
                     if gray == nil then gray = rowGray end
-                    set[point] = gray and "gray" or true
+                    hits[#hits + 1] = { key = entry.key, map = map, mx = mx, my = my, gray = gray and true or false }
                 else
                     NoteUnknown(entry.name)
                 end
@@ -255,42 +302,57 @@ local function Probe(left, bottom, scale, point, hits)
 end
 
 -- ============================================================
--- From points to nodes
+-- From answers to nodes
 -- ============================================================
--- Sets of touching points.
-local function Groups(set)
-    local groups, seen = {}, {}
-    for first in pairs(set) do
-        if not seen[first] then
-            seen[first] = true
-            local stack, keys = { first }, {}
-            while #stack > 0 do
-                local point = stack[#stack]
-                stack[#stack] = nil
-                keys[#keys + 1] = point
-                for i = 1, #AROUND do
-                    local other = point + AROUND[i]
-                    if set[other] and not seen[other] then
-                        seen[other] = true
-                        stack[#stack + 1] = other
-                    end
-                end
+-- Answers of one name within GROUP yards of a group's middle join it, or within the width a
+-- dot answers across when that is more (zoomed out, two points that see one dot can be 33
+-- yards apart); each group is a node, at the middle of its answers, in a cave when most of
+-- them said so.
+local function Gather(width, height)
+    local near = max(GROUP, Scan.Last().wide or 0)
+    local groups = {}
+    for _, hit in ipairs(hits) do
+        local into
+        for _, g in ipairs(groups) do
+            if g.key == hit.key and g.map == hit.map
+                and ((g.mx - hit.mx) * width) ^ 2 + ((g.my - hit.my) * height) ^ 2 < near * near then
+                into = g
+                break
             end
-            groups[#groups + 1] = keys
+        end
+        if into then
+            into.n = into.n + 1
+            into.mx = into.mx + (hit.mx - into.mx) / into.n
+            into.my = into.my + (hit.my - into.my) / into.n
+            if hit.gray then into.gray = into.gray + 1 end
+        else
+            groups[#groups + 1] = { key = hit.key, map = hit.map, mx = hit.mx, my = hit.my, n = 1, gray = hit.gray and 1 or 0 }
         end
     end
-    return groups
+    local found = {}
+    for _, g in ipairs(groups) do
+        lastId = lastId + 1
+        found[#found + 1] = {
+            key = g.key, info = NODES[g.key], map = g.map, count = 1, id = lastId,
+            gray = g.gray * 2 > g.n, mx = g.mx, my = g.my,
+        }
+    end
+    return found
 end
 
--- The node found again, so a place does not jump between scans and the radar stays on it.
+-- The node found again, so a place does not jump between scans and the radar stays on it:
+-- within MERGE yards, or the width a dot answers across when that is more (zoomed out, the
+-- next scan's shifted points see one dot that far from where the last ones did).
+-- Returns the old nodes it matched.
 local function Smooth(found, before, width, height)
+    local merge = max(MERGE, Scan.Last().wide or 0)
     local used = {}
     for _, node in ipairs(found) do
         local best, gap
         for _, old in ipairs(before) do
             if old.map == node.map and old.key == node.key and not used[old] then
                 local d = ((old.mx - node.mx) * width) ^ 2 + ((old.my - node.my) * height) ^ 2
-                if d < MERGE * MERGE and (not gap or d < gap) then best, gap = old, d end
+                if d < merge * merge and (not gap or d < gap) then best, gap = old, d end
             end
         end
         if best then
@@ -301,6 +363,7 @@ local function Smooth(found, before, width, height)
             node.count = n + 1
             node.id = best.id
             node.picked = best.picked
+            node.dismissed = best.dismissed
             if best == target then target = node end
         end
     end
@@ -311,6 +374,7 @@ local function Smooth(found, before, width, height)
         end
         if not still then target = nil end
     end
+    return used
 end
 
 -- ============================================================
@@ -321,7 +385,14 @@ end
 local function MakeSlot(index)
     local holder = CreateFrame("Frame", nil, frame)
     holder:SetSize(1, 1)
+    -- A right-click on an icon takes its node off the radar (WaypointUI's right-click to
+    -- clear). The left button passes through to the world, and no hover is taken.
     holder:EnableMouse(false)
+    holder:SetMouseClickEnabled(true)
+    if holder.SetPassThroughButtons then holder:SetPassThroughButtons("LeftButton") end
+    holder:SetScript("OnMouseDown", function(_, button)
+        if button == "RightButton" then Dismiss(index) end
+    end)
     holder:SetFrameLevel(frame:GetFrameLevel() + MAX_NODES + 1 - index)
     -- Both off the pixel grid: they move by fractions of a pixel, and a snapped texture
     -- would step a whole one at a time, and shimmer as it turns.
@@ -396,6 +467,7 @@ local function SizeIcon(slot, info, width)
     if slot.width == width and slot.height == height then return end
     slot.width, slot.height = width, height
     slot.icon:SetSize(width, height)
+    slot.holder:SetSize(width, height)   -- what a right-click hits
 end
 
 -- The icon and its arrow where the slot's angle puts them, if it moved: its node's way
@@ -497,7 +569,8 @@ end
 
 local function Eligible(node, db)
     local yards = node.yards
-    return yards and yards >= SKIP and yards <= range and not node.gray and Wanted(node.info, db)
+    return yards and yards >= SKIP and yards <= range and not node.gray and not node.dismissed
+        and Wanted(node.info, db)
 end
 
 -- The nearest; the one shown stays until another is clearly nearer, or the icon would
@@ -553,7 +626,7 @@ local function Follow()
     end
     for i = 1, #nodes do
         local node = nodes[i]
-        if node.map == map then
+        if Rebase(node, map) then
             local east, north = (node.mx - x) * width, (y - node.my) * height
             node.yards = sqrt(east * east + north * north)
             node.world = atan2(east, north)
@@ -565,9 +638,11 @@ local function Follow()
     local count = PickOthers(db)
     if target then
         Assign(1, target.info, target.yards, target.world, target.id)
+        slots[1].node = target
         for i = 1, count do
             local node = others[i]
             Assign(i + 1, node.info, node.yards, node.world, node.id)
+            slots[i + 1].node = node
         end
         HideSlots(count + 2)
         for i = 1, count + 1 do Place(slots[i], facing) end
@@ -577,6 +652,18 @@ local function Follow()
         HideFrame()
     end
     return true
+end
+
+-- The node an icon shows, right-clicked: off the radar, and kept off when a scan finds it
+-- again (it keeps the flag through Smooth); a scan that reads its place and finds it gone
+-- drops it as any other.
+Dismiss = function(index)
+    local slot = slots[index]
+    local node = slot and slot.on and slot.node
+    if previewing or not node then return end
+    node.dismissed = true
+    if target == node then target = nil end
+    Follow()
 end
 
 local function StartFollowing()
@@ -606,137 +693,161 @@ local function Schedule(delay)
     end)
 end
 
--- Something happened: scan within this many seconds, sooner if one is due anyway.
+-- Something happened: look within this many seconds, sooner if a look is due anyway.
 local function Wake(delay)
-    if not active or failed or scan then return end
+    if not active or useNodeSight or Scan.Running() then return end
     if scanDue and scanDue - GetTime() <= delay then return end
     Schedule(delay)
 end
 
-local function StopScan()
-    scan = nil
-    SP.Tick.Remove(KEY_SCAN)
-end
-
--- The grid's points turned into nodes, and the next scan's wait.
-local function FinishScan()
-    local hits, width = scan.hits, scan.width
-    StopScan()
+-- The minimap's reach, and the radar's: the setting or the minimap's, whichever is less.
+-- A square minimap shows further than its radius in the corners.
+local function SetRange()
     local radius = C_Minimap.GetViewRadius()
-    local map, x, y, mapWidth, mapHeight = MapPosition()
-    local rotating = C_CVar.GetCVar("rotateMinimap") == "1"
-    local facing = Facing()
-    if _issecretvalue(radius) or not radius or radius <= 0 or not map or (rotating and not facing) then
-        ClearNodes()
-        Schedule(RETRY)
-        return
-    end
-    -- A square minimap shows further than its radius in the corners.
-    viewRadius = gridRound and radius or radius * SQUARE_REACH
+    if _issecretvalue(radius) or not radius or radius <= 0 then return false end
+    viewRadius = MinimapIsRound() and radius or radius * SQUARE_REACH
     range = min(NR:GetDB().range, viewRadius)
-    local half = width / 2
-    local found = {}
-    for key, set in pairs(hits) do
-        for _, keys in ipairs(Groups(set)) do
-            local sumX, sumY, gray = 0, 0, 0
-            for i = 1, #keys do
-                local point = keys[i]
-                sumX = sumX + floor(point / 1000) * STEP
-                sumY = sumY + point % 1000 * STEP
-                if set[point] == "gray" then gray = gray + 1 end
-            end
-            local dx, dy = sumX / #keys - half, sumY / #keys - half
-            local yards = sqrt(dx * dx + dy * dy) / half * radius
-            local bearing = atan2(dx, dy)              -- clockwise from the minimap's top
-            local world = rotating and bearing - facing or bearing   -- clockwise from north
-            lastId = lastId + 1
-            found[#found + 1] = {
-                key = key, info = NODES[key], map = map, count = 1, id = lastId,
-                gray = gray * 2 > #keys,
-                mx = x + yards * sin(world) / mapWidth,
-                my = y - yards * cos(world) / mapHeight,
-            }
+    return true
+end
+
+-- The nodes found, smoothed onto the ones found again. An old node not found again stays
+-- while the scan did not read its place (a scan reads only part of the minimap) and it is
+-- within the minimap's reach; saw(node) says whether its place was read.
+local function TakeNodes(found, width, height, saw)
+    local map, x, y = MapPosition()
+    if map then
+        for _, node in ipairs(found) do Rebase(node, map) end
+        for _, old in ipairs(nodes) do Rebase(old, map) end
+    end
+    local used = Smooth(found, nodes, width, height)
+    local reach = viewRadius or 0
+    for _, old in ipairs(nodes) do
+        if not used[old] and old.map == map and not saw(old)
+            and ((old.mx - x) * width) ^ 2 + ((old.my - y) * height) ^ 2 <= reach * reach then
+            found[#found + 1] = old
         end
     end
-    Smooth(found, nodes, mapWidth, mapHeight)
     nodes = found
-    lastScan = #found .. " node(s)"
-    if found[1] then
-        empties = 0
-        Schedule(moving and SCAN_WAIT or IDLE_WAIT)
-    else
-        empties = empties + 1
-        Schedule(min(MAX_WAIT, SCAN_WAIT * 2 ^ empties))
-    end
-    if found[1] then StartFollowing() else ClearNodes() end
+    if nodes[1] then StartFollowing() else ClearNodes() end
 end
 
-local function ProbeSome()
-    local left, bottom = Minimap:GetLeft(), Minimap:GetBottom()
-    local scale = Minimap:GetEffectiveScale()
-    local points, hits = scan.points, scan.hits
-    local last = min(scan.next + PER_FRAME - 1, #points)
-    Minimap:SetUsingSoftCursor(true)
-    for i = scan.next, last do
-        Probe(left, bottom, scale, points[i], hits)
+-- A scan ended: its answers become the nodes. Then keep looking while one could be due.
+local function FinishScan(why)
+    local map, _, _, width, height = MapPosition()
+    if map and SetRange() then
+        local found = Gather(width, height)
+        lastScan = ("%d node(s), %s, %d answer(s)"):format(#found, tostring(why), #hits)
+        TakeNodes(found, width, height, function(old) return Scan.Saw(old.map, old.mx, old.my, width, height) end)
     end
-    Minimap:SetUsingSoftCursor(false)
-    scan.next = last + 1
+    hits = {}
+    -- Cut short by combat, a zoom, the minimap hidden: the next one is asked for, even
+    -- standing still. Not when you cut it short.
+    if why ~= "done" and why ~= "error" and not YOURS[why] then pending = true end
+    -- Places on the minimap never read yet (a scan reads a few): read on, even standing still,
+    -- a moment after a whole scan, at the usual clock after one you cut short.
+    if why ~= "error" and (Scan.Last().unread or 0) > 0 then
+        if why == "done" then pending = true else unread = true end
+    end
+    Wake(CHECK)
 end
 
--- A failed probe would fail again every frame with the pretend mouse left on. It is
--- reported once, the mouse is let go, and the radar stays off until a /reload.
-local function ScanStep()
-    if not scan then
-        SP.Tick.Remove(KEY_SCAN)
-        return
-    end
-    if not Minimap:IsVisible() or not Minimap:GetLeft() then
-        StopScan()
-        Schedule(RETRY)
-        return
-    end
-    if not xpcall(ProbeSome, geterrorhandler()) then
-        pcall(Minimap.SetUsingSoftCursor, Minimap, false)
-        failed = true
-        StopScan()
-        ClearNodes()
-        return
-    end
-    if scan.next > #scan.points then FinishScan() end
+-- A scan stopped from here: what it read still counts if the place it was read in is still
+-- there (combat), not after a loading screen.
+local function CutScan(why, keep)
+    if not Scan.Running() then return end
+    Scan.Stop(why)
+    if keep and hits[1] then FinishScan(why) else hits = {} end
 end
 
-local function BuildGrid(width)
-    local round = MinimapIsRound()
-    if grid and gridWidth == width and gridRound == round then return grid end
-    grid, gridWidth, gridRound = {}, width, round
-    local half = width / 2
-    for x = 0, floor(width / STEP) do
-        for y = 0, floor(width / STEP) do
-            local dx, dy = x * STEP - half, y * STEP - half
-            if not round or dx * dx + dy * dy <= half * half then
-                grid[#grid + 1] = x * 1000 + y
-            end
-        end
-    end
-    return grid
-end
-
-StartScan = function()
-    if not active or scan or inCombat then return end
+-- Is a scan due? Every scanYards walked, at most every scanSeconds; something that asked for
+-- one (a zoom, a finder, a loading screen, a scan cut short) waits only a moment, even
+-- standing still. A second value: the seconds until the clock allows one.
+local function Due(db)
+    if not active or useNodeSight or Scan.Running() or Scan.Failed() then return false end
+    if inCombat and not db.scanCombat then return false end
     if finderOn == nil then finderOn = ReadFinders() end
     if not finderOn then
         ClearNodes()
+        return false
+    end
+    if lastStart then
+        local wait = lastStart.time + (pending and ASKED or db.scanSeconds) - GetTime()
+        if wait > 0 then return false, wait end
+    end
+    if pending or unread or not lastStart then return true end
+    local map, x, y, width, height = MapPosition()
+    if not map then return false end
+    if map ~= lastStart.map then return true end
+    -- The yards walked are owed even if you stopped since: the scan runs once the clock allows.
+    local east, north = (x - lastStart.x) * width, (y - lastStart.y) * height
+    return east * east + north * north >= db.scanYards * db.scanYards
+end
+
+StartScan = function()
+    -- The copy beside the minimap for a screenshot: a scan would take it back.
+    if comparing then
+        refusal = "comparing the copy"
+        Schedule(CHECK)
         return
     end
-    if not Minimap:IsVisible() or not Minimap:GetLeft() or not MapPosition() then
-        ClearNodes()
-        Schedule(RETRY)
+    local db = NR:GetDB()
+    local due, wait = Due(db)
+    if not due then
+        if wait then
+            Schedule(wait)
+        elseif moving and active and not useNodeSight and not Scan.Running() and not Scan.Failed() then
+            Schedule(CHECK)
+        end
         return
     end
-    local width = Minimap:GetWidth()
-    scan = { points = BuildGrid(width), width = width, next = 1, hits = {} }
-    SP.Tick.Add(KEY_SCAN, ScanStep)
+    local map, x, y = MapPosition()
+    hits = {}
+    phase = (phase + 1) % 3
+    local why = Scan.Start({
+        position = MapPosition, read = Collect, done = FinishScan, nodes = nodes,
+        reach = db.range, round = MinimapIsRound(), combat = db.scanCombat, phase = phase,
+        -- The quest areas off for the scan: remembered, so a logout mid-scan puts them back.
+        questAreas = function(on) db._questOff = (not on) or nil end,
+    })
+    if why then
+        refusal = why
+        Schedule(SOON[why] and CHECK or RETRY)
+        return
+    end
+    refusal, pending, unread = nil, false, false
+    lastStart = { time = GetTime(), map = map, x = x, y = y }
+end
+
+-- NodeSight's symbols after each of its scans (NodeSightAPI.RegisterCallback): herbs and ore
+-- it names the way the radar knows them.
+local function FromNodeSight(symbols)
+    if not active or not useNodeSight or type(symbols) ~= "table" then return end
+    local map, _, _, width, height = MapPosition()
+    if not map or not SetRange() then return end
+    local found = {}
+    for _, symbol in ipairs(symbols) do
+        local key = type(symbol) == "table" and type(symbol.name) == "string" and Key(symbol.name)
+        if key and NODES[key] and symbol.map and symbol.x and symbol.y then
+            lastId = lastId + 1
+            found[#found + 1] = { key = key, info = NODES[key], map = symbol.map, mx = symbol.x, my = symbol.y,
+                count = 1, id = lastId, gray = false }
+        end
+    end
+    lastScan = ("%d node(s) from NodeSight"):format(#found)
+    TakeNodes(found, width, height, function() return true end)
+end
+
+local nodeSightHooked = false
+local function UseNodeSight()
+    local api = _G.NodeSightAPI
+    if type(api) ~= "table" or type(api.RegisterCallback) ~= "function" or type(api.GetSymbols) ~= "function" then
+        return false
+    end
+    if not nodeSightHooked then
+        nodeSightHooked = true
+        api.RegisterCallback(FromNodeSight)
+    end
+    return true
 end
 
 -- ============================================================
@@ -744,49 +855,136 @@ end
 -- ============================================================
 function NR:OnEnteringWorld()
     moving = false
-    if scan then StopScan() end
+    hits = {}
     ClearNodes()
-    Wake(1)
+    Scan.Forget()
+    pending = true
+    if useNodeSight then
+        local ok, symbols = pcall(NodeSightAPI.GetSymbols)
+        if ok then FromNodeSight(symbols) end
+        return
+    end
+    Wake(2)
+end
+
+function NR:OnLeavingWorld()
+    CutScan("loading screen", false)
 end
 
 function NR:OnCombatStart()
     inCombat = true
-    if scan then StopScan() end
+    if not self:GetDB().scanCombat then CutScan("combat", true) end
 end
 
+-- A fight over: one scan, even standing still (NodeSight 1.10 does the same). Nodes near a
+-- fight may have been gathered meanwhile, or come up.
 function NR:OnCombatEnd()
     inCombat = false
-    Wake(0.2)
+    pending = true
+    Wake(0.5)
 end
 
 function NR:OnStartedMoving()
     moving = true
-    empties = 0
-    Wake(SCAN_WAIT)
+    Wake(CHECK)
 end
 
 function NR:OnStoppedMoving()
     moving = false
 end
 
+-- A running scan sees the zoom itself, and ends; the next one is asked for either way.
 function NR:OnZoom()
-    empties = 0
-    Wake(0.2)
+    pending = true
+    Wake(0.3)
 end
 
+-- A finder switched on or off asks for a scan; another tracking change does not (the scan's
+-- own quest areas, off then on, would ask for one after every scan).
 function NR:OnTracking()
+    local kinds = FinderKinds()
+    if kinds == trackedKinds and kinds ~= "?" then return end
+    trackedKinds = kinds
     finderOn = nil
-    empties = 0
-    Wake(0.2)
+    Scan.Forget()
+    pending = true
+    Wake(0.3)
 end
 
+-- Loot closed: you may have just gathered the node you stand at. It goes, rather than a scan
+-- standing still; one still there comes back with the next scan.
 function NR:OnLootClosed()
-    empties = 0
-    Wake(0.2)
+    if not nodes[1] then return end
+    local kept, gone = {}, false
+    for _, node in ipairs(nodes) do
+        if node.yards and node.yards < PICKED then gone = true else kept[#kept + 1] = node end
+    end
+    if not gone then return end
+    nodes = kept
+    if target and not (target.yards and target.yards >= PICKED) then target = nil end
+    if nodes[1] then Follow() else ClearNodes() end
 end
 
 function NR:OnSkills()
     skills = {}
+end
+
+-- ============================================================
+-- /spack radar compare
+-- ============================================================
+-- The copy beside the real minimap, at the same size and with the tint a scan gives it, so a
+-- screenshot shows both at once: its tint was measured in one place only (Thousand Needles,
+-- by day), and in Tirisfal the real minimap was bluer. What decides the colour is printed
+-- with it. Again, or after 30 seconds, and it goes; no scan meanwhile.
+local COMPARE_KEY, COMPARE_SECONDS, COMPARE_GAP = "NodeRadarCompare", 30, 12
+
+local function StopCompare()
+    comparing = nil
+    SP.Tick.Remove(COMPARE_KEY)
+    if not Scan.Running() then Copy.Hide() end
+end
+
+local function CompareStep()
+    if not comparing or GetTime() > comparing then return StopCompare() end
+    local map, x, y, width, height = MapPosition()
+    Copy.Update(nodes, map, x, y, width, height)
+end
+
+function NR.Comparing() return comparing ~= nil end
+
+function NR.Compare()
+    if comparing then
+        StopCompare()
+        print("SuspicionsPack: node radar: the copy is gone.")
+        return
+    end
+    local can, why = Copy.CanDraw()
+    local map, x, y, width, height = MapPosition()
+    if not can or not map then
+        print(("SuspicionsPack: node radar: no copy here (%s)."):format(tostring(why or "no map position")))
+        return
+    end
+    -- A scan running has the minimap away: it comes home first.
+    CutScan("compare", true)
+    local left, bottom = Minimap:GetLeft(), Minimap:GetBottom()
+    if not left or _issecretvalue(left) or _issecretvalue(bottom) then
+        print("SuspicionsPack: node radar: no copy here (the minimap's place is not known).")
+        return
+    end
+    local w, h = Minimap:GetWidth(), Minimap:GetHeight()
+    Copy.Show(left - w - COMPARE_GAP, bottom, w, h, Minimap:GetFrameStrata(), Minimap:GetFrameLevel() + 1,
+        MinimapIsRound(), nodes, map, x, y, width, height)
+    Copy.SetAlpha(1)
+    comparing = GetTime() + COMPARE_SECONDS
+    SP.Tick.Add(COMPARE_KEY, CompareStep)
+    local _, tx, ty, u, v = Copy.Where()
+    local r, g, b = Copy.Tint()
+    local hours, minutes = 0, 0
+    if GetGameTime then hours, minutes = GetGameTime() end
+    print(("SuspicionsPack: node radar: the copy, left of the minimap, for %d s (/spack radar compare again takes it away). Take your screenshot now."):format(COMPARE_SECONDS))
+    print(("  %s, map %s, tile %d,%d at %.3f,%.3f, game time %02d:%02d, indoors %s, tint %.3f %.3f %.3f"):format(
+        tostring(GetZoneText and GetZoneText() or "?"), tostring(map), tx, ty, u, v,
+        tonumber(hours) or 0, tonumber(minutes) or 0, tostring(IsIndoors()), r, g, b))
 end
 
 -- ============================================================
@@ -827,17 +1025,30 @@ function NR:Activate()
     self:RegisterEvent("MINIMAP_UPDATE_TRACKING", "OnTracking")
     self:RegisterEvent("LOOT_CLOSED", "OnLootClosed")
     self:RegisterEvent("SKILL_LINES_CHANGED", "OnSkills")
+    self:RegisterEvent("PLAYER_LEAVING_WORLD", "OnLeavingWorld")
+    trackedKinds = FinderKinds()
+    -- A scan cut short by a logout left the quest areas off: back on.
+    local db = self:GetDB()
+    if db._questOff and Scan.QuestAreasBack() then db._questOff = nil end
+    useNodeSight = UseNodeSight()
     if previewing then DrawPreview() end
     StartFollowing()
-    Wake(0.2)
+    if useNodeSight then
+        local ok, symbols = pcall(NodeSightAPI.GetSymbols)
+        if ok then FromNodeSight(symbols) end
+    else
+        pending = true
+        Wake(0.2)
+    end
 end
 
 function NR:Deactivate()
     active, previewing, moving = false, false, false
-    empties = 0
     scheduled = scheduled + 1
-    scanDue = nil
-    if scan then StopScan() end
+    scanDue, unread = nil, false
+    if comparing then StopCompare() end
+    CutScan("off", false)
+    Scan.Forget()
     if ticker then ticker.Stop() end
     ClearNodes()
     if frame then HideFrame() end
@@ -863,17 +1074,35 @@ end
 -- /spack radar status: why an icon is or is not there, at the moment you ask.
 function NR.PrintStatus()
     local db = NR:GetDB()
-    print(("SuspicionsPack: node radar: on %s, failed %s, combat %s (no scan), finder %s, minimap shown %s"):format(
-        tostring(active), tostring(failed), tostring(inCombat),
-        tostring(finderOn), tostring(Minimap:IsVisible())))
+    print(("SuspicionsPack: node radar: on %s, %s, failed %s, combat %s, finder %s, minimap shown %s"):format(
+        tostring(active), useNodeSight and "NodeSight scans" or "own scan", tostring(Scan.Failed()),
+        tostring(inCombat), tostring(finderOn), tostring(Minimap:IsVisible())))
     print(("  reach %s yd, range setting %d yd, used %s yd, %d node(s), scanning %s, last scan %s"):format(
-        tostring(viewRadius), db.range, tostring(range), #nodes, tostring(scan ~= nil), tostring(lastScan)))
+        tostring(viewRadius), db.range, tostring(range), #nodes, tostring(Scan.Running()), tostring(lastScan)))
+    local info = Scan.Last()
+    if not useNodeSight then
+        print(("  last try: %s; last scan ended %s after %.1f s, %s point(s) placed, %s read, %s answered, %s again, minimap put back by another addon %s time(s); every %d yd, at most every %d s, in combat %s"):format(
+            refusal and ("not started, " .. refusal) or "started", tostring(info.ended), info.seconds or 0,
+            tostring(info.placed), tostring(info.reads), tostring(info.answers), tostring(info.again),
+            tostring(info.moved), db.scanYards, db.scanSeconds, tostring(db.scanCombat)))
+        print(("  points: %s to read of %s in reach, %s read lately, %s over known nodes, %s left for the next scans, %s never read"):format(
+            tostring(info.points), tostring(info.candidates), tostring(info.fresh), tostring(info.known),
+            tostring(info.left), tostring(info.unread)))
+        print(("  read empty, what had the mouse: %s"):format(tostring(info.empty)))
+        print(("  waited for: %s"):format(tostring(info.waits)))
+        print(("  moved by others during the scan: %s"):format(tostring(info.movers)))
+        print(("  pieces hidden: %s, shown again by their owners and hidden again: %s time(s)"):format(
+            tostring(info.hidden), tostring(info.reshown)))
+        print(("  pieces copied in their place: %s drawn, %s left out (%s)"):format(
+            tostring(info.copied), tostring(info.copiedOut), tostring(info.copiedWhy)))
+    end
     for i = 1, #nodes do
         local node = nodes[i]
-        print(("  %s: %s yd, skill %d of %s, cave %s%s"):format(
+        print(("  %s: %s yd, skill %d of %s, cave %s%s%s"):format(
             node.key, node.yards and floor(node.yards + 0.5) or "other map", node.info.skill,
             tostring(Skill(node.info.kind)), tostring(node.gray),
-            node == target and ", shown in front" or node.picked and ", shown" or ""))
+            node == target and ", shown in front" or node.picked and ", shown" or "",
+            node.dismissed and ", taken off by a right-click" or ""))
     end
 end
 
