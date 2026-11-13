@@ -4,6 +4,45 @@
 
 ---
 
+## 2026-11-13 — 2.16.0
+
+Release (« push ») des deux changements du jour : Buff thanks « Open world in a group » et le Menu de téléportation
+collé au menu Échap. Buff thanks inclus au choix de Cruzz. Version dans les trois .toc et `SP.VERSION`, entrées
+`SP.Changelog["2.16.0"]` validées par Cruzz, `.github/RELEASE_NOTES.md` réécrit.
+
+---
+
+## 2026-11-13 — Menu de téléportation : collé au menu Échap quand il bouge (Forever)
+
+Demande de Cruzz : « le teleport menu doit être ancré sur le menu ». La colonne n'était replacée qu'à l'ouverture et
+quand la taille du menu changeait. MoveAny rend le menu déplaçable (glisser) et redimensionnable (clic droit, échelle
+1,281 chez Cruzz) sans toucher à sa taille : la colonne restait où elle était.
+- **`Modules/TeleportMenu/TeleportMenu.lua`** : un `OnUpdate` sur le support de la colonne la recolle au menu à
+  chaque image tant qu'elle s'affiche, donc jamais menu fermé ni en combat. Elle n'est déplacée que si le coin du
+  menu a bougé. Toujours aucun `SetPoint` sur `GameMenuFrame` : des boutons sécurisés ancrés au menu le rendraient
+  protégé, et ce qui le déplace ou le redimensionne serait bloqué en combat. Le crochet `OnSizeChanged` part, le
+  suivi le couvre.
+- Tests : Teleport menu 169 → 183 (menu glissé, mis à l'échelle, immobile, fermé, première image d'un combat) ;
+  6 mutations rouges, témoin vert. Les autres suites comme sans le changement (`--orphans` rouge avant comme après,
+  clés des Datatexts). Copié dans `_forever_` : fichier modifié, `/reload` suffit. Pas encore essayé en jeu.
+
+---
+
+## 2026-11-13 — Buff thanks : Open world in a group
+
+Demande de Cruzz : une option à part pour l'open world en groupe. Avant, « Groups and dungeons » (`inGroup`)
+couvrait à la fois un groupe hors instance et les donjons.
+- **`Modules/BuffThanks/BuffThanks.lua`** : `BT.Where()` rend `inWorldGroup` pour un groupe hors instance. Un groupe
+  de raid reste sur `inRaid` partout, open world compris (sinon un world boss remercierait 40 joueurs par défaut).
+- **`Core.lua`** : `buffThanks.inWorldGroup = true` par défaut, comme l'ancien comportement.
+- **`Pages/BuffThanks.lua`** : carte Where : Open world, Open world in a group, Dungeons (ex « Groups and
+  dungeons »), Raids (« In a raid group, open world included. »), Battlegrounds and arenas.
+- **`Core/Migration.lua`** : `buffthanks_world_group_2026_11` : un profil qui avait coupé « Groups and dungeons »
+  garde aussi les groupes hors instance coupés.
+- Tests : Buff thanks 72 → 78, GUI retail 212 → 215 (migration) ; 7 mutations rouges, témoin vert.
+
+---
+
 ## 2026-11-12 — 2.15.0
 
 Release de ce qui suit depuis la 2.14.0 : visite guidée au premier install, Menu de téléportation et Simple item

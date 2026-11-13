@@ -11,7 +11,8 @@
 --   * They sit on UIParent, neither children of GameMenuFrame nor anchored to it. A protected
 --     frame protects its parent and what it is anchored to, and Blizzard (and EllesmereUI)
 --     resize the menu while it shows. The holder is placed by absolute coordinates read off
---     the menu, out of combat, when it opens and when its size changes.
+--     the menu, out of combat, and follows it every frame while it shows: MoveAny drags and
+--     scales the menu, EllesmereUI sets its height.
 --   * They only change out of combat. While the menu is open a state driver hides them in
 --     combat, the one thing that can. A menu closed during a fight is put away when the
 --     fight ends: the driver has to go, or it shows the holder again.
@@ -86,6 +87,7 @@ local hooked    = false     -- GameMenuFrame's scripts carry ours
 local driven    = false     -- the driver runs: the column is up
 local retried   = false     -- the menu had no position: one more try was made
 local onButtons = nil       -- what the buttons show, so they are only touched on a change
+local placedX, placedY      -- where the holder sits, so it is only moved on a change
 
 local holder
 local buttons = {}
@@ -196,12 +198,35 @@ local function ButtonPostClick(b)
     end
 end
 
+-- Top right of the column against the menu's top left, in UIParent's units. False until the
+-- menu has a position.
+local function Place()
+    local menu = GameMenuFrame
+    local left, top = menu:GetLeft(), menu:GetTop()
+    if not (left and top) then return false end
+    local scale = menu:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    local x, y = left * scale - GAP, top * scale
+    if x ~= placedX or y ~= placedY then
+        holder:ClearAllPoints()
+        holder:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", x, y)
+        placedX, placedY = x, y
+    end
+    return true
+end
+
+-- Runs while the column shows, so never with the menu closed. The driver hides it in combat,
+-- but its first check may come a frame after the lockdown.
+local function Follow()
+    if not InCombatLockdown() then Place() end
+end
+
 local function EnsureHolder()
     if holder then return end
     holder = CreateFrame("Frame", "SP_TeleportMenu", UIParent)
     holder:SetSize(1, 1)
     holder:SetFrameStrata("DIALOG")
     holder:Hide()
+    holder:SetScript("OnUpdate", SP.Perf.Wrap("TeleportMenu", "follow OnUpdate", Follow))
 end
 
 local function NewButton(index)
@@ -273,18 +298,6 @@ local function Layout(list, size)
     for _, b in ipairs(buttons) do
         if GameTooltip:IsOwned(b) then GameTooltip:Hide() end
     end
-end
-
--- Top right of the column against the menu's top left, in UIParent's units. False until the
--- menu has a position.
-local function Place()
-    local menu = GameMenuFrame
-    local left, top = menu:GetLeft(), menu:GetTop()
-    if not (left and top) then return false end
-    local scale = menu:GetEffectiveScale() / UIParent:GetEffectiveScale()
-    holder:ClearAllPoints()
-    holder:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", left * scale - GAP, top * scale)
-    return true
 end
 
 -- Allowed in combat: a cooldown frame is not protected.
@@ -367,12 +380,6 @@ function Sync()
     if list and list[1] then Open(list) else Close() end
 end
 
--- Its size moves its top: it is centred. Blizzard re-lays it out when the store's status
--- changes, and EllesmereUI sets its height.
-local function MenuResized()
-    if driven and not InCombatLockdown() then Place() end
-end
-
 -- HookScript only, once: a hook cannot be taken back, so each one asks `active` (in Sync).
 local function HookMenu()
     if hooked then return true end
@@ -380,7 +387,6 @@ local function HookMenu()
     hooked = true
     GameMenuFrame:HookScript("OnShow", SP.Perf.Wrap("TeleportMenu", "menu OnShow", function() Sync() end))
     GameMenuFrame:HookScript("OnHide", SP.Perf.Wrap("TeleportMenu", "menu OnHide", function() Sync() end))
-    GameMenuFrame:HookScript("OnSizeChanged", SP.Perf.Wrap("TeleportMenu", "menu OnSizeChanged", MenuResized))
     return true
 end
 

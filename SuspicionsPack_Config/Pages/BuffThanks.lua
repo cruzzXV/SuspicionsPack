@@ -19,7 +19,7 @@ GUI.RegisterPage{
     name     = "Buff thanks",
     category = "social",
     dbKey    = "buffThanks",
-    keywords = "buff thanks thank emote whisper cheer applaud congratulate stranger reaction delay",
+    keywords = "buff thanks thank emote whisper cheer applaud congratulate stranger reaction delay group party dungeon",
     tip      = "Thanks the players who buff you, with an emote aimed at them or a whisper, a moment later. Never in combat, and never twice in a row for the same player.",
     build = function(parent)
         local page, db, c1 = GUI.ModulePage(parent, "buffThanks", "BuffThanks",
@@ -58,9 +58,10 @@ GUI.RegisterPage{
         }
 
         local c2 = page:Card("Where", "Where buffs are thanked.")
-        c2:Toggle{ key = "inWorld", label = "Open world", desc = "Alone, outside instances." }
-        c2:Toggle{ key = "inGroup", label = "Groups and dungeons" }
-        c2:Toggle{ key = "inRaid",  label = "Raids" }
+        c2:Toggle{ key = "inWorld",      label = "Open world", desc = "Alone, outside instances." }
+        c2:Toggle{ key = "inWorldGroup", label = "Open world in a group", desc = "In a party, outside instances." }
+        c2:Toggle{ key = "inGroup",      label = "Dungeons" }
+        c2:Toggle{ key = "inRaid",       label = "Raids", desc = "In a raid group, open world included." }
         c2:Toggle{ key = "inPvP",   label = "Battlegrounds and arenas" }
 
         local c3 = page:Card("Emotes", "One of the ticked emotes, picked at random, never the same twice in a row.")

@@ -69,6 +69,8 @@ end
 -- ============================================================
 -- Where you are: the db key of the matching "where" switch
 -- ============================================================
+-- A raid group is "inRaid" wherever it is; a party outside instances is
+-- "inWorldGroup", a party in a dungeon or scenario "inGroup".
 function BT.Where()
     local inInstance, kind = IsInInstance()
     if inInstance then
@@ -77,7 +79,7 @@ function BT.Where()
         if kind == "party" or kind == "scenario" then return "inGroup" end
     end
     if IsInRaid() then return "inRaid" end
-    if IsInGroup() then return "inGroup" end
+    if IsInGroup() then return "inWorldGroup" end
     return "inWorld"
 end
 

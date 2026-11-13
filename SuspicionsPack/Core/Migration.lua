@@ -229,3 +229,16 @@ SP.RegisterMigration({
         end
     end,
 })
+
+-- Buff thanks: "Groups and dungeons" (inGroup) also covered parties in the open
+-- world, which now have their own switch (inWorldGroup, on by default). A
+-- profile that had switched groups off keeps open-world parties off too.
+SP.RegisterMigration({
+    id    = "buffthanks_world_group_2026_11",
+    scope = "profile",
+    body  = function(ctx)
+        local bt = ctx.profile.buffThanks
+        if type(bt) ~= "table" then return end
+        if bt.inGroup == false and bt.inWorldGroup == nil then bt.inWorldGroup = false end
+    end,
+})

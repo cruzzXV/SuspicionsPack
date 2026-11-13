@@ -11,7 +11,7 @@ local Perf = NS.Perf
 SP.Perf = Perf
 Perf.InstrumentAce(SP, "Core")
 local hooksecurefunc = Perf.HookFunc("Core")
-SP.VERSION = "2.15.0"
+SP.VERSION = "2.16.0"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -932,9 +932,10 @@ local DEFAULTS = {
             reaction = "emote",   -- "emote" | "whisper"
             delay    = 2,         -- seconds between the buff and the thanks
             cooldown = 60,        -- seconds before the same player is thanked again
-            inWorld  = true,
-            inGroup  = true,
-            inRaid   = false,
+            inWorld  = true,      -- alone, outside instances
+            inWorldGroup = true,  -- in a party, outside instances
+            inGroup  = true,      -- dungeons and scenarios
+            inRaid   = false,     -- raid groups, open world included
             inPvP    = false,
             emoteThank = true, emoteCheer = true, emoteApplaud = true, emoteCongratulate = true,
             emoteNod   = false, emoteKiss = false,
@@ -1573,6 +1574,10 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.16.0"] = {
+        { type = "new", text = "Buff thanks: parties in the open world have their own switch, Open world in a group, apart from Dungeons." },
+        { type = "fix", text = "WoW: Forever: the teleport menu stays against the game menu when you move or rescale it." },
+    },
     ["2.15.0"] = {
         { type = "new", text = "Added a setup tour, opened at the first login: each feature shown in action, with a switch. /spack setup brings it back." },
         { type = "new", text = "WoW: Forever: added a teleport menu beside the game menu: Hearthstone, Astral Recall, Moonglade, mage teleports and portals. Off by default, in Interface." },
