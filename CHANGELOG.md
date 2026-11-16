@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-11-16 — 2.16.1
+
+Release (« push and tag it ») du retrait du node radar. Correctif et non mineure : un retrait, comme le Nudge Tool en
+2.5.9. Version dans les trois .toc et `SP.VERSION`, entrée `SP.Changelog["2.16.1"]` validée par Cruzz (avec la
+raison), `.github/RELEASE_NOTES.md` réécrit. Rien à supprimer à la main pour les joueurs : les fichiers du radar
+étaient dans `SuspicionsPack`, et le `.toc` ne les charge plus même s'ils restent sur le disque.
+
+---
+
 ## 2026-11-16 — Node radar retiré, code et ressources archivés (Forever)
 
 Demande de Cruzz : « blizzard broke everyway for the node radar to work, keep the code and ressources somewhere but

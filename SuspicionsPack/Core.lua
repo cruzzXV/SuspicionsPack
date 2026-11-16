@@ -11,7 +11,7 @@ local Perf = NS.Perf
 SP.Perf = Perf
 Perf.InstrumentAce(SP, "Core")
 local hooksecurefunc = Perf.HookFunc("Core")
-SP.VERSION = "2.16.0"
+SP.VERSION = "2.16.1"
 SP.DEBUG   = false   -- set true in-game with: /run SuspicionsPack.DEBUG = true
 
 --- Conditional debug print. Usage: SP:Debug("AutoBuy", "price=", total)
@@ -1548,6 +1548,9 @@ SP.Changelog = {
     -- Write these for someone opening the window to see what changed, not for
     -- someone reading the diff. What the player gets, in their words; the why
     -- belongs in CHANGELOG.md. Avoid "--" in the text: it shows up literally.
+    ["2.16.1"] = {
+        { type = "change", text = "WoW: Forever: removed the node radar: the game no longer lets it find herbs and veins." },
+    },
     ["2.16.0"] = {
         { type = "new", text = "Buff thanks: parties in the open world have their own switch, Open world in a group, apart from Dungeons." },
         { type = "fix", text = "WoW: Forever: the teleport menu stays against the game menu when you move or rescale it." },
