@@ -88,12 +88,6 @@ Modules\ProfessionMarks\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType
 Modules\ProfessionMarks\ProfessionMarks.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 # Forever only, same gate: item bonus lines in short, from the client's own stat strings.
 Modules\SimpleStats\SimpleStats.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
-# Forever only, same gate: the nearest herb or vein around your character.
-Modules\NodeRadar\Data.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
-Modules\NodeRadar\Tiles.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
-Modules\NodeRadar\Copy.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
-Modules\NodeRadar\Scan.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
-Modules\NodeRadar\NodeRadar.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 # Forever only, same gate: a wheel of camp items near a campfire.
 Modules\CampWheel\CampWheel.lua [AllowLoadGameType camelot][ExcludeLoadGameType standard, classic]
 # Forever only, same gate: teleport buttons beside the game menu.

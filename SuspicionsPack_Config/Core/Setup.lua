@@ -34,9 +34,6 @@ local FEATURES = {
     datatexts        = { module = "Datatexts",        icon = "INV_Misc_Coin_01",
         text = "Small live bars for your gold, durability, the clock, your guild and your friends, and more. " ..
                "Hover one for details; most open their window when clicked. Put them anywhere." },
-    noderadar        = { module = "NodeRadar",        icon = "INV_Misc_Flower_02",
-        text = "The nearest herbs and veins circle your character like compass needles, each one turned " ..
-               "toward its node, the closest one larger. Needs Find Herbs or Find Minerals on." },
     teleportmenu     = { module = "TeleportMenu",     icon = "INV_Misc_Rune_01",
         text = "Press Escape and your teleports wait beside the game menu: Hearthstone, Astral Recall, " ..
                "Moonglade, engineering trinkets, and every mage teleport and portal you know. One click casts it." },
@@ -85,7 +82,6 @@ local SECTIONS = { forever = "Made for WoW: Forever", everyday = "Everyday", fin
 local STEPS = {
     { kind = "welcome", name = "Welcome" },
     { name = "Datatexts",        section = "forever", features = { "datatexts" } },
-    { name = "Node radar",       section = "forever", features = { "noderadar" } },
     { name = "Teleport menu",    section = "forever", features = { "teleportmenu" } },
     { name = "Campfire wheel",   section = "forever", features = { "campwheel" } },
     { name = "Macro Action Bar", section = "forever", features = { "macroactionbar" } },

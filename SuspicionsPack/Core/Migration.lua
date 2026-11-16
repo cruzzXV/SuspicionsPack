@@ -242,3 +242,14 @@ SP.RegisterMigration({
         if bt.inGroup == false and bt.inWorldGroup == nil then bt.inWorldGroup = false end
     end,
 })
+
+-- The node radar (Forever) was removed: the client no longer lets it find nodes.
+-- Its code is kept outside the addon; its saved section goes like the other
+-- removed modules'.
+SP.RegisterMigration({
+    id    = "prune_node_radar_2026_11",
+    scope = "profile",
+    body  = function(ctx)
+        ctx.profile.nodeRadar = nil
+    end,
+})

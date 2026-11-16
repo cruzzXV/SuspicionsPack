@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-11-16 — Node radar retiré, code et ressources archivés (Forever)
+
+Demande de Cruzz : « blizzard broke everyway for the node radar to work, keep the code and ressources somewhere but
+remove the module ». Même chemin que le Nudge Tool (2.5.9).
+- **Archivé** dans `Archive/NodeRadar/` (ignoré par git), aux mêmes chemins que dans le dépôt : `Modules/NodeRadar/`
+  (5 fichiers), `Media/NodeRadar/` (3), `Pages/NodeRadar.lua`, et les tests locaux `test_node_radar.lua` et
+  `gen_minimap_tiles.py`. `retrait.patch` contient tout ce qui a été enlevé des fichiers restants ; rejoué à l'envers,
+  il les rend identiques octet pour octet. `LISEZMOI.md` explique comment remettre le radar. Le tag `v2.16.0` garde
+  aussi le code.
+- **`SuspicionsPack.toc`, `SuspicionsPack_Config.toc`** : lignes du radar retirées.
+- **`Core.lua`** : réglages `nodeRadar` et commandes `/spack radar names|status|compare` retirés.
+- **`Core/Migration.lua`** : `prune_node_radar_2026_11` efface la section `nodeRadar` de chaque profil, comme pour les
+  autres modules retirés (sinon AceDB la réécrit sur le disque à chaque déconnexion).
+- **`Core/Setup.lua`, `Core/SetupScenes.lua`** : l'étape « Node radar » de la visite et sa scène partent (Forever :
+  10 étapes), avec `RoundIcon` qui ne servait qu'à elle.
+- Tests : suite par défaut 215 → 215 (−1 portrait du radar, +1 migration), Forever 202 → 180 (−22 : scène et page du
+  radar), `--radar` retiré. Les autres suites sont identiques ; `--orphans` est rouge avant comme après (clés des
+  Datatexts). Mutation de la migration rouge, témoin vert. Copié dans `_forever_` (installation identique à HEAD
+  avant la copie) : les dossiers `NodeRadar` y restent mais ne se chargent plus. Pas encore lancé en jeu.
+- À la prochaine release : une ligne `SP.Changelog` à valider avec Cruzz pour le retrait, et la note de version.
+
+---
+
 ## 2026-11-13 — 2.16.0
 
 Release (« push ») des deux changements du jour : Buff thanks « Open world in a group » et le Menu de téléportation

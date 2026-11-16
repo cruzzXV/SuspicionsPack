@@ -655,25 +655,6 @@ local DEFAULTS = {
             enabled = false,
             merge   = true,   -- one Spell Power line when damage and healing share a figure
         },
-        -- Forever only (see the .toc gate). The nearest herbs and veins, around your character.
-        nodeRadar = {
-            enabled      = false,
-            herbs        = true,
-            ore          = true,
-            range        = 200,
-            maxNodes     = 3,
-            scale        = 100,
-            otherScale   = 70,
-            orbit        = 70,
-            showDistance = true,
-            showArrows   = true,
-            arrowScale   = 100,
-            x            = 0,
-            y            = 0,
-            scanYards    = 30,     -- yards walked between scans
-            scanSeconds  = 10,     -- seconds between scans, at the least
-            scanCombat   = false,  -- scan in combat too
-        },
         -- Forever only (see the .toc gate). A wheel of camp items near a campfire.
         campWheel = {
             enabled = false,
@@ -1534,13 +1515,6 @@ function SP:ToggleGUI(input)
     if arg == "debug trail" or arg == "trail" then
         if SP.Cursor and SP.Cursor.DebugTrail then SP.Cursor.DebugTrail()
         else print("SuspicionsPack: the cursor module is not loaded.") end
-        return
-    end
-    if arg == "radar names" or arg == "radar status" or arg == "radar compare" then
-        if not SP.NodeRadar then print("SuspicionsPack: the node radar is only on WoW: Forever.")
-        elseif arg == "radar names" then SP.NodeRadar.PrintUnknown()
-        elseif arg == "radar compare" then SP.NodeRadar.Compare()
-        else SP.NodeRadar.PrintStatus() end
         return
     end
     if arg == "camp status" then

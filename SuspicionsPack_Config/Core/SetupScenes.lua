@@ -1,7 +1,7 @@
 -- SuspicionsPack Options — the setup tour's illustrations
 --
 -- One small animated scene per feature, drawn from the game's own icons and the
--- pack's art (the radar's arrow, the campfire wheel's ring, the Details bars), so
+-- pack's art (the campfire wheel's ring, the Details bars), so
 -- the player sees what a feature does before turning it on. Names come from the
 -- client where it has them (spells, items, the game menu), so a French client
 -- shows French names.
@@ -49,22 +49,6 @@ local function Icon(parent, icon, size)
     t:SetAllPoints()
     t:SetTexture(Path(icon))
     t:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    f.tex = t
-    return f
-end
-
--- A round icon, as the radar and the wheel draw theirs.
-local function RoundIcon(parent, icon, size)
-    local f = CreateFrame("Frame", nil, parent)
-    f:SetSize(size, size)
-    local t = f:CreateTexture(nil, "ARTWORK")
-    t:SetAllPoints()
-    t:SetTexture(Path(icon))
-    t:SetTexCoord(0.1, 0.9, 0.1, 0.9)
-    local mask = f:CreateMaskTexture()
-    mask:SetAllPoints()
-    mask:SetTexture(CIRCLE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-    t:AddMaskTexture(mask)
     f.tex = t
     return f
 end
@@ -192,8 +176,8 @@ local function Pointer(parent)
     return t
 end
 
--- Whether the player's minimap is round: the node radar's own test (NodeRadar.lua,
--- MinimapIsRound), EllesmereUI's minimap first, then the game's GetMinimapShape.
+-- Whether the player's minimap is round: EllesmereUI's minimap first, then the game's
+-- GetMinimapShape.
 local function MinimapIsRound()
     local ui = EllesmereUI
     local module = type(ui) == "table" and type(ui._ModuleNS) == "table" and ui._ModuleNS.EllesmereUIMinimap
@@ -340,94 +324,6 @@ Scenes.datatexts = function(h, w, ht)
             tick = 1
             for _, s in ipairs(slots) do s.fs:SetText(Compose(s.id)) end
         end
-    end
-end
-
--- The radar as its module draws it (Modules\NodeRadar\NodeRadar.lua, "The look"): these
--- values are the module's own, and tests/test_gui.lua checks them against it. The nodes
--- are its settings page's preview samples, drawn from its data (SP.NodeRadarData): the
--- minimap's own node symbol, greyed then tinted the node's colour, the arrow tinted the
--- same, halfway in, and the distance under the nearest only. Sizes, orbit, arrows and
--- distance follow the player's own radar settings.
-local RADAR = {
-    iconWidth = 30, arrowSize = 16, fontSize = 12,
-    arrow = MEDIA .. "NodeRadar\\arrow.png",
-    samples = { { "Peacebloom", 0.9 }, { "Copper Vein", 3 }, { "Silverleaf", 5 }, { "Tin Vein", 2 },
-                { "Mageroyal", 4 }, { "Silver Vein", 0.1 }, { "Briarthorn", 5.6 }, { "Iron Deposit", 1.5 } },
-}
-Scenes.radarLook = RADAR
-
-Scenes.noderadar = function(h, w, ht)
-    Ground(h)
-    local Data = SP.NodeRadarData
-    local db = SP.GetDB().nodeRadar or {}
-    local center = CreateFrame("Frame", nil, h)
-    center:SetSize(1, 1)
-    center:SetPoint("CENTER", h, "CENTER", -40, -4)
-
-    -- The minimap, with Find Herbs on. Nothing in the middle: the radar draws nothing
-    -- there, your character stands there.
-    local mm = CreateFrame("Frame", nil, h)
-    mm:SetSize(74, 74)
-    mm:SetPoint("TOPRIGHT", -18, -16)
-    Minimap(mm)
-    local finder = RoundIcon(mm, (C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(2383)) or "INV_Misc_Flower_02", 22)
-    finder:SetPoint("CENTER")
-    local fl = Text(h, 11, 0.55, 0.52, 0.47, SpellName(2383, "Find Herbs"))
-    fl:SetPoint("TOP", mm, "BOTTOM", 0, -8)
-    local walk = Text(h, 11, 0.64, 0.62, 0.58, "Walk, and the needles turn with you")
-    walk:SetPoint("BOTTOMLEFT", 14, 12)
-
-    local unit = GetLocale() == "frFR" and "m" or "yd"
-    local count = min(db.maxNodes or 3, #RADAR.samples)
-    local orbit = db.orbit or 70
-    local full = floor(RADAR.iconWidth * (db.scale or 100) / 100 + 0.5)
-    -- The arrows halfway from the middle to the nearest icon's edge, as the module has them.
-    local at = max(0, (orbit - full / 2) / 2)
-    local nodes = {}
-    for i = 1, count do
-        local sample = RADAR.samples[i]
-        local info = Data.nodes[Data.Key(sample[1])]
-        local symbol = Data.symbol[info.kind]
-        local part = i == 1 and 1 or (db.otherScale or 70) / 100
-        local width = floor(full * part + 0.5)
-        local icon = center:CreateTexture(nil, "ARTWORK", nil, i == 1 and 2 or 1)
-        icon:SetAtlas(symbol.atlas)
-        icon:SetDesaturated(true)
-        icon:SetVertexColor(info.r, info.g, info.b)
-        icon:SetSize(width, floor(width * symbol.ratio + 0.5))
-        local node = { way = sample[2], icon = icon }
-        if db.showArrows ~= false then
-            local size = floor(RADAR.arrowSize * (db.arrowScale or 100) / 100 * part + 0.5)
-            node.arrow = center:CreateTexture(nil, "ARTWORK")
-            node.arrow:SetTexture(RADAR.arrow)
-            node.arrow:SetSize(size, size)
-            node.arrow:SetVertexColor(info.r, info.g, info.b)
-        end
-        nodes[i] = node
-    end
-    local label
-    if db.showDistance ~= false and nodes[1] then
-        label = center:CreateFontString(nil, "OVERLAY")
-        SP.SetFontSafe(label, SP.ResolveFont("Expressway"), RADAR.fontSize, "OUTLINE")
-        label:SetPoint("TOP", nodes[1].icon, "BOTTOM", 0, -1)
-    end
-
-    -- You turn slowly from side to side and walk toward the nearest node.
-    local t = 0
-    return function(dt)
-        t = t + dt
-        local facing = sin(t * 0.5) * 0.6
-        for _, n in ipairs(nodes) do
-            local way = n.way + facing
-            local s, c = sin(way), cos(way)
-            n.icon:SetPoint("CENTER", center, "CENTER", orbit * s, orbit * c)
-            if n.arrow then
-                n.arrow:SetPoint("CENTER", center, "CENTER", at * s, at * c)
-                n.arrow:SetRotation(-way)
-            end
-        end
-        if label then label:SetText(floor(60 - (t * 7) % 52 + 0.5) .. " " .. unit) end
     end
 end
 
